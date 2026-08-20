@@ -4,17 +4,14 @@ import { getCourseAdministration } from '@/features/courses/interface'
 import {
   getStudentTutoringAllowance,
   getStudentReviewAllowance,
-  getAdminPolicyDefaults,
-  getAdminCourseOverrides,
+  getAdminAllowancePolicies,
 } from './allowances.api'
 
 export const allowancesKeys = {
   all: ['allowances'] as const,
   tutoring: (courseId: string) => ['allowances', 'tutoring', courseId] as const,
   reviews: (courseId: string) => ['allowances', 'reviews', courseId] as const,
-  adminDefaults: () => ['allowances', 'admin', 'defaults'] as const,
-  adminOverrides: (scope?: 'TUTORING' | 'REVIEW') =>
-    ['allowances', 'admin', 'overrides', scope ?? 'all'] as const,
+  adminPolicies: () => ['allowances', 'admin', 'policies'] as const,
 }
 
 export function studentTutoringAllowanceQueryOptions(courseId: string) {
@@ -33,19 +30,10 @@ export function studentReviewAllowanceQueryOptions(courseId: string) {
   })
 }
 
-export function adminPolicyDefaultsQueryOptions() {
+export function adminAllowancePoliciesQueryOptions() {
   return queryOptions({
-    queryKey: allowancesKeys.adminDefaults(),
-    queryFn: () => getAdminPolicyDefaults(),
-  })
-}
-
-export function adminCourseOverridesQueryOptions(
-  scope?: 'TUTORING' | 'REVIEW',
-) {
-  return queryOptions({
-    queryKey: allowancesKeys.adminOverrides(scope),
-    queryFn: () => getAdminCourseOverrides(scope),
+    queryKey: allowancesKeys.adminPolicies(),
+    queryFn: () => getAdminAllowancePolicies(),
   })
 }
 

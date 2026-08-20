@@ -1,13 +1,18 @@
-import { useState, useId } from 'react'
+import { useState, useId, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
+  AlertCircle,
+  CheckCircle2,
   Gauge,
+  Info,
+  Loader2,
   Plus,
   RotateCcw,
   ShieldCheck,
   Trash2,
 } from 'lucide-react'
 
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -38,13 +43,12 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  updateAdminPolicyDefault,
+  updateAdminDeploymentDefaults,
   setAdminCourseOverride,
   deleteAdminCourseOverride,
 } from '../allowances.api'
 import {
-  adminPolicyDefaultsQueryOptions,
-  adminCourseOverridesQueryOptions,
+  adminAllowancePoliciesQueryOptions,
   adminCoursesListQueryOptions,
   allowancesKeys,
 } from '../allowances.queries'
@@ -68,21 +72,25 @@ export function AdminAllowancePolicyPage({
   const scopeLabel = isTutoring ? 'Tutoring turns' : 'Review requests'
   const PageIcon = isTutoring ? Gauge : ShieldCheck
 
-  // Fetch policy defaults & overrides
-  const defaultsQuery = useQuery(adminPolicyDefaultsQueryOptions())
-  const overridesQuery = useQuery(adminCourseOverridesQueryOptions(scope))
+  // Fetch policy defaults & overrides from the unified policies endpoint
+  const policiesQuery = useQuery(adminAllowancePoliciesQueryOptions())
   const coursesQuery = useQuery(adminCoursesListQueryOptions())
 
-  const courses = coursesQuery.data?.courses ?? []
-  const currentDefaultObj = defaultsQuery.data?.find((d) => d.scope === scope)
-  const currentDefaultLimit =
-    currentDefaultObj?.defaultLimit ?? (isTutoring ? 30 : 3)
+  const courses = useMemo(
+    () => coursesQuery.data?.courses ?? [],
+    [coursesQuery.data?.courses],
+  )
+  const policies = policiesQuery.data
+  const currentDefaultLimit = isTutoring
+    ? (policies?.deploymentDefaults.tutoringLimit ?? 30)
+    : (policies?.deploymentDefaults.reviewLimit ?? 3)
 
   // Editing Default State
   const [editingDefault, setEditingDefault] = useState(false)
   const [defaultInputValue, setDefaultInputValue] =
     useState<number>(currentDefaultLimit)
   const [defaultError, setDefaultError] = useState<string | null>(null)
+  const [defaultSuccess, setDefaultSuccess] = useState<string | null>(null)
 
   // Add/Edit Override State
   const [overrideModalOpen, setOverrideModalOpen] = useState(false)
@@ -93,16 +101,23 @@ export function AdminAllowancePolicyPage({
 
   // Reset Allowance Dialog State
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(
+    null,
+  )
 
   // Update default mutation
   const updateDefaultMutation = useMutation({
-    mutationFn: (newLimit: number) => updateAdminPolicyDefault(scope, newLimit),
+    mutationFn: (newLimit: number) =>
+      updateAdminDeploymentDefaults(
+        isTutoring ? { tutoringLimit: newLimit } : { reviewLimit: newLimit },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: allowancesKeys.adminDefaults(),
+        queryKey: allowancesKeys.adminPolicies(),
       })
       setEditingDefault(false)
       setDefaultError(null)
+      setDefaultSuccess('Deployment default limit updated successfully.')
     },
     onError: (err: Error) => {
       setDefaultError(err.message || 'Failed to update policy default.')
@@ -112,10 +127,15 @@ export function AdminAllowancePolicyPage({
   // Set override mutation
   const setOverrideMutation = useMutation({
     mutationFn: () =>
-      setAdminCourseOverride(overrideCourseId, scope, overrideLimit),
+      setAdminCourseOverride(
+        overrideCourseId,
+        isTutoring
+          ? { tutoringLimit: overrideLimit }
+          : { reviewLimit: overrideLimit },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: allowancesKeys.adminOverrides(scope),
+        queryKey: allowancesKeys.adminPolicies(),
       })
       setOverrideModalOpen(false)
       setOverrideCourseId('')
@@ -128,11 +148,10 @@ export function AdminAllowancePolicyPage({
 
   // Delete override mutation
   const deleteOverrideMutation = useMutation({
-    mutationFn: (courseId: string) =>
-      deleteAdminCourseOverride(courseId, scope),
+    mutationFn: (courseId: string) => deleteAdminCourseOverride(courseId),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: allowancesKeys.adminOverrides(scope),
+        queryKey: allowancesKeys.adminPolicies(),
       })
     },
   })
@@ -142,6 +161,7 @@ export function AdminAllowancePolicyPage({
       setDefaultError(`Limit must be between ${minLimit} and ${maxLimit}.`)
       return
     }
+    setDefaultSuccess(null)
     updateDefaultMutation.mutate(defaultInputValue)
   }
 
@@ -157,8 +177,23 @@ export function AdminAllowancePolicyPage({
     setOverrideMutation.mutate()
   }
 
-  const overrides = overridesQuery.data ?? []
-  const selectedOverrideCourse = courses.find((c) => c.id === overrideCourseId)
+  const courseSelectItems = useMemo(
+    () =>
+      courses.map((course) => ({
+        value: course.id,
+        label: `${course.code} — ${course.title}`,
+      })),
+    [courses],
+  )
+
+  const relevantOverrides = useMemo(() => {
+    const allOverrides = policies?.courseOverrides ?? []
+    return allOverrides.filter((o) =>
+      isTutoring
+        ? o.tutoringLimit !== null && o.tutoringLimit !== undefined
+        : o.reviewLimit !== null && o.reviewLimit !== undefined,
+    )
+  }, [policies, isTutoring])
 
   return (
     <div className="space-y-4">
@@ -168,7 +203,7 @@ export function AdminAllowancePolicyPage({
           aria-hidden
         />
         <CardContent className="relative flex flex-col gap-6 px-5 py-5 sm:px-6">
-          {/* Header row with Reset Student Quota action */}
+          {/* Header row with Reset Student Allowance action */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <PageIcon className="size-4 text-muted-foreground" aria-hidden />
@@ -185,15 +220,37 @@ export function AdminAllowancePolicyPage({
               className="gap-1.5 self-start sm:self-auto"
             >
               <RotateCcw className="size-3.5" aria-hidden />
-              Reset Student Quota
+              Reset Student Allowance
             </Button>
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            {isTutoring
-              ? 'Configure deployment-wide default tutoring turns and per-course overrides for student AI tutoring.'
-              : 'Configure deployment-wide default manual review limits and per-course overrides.'}
-          </p>
+          <div className="rounded-lg border border-border bg-card/50 p-4 text-sm text-muted-foreground">
+            <div className="flex items-start gap-3">
+              <Info
+                className="mt-0.5 size-5 shrink-0 text-primary"
+                aria-hidden
+              />
+              <p className="leading-relaxed">
+                {isTutoring
+                  ? 'Configure deployment-wide default tutoring turns and per-course overrides for student AI tutoring. Allowance limits automatically reset daily at midnight (Africa/Cairo).'
+                  : 'Configure deployment-wide default manual review limits and per-course overrides. Instructor bounded automatic triggers do not consume student allowances.'}
+              </p>
+            </div>
+          </div>
+
+          {defaultSuccess && (
+            <Alert className="border-emerald-600/30 bg-emerald-600/10 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+              <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+              <AlertDescription>{defaultSuccess}</AlertDescription>
+            </Alert>
+          )}
+
+          {resetSuccessMessage && (
+            <Alert className="border-emerald-600/30 bg-emerald-600/10 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+              <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+              <AlertDescription>{resetSuccessMessage}</AlertDescription>
+            </Alert>
+          )}
 
           {/* Deployment Default Row */}
           <div
@@ -211,7 +268,7 @@ export function AdminAllowancePolicyPage({
                 </p>
               </div>
 
-              {defaultsQuery.isLoading ? (
+              {policiesQuery.isLoading ? (
                 <Skeleton className="h-9 w-32" />
               ) : editingDefault ? (
                 <div className="flex flex-col gap-2 sm:items-end">
@@ -237,7 +294,14 @@ export function AdminAllowancePolicyPage({
                       onClick={handleSaveDefault}
                       disabled={updateDefaultMutation.isPending}
                     >
-                      {updateDefaultMutation.isPending ? 'Saving...' : 'Save'}
+                      {updateDefaultMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-1.5 size-3 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        'Save'
+                      )}
                     </Button>
                     <Button
                       size="sm"
@@ -257,7 +321,10 @@ export function AdminAllowancePolicyPage({
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <Badge variant="secondary" className="text-xs font-semibold px-2.5 py-1">
+                  <Badge
+                    variant="secondary"
+                    className="text-xs font-semibold px-2.5 py-1"
+                  >
                     {currentDefaultLimit} / day
                   </Badge>
                   <Button
@@ -265,6 +332,7 @@ export function AdminAllowancePolicyPage({
                     variant="outline"
                     onClick={() => {
                       setDefaultInputValue(currentDefaultLimit)
+                      setDefaultSuccess(null)
                       setEditingDefault(true)
                     }}
                   >
@@ -305,39 +373,57 @@ export function AdminAllowancePolicyPage({
               </Button>
             </div>
 
-            {overridesQuery.isLoading ? (
+            {policiesQuery.isLoading ? (
               <Skeleton className="h-28 w-full rounded-xl" />
-            ) : overrides.length === 0 ? (
+            ) : relevantOverrides.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-6 text-center text-xs text-muted-foreground">
-                No course overrides configured. All courses follow the deployment
-                default limit ({currentDefaultLimit}).
+                No course overrides configured. All courses follow the
+                deployment default limit ({currentDefaultLimit}).
               </div>
             ) : (
               <div className="overflow-hidden rounded-xl border border-border/80 bg-background/50">
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="text-xs font-medium">Course</TableHead>
-                      <TableHead className="text-xs font-medium">Override Limit</TableHead>
-                      <TableHead className="text-xs font-medium">Last Updated</TableHead>
-                      <TableHead className="text-right text-xs font-medium">Actions</TableHead>
+                      <TableHead className="text-xs font-medium">
+                        Course
+                      </TableHead>
+                      <TableHead className="text-xs font-medium">
+                        Override Limit
+                      </TableHead>
+                      <TableHead className="text-xs font-medium">
+                        Last Updated
+                      </TableHead>
+                      <TableHead className="text-right text-xs font-medium">
+                        Actions
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {overrides.map((override) => {
+                    {relevantOverrides.map((override) => {
                       const course = courses.find(
                         (c) => c.id === override.courseId,
                       )
+                      const courseName = course
+                        ? `${course.code} — ${course.title}`
+                        : override.courseCode
+                          ? `${override.courseCode} — ${override.courseTitle ?? ''}`
+                          : override.courseId
+                      const limitValue = isTutoring
+                        ? override.tutoringLimit
+                        : override.reviewLimit
+
                       return (
                         <TableRow key={override.id}>
                           <TableCell className="text-sm font-medium text-foreground">
-                            {course
-                              ? `${course.code} — ${course.title}`
-                              : override.courseId}
+                            {courseName}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="font-mono text-xs">
-                              {override.overrideLimit} / day
+                            <Badge
+                              variant="outline"
+                              className="font-mono text-xs"
+                            >
+                              {limitValue} / day
                             </Badge>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
@@ -381,34 +467,37 @@ export function AdminAllowancePolicyPage({
 
           <div className="space-y-4 py-2">
             {overrideError && (
-              <div className="rounded-lg bg-destructive/15 p-3 text-xs text-destructive">
-                {overrideError}
-              </div>
+              <Alert variant="destructive">
+                <AlertCircle className="size-4" />
+                <AlertDescription>{overrideError}</AlertDescription>
+              </Alert>
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor={overrideCourseSelectId} className="text-xs font-medium">
+              <Label
+                htmlFor={overrideCourseSelectId}
+                className="text-xs font-medium"
+              >
                 Course
               </Label>
               <Select
                 value={overrideCourseId}
-                onValueChange={(value) => setOverrideCourseId(value ?? '')}
+                items={courseSelectItems}
+                onValueChange={(value) => {
+                  if (value) setOverrideCourseId(value)
+                }}
               >
                 <SelectTrigger
                   id={overrideCourseSelectId}
                   aria-label="Select course"
                   className="w-full"
                 >
-                  <SelectValue placeholder="Select course">
-                    {selectedOverrideCourse
-                      ? `${selectedOverrideCourse.code} — ${selectedOverrideCourse.title}`
-                      : undefined}
-                  </SelectValue>
+                  <SelectValue placeholder="Select course" />
                 </SelectTrigger>
                 <SelectContent>
-                  {courses.map((course) => (
-                    <SelectItem key={course.id} value={course.id}>
-                      {course.code} — {course.title}
+                  {courseSelectItems.map((course) => (
+                    <SelectItem key={course.value} value={course.value}>
+                      {course.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -416,7 +505,10 @@ export function AdminAllowancePolicyPage({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor={overrideLimitInputId} className="text-xs font-medium">
+              <Label
+                htmlFor={overrideLimitInputId}
+                className="text-xs font-medium"
+              >
                 Daily Limit ({scopeLabel})
               </Label>
               <Input
@@ -447,7 +539,14 @@ export function AdminAllowancePolicyPage({
               onClick={handleSaveOverride}
               disabled={setOverrideMutation.isPending}
             >
-              {setOverrideMutation.isPending ? 'Saving...' : 'Save Override'}
+              {setOverrideMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-1.5 size-3 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Override'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -463,6 +562,11 @@ export function AdminAllowancePolicyPage({
           code: c.code,
           title: c.title,
         }))}
+        onSuccess={() => {
+          setResetSuccessMessage(
+            'Student allowance has been reset successfully.',
+          )
+        }}
       />
     </div>
   )

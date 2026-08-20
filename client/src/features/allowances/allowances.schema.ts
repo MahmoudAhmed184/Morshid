@@ -7,48 +7,65 @@ export const policyDayWindowSchema = z.object({
 })
 export type PolicyDayWindow = z.infer<typeof policyDayWindowSchema>
 
-export const studentAllowanceSchema = z.object({
-  limit: z.number(),
-  used: z.number(),
-  remaining: z.number(),
-  resetAt: z.string(),
-  policyTimeZone: z.string(),
-  scope: z.enum(['TUTORING', 'REVIEW']).optional(),
-  policyDayWindow: policyDayWindowSchema.optional(),
-})
+export const studentAllowanceSchema = z
+  .object({
+    limit: z.number(),
+    used: z.number(),
+    remaining: z.number(),
+    resetAt: z.string().optional(),
+    policyTimeZone: z.string().optional(),
+    scope: z.enum(['TUTORING', 'REVIEW']).optional(),
+    policyDayWindow: policyDayWindowSchema.optional(),
+  })
+  .transform((data) => {
+    const policyTimeZone =
+      data.policyTimeZone ?? data.policyDayWindow?.timeZone ?? 'Africa/Cairo'
+    const resetAt =
+      data.resetAt ??
+      data.policyDayWindow?.end ??
+      new Date(Date.now() + 86400000).toISOString()
+    return {
+      limit: data.limit,
+      used: data.used,
+      remaining: data.remaining,
+      resetAt,
+      policyTimeZone,
+      scope: data.scope,
+      policyDayWindow: data.policyDayWindow,
+    }
+  })
 export type StudentAllowance = z.infer<typeof studentAllowanceSchema>
 
-export const adminPolicyDefaultSchema = z.object({
-  scope: z.enum(['TUTORING', 'REVIEW']),
-  defaultLimit: z.number(),
+export const deploymentDefaultsSchema = z.object({
+  id: z.string().optional().default('default'),
+  tutoringLimit: z.number(),
+  reviewLimit: z.number(),
   updatedAt: z.string(),
 })
-export type AdminPolicyDefault = z.infer<typeof adminPolicyDefaultSchema>
+export type DeploymentDefaults = z.infer<typeof deploymentDefaultsSchema>
 
-export const adminPolicyDefaultsResponseSchema = z.object({
-  defaults: z.array(adminPolicyDefaultSchema),
-})
-export type AdminPolicyDefaultsResponse = z.infer<
-  typeof adminPolicyDefaultsResponseSchema
->
-
-export const adminCourseOverrideSchema = z.object({
+export const coursePolicyOverrideSchema = z.object({
   id: z.string(),
   courseId: z.string(),
-  scope: z.enum(['TUTORING', 'REVIEW']),
-  overrideLimit: z.number(),
+  courseCode: z.string().optional(),
+  courseTitle: z.string().optional(),
+  tutoringLimit: z.number().nullable().optional(),
+  reviewLimit: z.number().nullable().optional(),
+  createdAt: z.string().optional(),
   updatedAt: z.string(),
 })
-export type AdminCourseOverride = z.infer<typeof adminCourseOverrideSchema>
+export type CoursePolicyOverride = z.infer<typeof coursePolicyOverrideSchema>
 
-export const adminCourseOverridesResponseSchema = z.object({
-  overrides: z.array(adminCourseOverrideSchema),
+export const allowancePoliciesResponseSchema = z.object({
+  deploymentDefaults: deploymentDefaultsSchema,
+  courseOverrides: z.array(coursePolicyOverrideSchema),
+  policyTimeZone: z.string(),
 })
-export type AdminCourseOverridesResponse = z.infer<
-  typeof adminCourseOverridesResponseSchema
+export type AllowancePoliciesResponse = z.infer<
+  typeof allowancePoliciesResponseSchema
 >
 
-export const adminAllowanceResetSchema = z.object({
+export const allowanceResetRecordSchema = z.object({
   id: z.string(),
   studentId: z.string(),
   courseId: z.string(),
@@ -58,11 +75,4 @@ export const adminAllowanceResetSchema = z.object({
   createdAt: z.string().optional(),
   resetAt: z.string().optional(),
 })
-export type AdminAllowanceReset = z.infer<typeof adminAllowanceResetSchema>
-
-export const adminAllowanceResetResponseSchema = z.object({
-  reset: adminAllowanceResetSchema.optional(),
-})
-export type AdminAllowanceResetResponse = z.infer<
-  typeof adminAllowanceResetResponseSchema
->
+export type AllowanceResetRecord = z.infer<typeof allowanceResetRecordSchema>

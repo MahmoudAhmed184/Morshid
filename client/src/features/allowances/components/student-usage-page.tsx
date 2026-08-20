@@ -1,15 +1,20 @@
-import { useState, useId } from 'react'
+import { useState, useId, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Activity,
+  AlertCircle,
   Bot,
   CheckCircle2,
   Clock,
+  Info,
+  RotateCw,
   Sparkles,
   UserCheck,
 } from 'lucide-react'
 
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import {
@@ -49,7 +54,7 @@ export function StudentUsagePage() {
   const courseSelectId = useId()
 
   const coursesQuery = useQuery(studentCourseAccessQueryOptions(studentId))
-  const courses = coursesQuery.data ?? []
+  const courses = useMemo(() => coursesQuery.data ?? [], [coursesQuery.data])
 
   const [selectedCourseId, setSelectedCourseId] = useState<string>('')
   const activeCourseId = selectedCourseId || courses[0]?.id || ''
@@ -63,41 +68,87 @@ export function StudentUsagePage() {
 
   const activeCourse = courses.find((c) => c.id === activeCourseId)
 
+  const courseSelectItems = useMemo(
+    () =>
+      courses.map((course) => ({
+        value: course.id,
+        label: `${course.code} — ${course.title}`,
+      })),
+    [courses],
+  )
+
   if (coursesQuery.isLoading) {
     return (
-      <Card className="relative -mx-4 overflow-hidden rounded-none border-x-0 py-0 sm:mx-0 sm:rounded-xl sm:border-x">
-        <CardContent className="relative flex flex-col gap-6 px-5 py-5 sm:px-6">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-9 w-40" />
-          </div>
-          <Skeleton className="h-16 w-full" />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Skeleton className="h-44 rounded-xl" />
-            <Skeleton className="h-44 rounded-xl" />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <Card className="relative -mx-4 overflow-hidden rounded-none border-x-0 py-0 sm:mx-0 sm:rounded-xl sm:border-x">
+          <CardContent className="relative flex flex-col gap-6 px-5 py-5 sm:px-6">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-9 w-40" />
+            </div>
+            <Skeleton className="h-16 w-full rounded-lg" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Skeleton className="h-44 rounded-xl" />
+              <Skeleton className="h-44 rounded-xl" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (coursesQuery.isError) {
+    return (
+      <div className="space-y-4">
+        <Card className="relative -mx-4 overflow-hidden rounded-none border-x-0 py-0 sm:mx-0 sm:rounded-xl sm:border-x">
+          <CardContent className="relative flex flex-col gap-6 px-5 py-5 sm:px-6">
+            <div className="flex items-center gap-2">
+              <Activity className="size-4 text-muted-foreground" aria-hidden />
+              <h2 className="text-base font-medium text-foreground">
+                Usage & Allowances
+              </h2>
+            </div>
+            <Alert variant="destructive">
+              <AlertCircle className="size-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <span>Failed to load course information.</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void coursesQuery.refetch()}
+                  className="h-7 text-xs"
+                >
+                  <RotateCw className="mr-1.5 size-3" />
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 
   if (courses.length === 0) {
     return (
-      <Card className="relative -mx-4 overflow-hidden rounded-none border-x-0 py-0 sm:mx-0 sm:rounded-xl sm:border-x">
-        <CardContent className="relative flex flex-col gap-6 px-5 py-5 sm:px-6">
-          <div className="flex items-center gap-2">
-            <Activity className="size-4 text-muted-foreground" aria-hidden />
-            <h2 className="text-base font-medium text-foreground">
-              Usage & Allowances
-            </h2>
-          </div>
-          <div className="rounded-lg border border-dashed border-border p-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              You are not currently enrolled in any courses with active allowances.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <Card className="relative -mx-4 overflow-hidden rounded-none border-x-0 py-0 sm:mx-0 sm:rounded-xl sm:border-x">
+          <CardContent className="relative flex flex-col gap-6 px-5 py-5 sm:px-6">
+            <div className="flex items-center gap-2">
+              <Activity className="size-4 text-muted-foreground" aria-hidden />
+              <h2 className="text-base font-medium text-foreground">
+                Usage & Allowances
+              </h2>
+            </div>
+            <div className="rounded-lg border border-dashed border-border p-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                You are not currently enrolled in any courses with active
+                allowances.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 
@@ -151,38 +202,51 @@ export function StudentUsagePage() {
                 </Label>
                 <Select
                   value={activeCourseId}
-                  onValueChange={(value) => setSelectedCourseId(value ?? '')}
+                  items={courseSelectItems}
+                  onValueChange={(value) => {
+                    if (value) setSelectedCourseId(value)
+                  }}
                 >
                   <SelectTrigger
                     id={courseSelectId}
                     size="sm"
-                    className="w-[200px] sm:w-[240px]"
+                    className="w-[200px] sm:w-[260px]"
                     aria-label="Select course"
                   >
-                    <SelectValue placeholder="Select course">
-                      {activeCourse ? `${activeCourse.code}` : undefined}
-                    </SelectValue>
+                    <SelectValue placeholder="Select course" />
                   </SelectTrigger>
                   <SelectContent>
-                    {courses.map((course) => (
-                      <SelectItem key={course.id} value={course.id}>
-                        {course.code} — {course.title}
+                    {courseSelectItems.map((course) => (
+                      <SelectItem key={course.value} value={course.value}>
+                        {course.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             ) : activeCourse ? (
-              <Badge variant="outline" className="self-start sm:self-auto">
+              <Badge
+                variant="secondary"
+                className="self-start sm:self-auto font-normal text-xs"
+              >
                 {activeCourse.code}: {activeCourse.title}
               </Badge>
             ) : null}
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            Daily interaction allowances allocated for your enrolled courses.
-            Quotas automatically refresh each Policy Day at midnight.
-          </p>
+          <div className="rounded-lg border border-border bg-card/50 p-4 text-sm text-muted-foreground">
+            <div className="flex items-start gap-3">
+              <Info
+                className="mt-0.5 size-5 shrink-0 text-primary"
+                aria-hidden
+              />
+              <p className="leading-relaxed">
+                Daily interaction allowances allocated for your enrolled
+                courses. Quotas automatically refresh each Policy Day at
+                midnight ({timeZoneStr}).
+              </p>
+            </div>
+          </div>
 
           {/* Cards Grid */}
           <div className="grid gap-4 sm:grid-cols-2">
@@ -239,6 +303,18 @@ export function StudentUsagePage() {
 
                 {tutoringQuery.isLoading ? (
                   <Skeleton className="h-12 w-full" />
+                ) : tutoringQuery.isError ? (
+                  <div className="flex items-center justify-between rounded-lg bg-destructive/10 p-2.5 text-xs text-destructive">
+                    <span>Unable to load tutoring allowance.</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => void tutoringQuery.refetch()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
                 ) : tutoring ? (
                   <div className="space-y-2">
                     <div className="flex items-baseline justify-between">
@@ -268,11 +344,7 @@ export function StudentUsagePage() {
                       />
                     </div>
                   </div>
-                ) : (
-                  <p className="text-xs text-destructive">
-                    Unable to load tutoring allowance.
-                  </p>
-                )}
+                ) : null}
               </div>
 
               <div className="border-t border-border/40 pt-2.5 text-[11px] leading-relaxed text-muted-foreground">
@@ -337,6 +409,18 @@ export function StudentUsagePage() {
 
                 {reviewQuery.isLoading ? (
                   <Skeleton className="h-12 w-full" />
+                ) : reviewQuery.isError ? (
+                  <div className="flex items-center justify-between rounded-lg bg-destructive/10 p-2.5 text-xs text-destructive">
+                    <span>Unable to load review allowance.</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => void reviewQuery.refetch()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
                 ) : review ? (
                   <div className="space-y-2">
                     <div className="flex items-baseline justify-between">
@@ -366,11 +450,7 @@ export function StudentUsagePage() {
                       />
                     </div>
                   </div>
-                ) : (
-                  <p className="text-xs text-destructive">
-                    Unable to load review allowance.
-                  </p>
-                )}
+                ) : null}
               </div>
 
               <div className="border-t border-border/40 pt-2.5 text-[11px] leading-relaxed text-muted-foreground">

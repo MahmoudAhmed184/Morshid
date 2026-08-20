@@ -68,6 +68,8 @@ describe('StudentUsagePage', () => {
               used: 5,
               limit: 30,
               remaining: 25,
+              resetAt: '2026-08-21T00:00:00.000Z',
+              policyTimeZone: 'Africa/Cairo',
               policyDayWindow: {
                 start: '2026-08-20T00:00:00.000Z',
                 end: '2026-08-21T00:00:00.000Z',
@@ -83,6 +85,8 @@ describe('StudentUsagePage', () => {
               used: 1,
               limit: 3,
               remaining: 2,
+              resetAt: '2026-08-21T00:00:00.000Z',
+              policyTimeZone: 'Africa/Cairo',
               policyDayWindow: {
                 start: '2026-08-20T00:00:00.000Z',
                 end: '2026-08-21T00:00:00.000Z',

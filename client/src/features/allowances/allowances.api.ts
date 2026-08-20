@@ -5,16 +5,17 @@ import {
 import type { ApiFetchOptions } from '@/features/auth/session/interface/authenticated-api-client'
 import {
   studentAllowanceSchema,
-  adminPolicyDefaultsResponseSchema,
-  adminCourseOverridesResponseSchema,
-  adminCourseOverrideSchema,
-  adminAllowanceResetSchema,
+  allowancePoliciesResponseSchema,
+  deploymentDefaultsSchema,
+  coursePolicyOverrideSchema,
+  allowanceResetRecordSchema,
 } from './allowances.schema'
 import type {
   StudentAllowance,
-  AdminPolicyDefault,
-  AdminCourseOverride,
-  AdminAllowanceReset,
+  AllowancePoliciesResponse,
+  DeploymentDefaults,
+  CoursePolicyOverride,
+  AllowanceResetRecord,
 } from './allowances.schema'
 
 function jsonRequestOptions(
@@ -55,62 +56,47 @@ export async function getStudentReviewAllowance(
   return studentAllowanceSchema.parse(response)
 }
 
-export async function getAdminPolicyDefaults(
+export async function getAdminAllowancePolicies(
   options: ApiFetchOptions = {},
-): Promise<AdminPolicyDefault[]> {
-  const response = await apiJson<unknown>('/api/v1/admin/allowances/defaults', {
+): Promise<AllowancePoliciesResponse> {
+  const response = await apiJson<unknown>('/api/v1/admin/allowances/policies', {
     ...options,
     method: 'GET',
   })
-  return adminPolicyDefaultsResponseSchema.parse(response).defaults
+  return allowancePoliciesResponseSchema.parse(response)
 }
 
-export async function updateAdminPolicyDefault(
-  scope: 'TUTORING' | 'REVIEW',
-  defaultLimit: number,
+export async function updateAdminDeploymentDefaults(
+  input: { tutoringLimit?: number; reviewLimit?: number },
   options: ApiFetchOptions = {},
-): Promise<AdminPolicyDefault> {
+): Promise<DeploymentDefaults> {
   const response = await apiJson<unknown>(
-    `/api/v1/admin/allowances/defaults/${scope}`,
-    jsonRequestOptions('PATCH', { defaultLimit }, options),
+    '/api/v1/admin/allowances/policies/defaults',
+    jsonRequestOptions('PATCH', input, options),
   )
-  return response as AdminPolicyDefault
-}
-
-export async function getAdminCourseOverrides(
-  scope?: 'TUTORING' | 'REVIEW',
-  options: ApiFetchOptions = {},
-): Promise<AdminCourseOverride[]> {
-  const query = scope ? `?scope=${scope}` : ''
-  const response = await apiJson<unknown>(
-    `/api/v1/admin/allowances/overrides${query}`,
-    { ...options, method: 'GET' },
-  )
-  return adminCourseOverridesResponseSchema.parse(response).overrides
+  return deploymentDefaultsSchema.parse(response)
 }
 
 export async function setAdminCourseOverride(
   courseId: string,
-  scope: 'TUTORING' | 'REVIEW',
-  overrideLimit: number,
+  input: { tutoringLimit?: number | null; reviewLimit?: number | null },
   options: ApiFetchOptions = {},
-): Promise<AdminCourseOverride> {
+): Promise<CoursePolicyOverride> {
   const response = await apiJson<unknown>(
-    `/api/v1/admin/allowances/overrides/${courseId}/${scope}`,
-    jsonRequestOptions('PUT', { overrideLimit }, options),
+    `/api/v1/admin/allowances/policies/courses/${encodeURIComponent(courseId)}`,
+    jsonRequestOptions('PUT', input, options),
   )
-  return adminCourseOverrideSchema.parse(response)
+  return coursePolicyOverrideSchema.parse(response)
 }
 
 export async function deleteAdminCourseOverride(
   courseId: string,
-  scope: 'TUTORING' | 'REVIEW',
   options: ApiFetchOptions = {},
 ): Promise<void> {
-  await apiFetch(`/api/v1/admin/allowances/overrides/${courseId}/${scope}`, {
-    ...options,
-    method: 'DELETE',
-  })
+  await apiFetch(
+    `/api/v1/admin/allowances/policies/courses/${encodeURIComponent(courseId)}`,
+    { ...options, method: 'DELETE' },
+  )
 }
 
 export async function adminResetAllowance(
@@ -122,10 +108,10 @@ export async function adminResetAllowance(
     reason: string
   },
   options: ApiFetchOptions = {},
-): Promise<AdminAllowanceReset> {
+): Promise<AllowanceResetRecord> {
   const response = await apiJson<unknown>(
     '/api/v1/admin/allowances/resets',
     jsonRequestOptions('POST', input, options),
   )
-  return adminAllowanceResetSchema.parse(response)
+  return allowanceResetRecordSchema.parse(response)
 }

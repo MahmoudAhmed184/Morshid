@@ -47,36 +47,28 @@ describe('AdminAllowancePolicyPage', () => {
       'fetch',
       vi.fn((url: string | URL | Request) => {
         const urlString = url.toString()
-        if (urlString.includes('/api/v1/admin/allowances/defaults')) {
+        if (urlString.includes('/api/v1/admin/allowances/policies')) {
           return Promise.resolve(
             Response.json({
-              defaults: [
-                {
-                  scope: 'TUTORING',
-                  defaultLimit: 30,
-                  updatedAt: '2026-08-20T00:00:00.000Z',
-                },
-                {
-                  scope: 'REVIEW',
-                  defaultLimit: 3,
-                  updatedAt: '2026-08-20T00:00:00.000Z',
-                },
-              ],
-            }),
-          )
-        }
-        if (urlString.includes('/api/v1/admin/allowances/overrides')) {
-          return Promise.resolve(
-            Response.json({
-              overrides: [
+              deploymentDefaults: {
+                id: 'default',
+                tutoringLimit: 30,
+                reviewLimit: 3,
+                updatedAt: '2026-08-20T00:00:00.000Z',
+              },
+              courseOverrides: [
                 {
                   id: 'ovr-1',
                   courseId: '11111111-1111-4111-8111-111111111111',
-                  scope: 'TUTORING',
-                  overrideLimit: 50,
+                  courseCode: 'CS101',
+                  courseTitle: 'Introduction to Computer Science',
+                  tutoringLimit: 50,
+                  reviewLimit: 5,
+                  createdAt: '2026-08-20T00:00:00.000Z',
                   updatedAt: '2026-08-20T00:00:00.000Z',
                 },
               ],
+              policyTimeZone: 'Africa/Cairo',
             }),
           )
         }

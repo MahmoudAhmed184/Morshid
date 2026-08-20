@@ -390,7 +390,9 @@ describe('AllowancesService', () => {
         adminUser,
       )
 
-      expect(findStudentByEmailMock).toHaveBeenCalledWith('student@morshid.demo')
+      expect(findStudentByEmailMock).toHaveBeenCalledWith(
+        'student@morshid.demo',
+      )
       expect(createResetMock).toHaveBeenCalledWith({
         studentId: 'student-from-email',
         courseId: 'course-1',

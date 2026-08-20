@@ -1,7 +1,13 @@
 import { useState, useId, useMemo } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { RotateCcw, Search, X } from 'lucide-react'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  queryOptions,
+} from '@tanstack/react-query'
+import { AlertCircle, Loader2, RotateCcw, Search, X } from 'lucide-react'
 
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,7 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { getManagedUsers } from '@/features/user-management/user-management.api'
+import { getManagedUsers } from '@/features/user-management/interface'
 import { adminResetAllowance } from '../allowances.api'
 import { allowancesKeys } from '../allowances.queries'
 
@@ -42,6 +48,28 @@ function getInitials(name: string): string {
     .slice(0, 2)
     .join('')
     .toUpperCase()
+}
+
+const scopeOptions: readonly {
+  value: 'TUTORING' | 'REVIEW' | 'BOTH'
+  label: string
+}[] = [
+  { value: 'TUTORING', label: 'Tutoring Allowance Only' },
+  { value: 'REVIEW', label: 'Review Allowance Only' },
+  { value: 'BOTH', label: 'Both Tutoring & Review Allowances' },
+]
+
+function searchStudentsQueryOptions(searchTerm: string) {
+  return queryOptions({
+    queryKey: ['admin-managed-users', 'STUDENT', searchTerm],
+    queryFn: () =>
+      getManagedUsers({
+        role: 'STUDENT',
+        status: 'ACTIVE',
+        search: searchTerm || undefined,
+        limit: 10,
+      }),
+  })
 }
 
 export function AdminResetAllowanceDialog({
@@ -72,14 +100,7 @@ export function AdminResetAllowanceDialog({
 
   // Query matching students when searching
   const usersQuery = useQuery({
-    queryKey: ['admin-managed-users', 'STUDENT', studentInput.trim()],
-    queryFn: () =>
-      getManagedUsers({
-        role: 'STUDENT',
-        status: 'ACTIVE',
-        search: studentInput.trim() || undefined,
-        limit: 10,
-      }),
+    ...searchStudentsQueryOptions(studentInput.trim()),
     enabled: open && !selectedStudent && studentInput.trim().length > 0,
   })
 
@@ -112,7 +133,14 @@ export function AdminResetAllowanceDialog({
     },
   })
 
-  const selectedCourse = courses.find((c) => c.id === courseId)
+  const courseSelectItems = useMemo(
+    () =>
+      courses.map((course) => ({
+        value: course.id,
+        label: `${course.code} — ${course.title}`,
+      })),
+    [courses],
+  )
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -158,9 +186,10 @@ export function AdminResetAllowanceDialog({
 
           <div className="space-y-4 py-3">
             {error && (
-              <div className="rounded-lg bg-destructive/15 p-3 text-xs text-destructive">
-                {error}
-              </div>
+              <Alert variant="destructive">
+                <AlertCircle className="size-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
 
             {/* Student Selector / Search */}
@@ -261,23 +290,22 @@ export function AdminResetAllowanceDialog({
               </Label>
               <Select
                 value={courseId}
-                onValueChange={(value) => setCourseId(value ?? '')}
+                items={courseSelectItems}
+                onValueChange={(value) => {
+                  if (value) setCourseId(value)
+                }}
               >
                 <SelectTrigger
                   id={courseSelectId}
                   aria-label="Select course"
                   className="w-full"
                 >
-                  <SelectValue placeholder="Select course">
-                    {selectedCourse
-                      ? `${selectedCourse.code} — ${selectedCourse.title}`
-                      : undefined}
-                  </SelectValue>
+                  <SelectValue placeholder="Select course" />
                 </SelectTrigger>
                 <SelectContent>
-                  {courses.map((course) => (
-                    <SelectItem key={course.id} value={course.id}>
-                      {course.code} — {course.title}
+                  {courseSelectItems.map((course) => (
+                    <SelectItem key={course.value} value={course.value}>
+                      {course.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -291,29 +319,30 @@ export function AdminResetAllowanceDialog({
               </Label>
               <Select
                 value={scope}
-                onValueChange={(val) =>
-                  setScope(val as 'TUTORING' | 'REVIEW' | 'BOTH')
-                }
+                items={scopeOptions}
+                onValueChange={(val) => {
+                  if (
+                    val === 'TUTORING' ||
+                    val === 'REVIEW' ||
+                    val === 'BOTH'
+                  ) {
+                    setScope(val)
+                  }
+                }}
               >
                 <SelectTrigger
                   id={scopeSelectId}
                   aria-label="Select allowance scope"
                   className="w-full"
                 >
-                  <SelectValue placeholder="Select scope">
-                    {scope === 'TUTORING'
-                      ? 'Tutoring Allowance Only'
-                      : scope === 'REVIEW'
-                        ? 'Review Allowance Only'
-                        : 'Both Tutoring & Review Allowances'}
-                  </SelectValue>
+                  <SelectValue placeholder="Select scope" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="TUTORING">Tutoring Allowance Only</SelectItem>
-                  <SelectItem value="REVIEW">Review Allowance Only</SelectItem>
-                  <SelectItem value="BOTH">
-                    Both Tutoring & Review Allowances
-                  </SelectItem>
+                  {scopeOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -321,7 +350,10 @@ export function AdminResetAllowanceDialog({
             {/* Audit Reason */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label htmlFor={reasonTextareaId} className="text-xs font-medium">
+                <Label
+                  htmlFor={reasonTextareaId}
+                  className="text-xs font-medium"
+                >
                   Audit Reason
                 </Label>
                 <span className="text-[10px] text-muted-foreground">
@@ -339,7 +371,8 @@ export function AdminResetAllowanceDialog({
                 className="text-xs"
               />
               <p className="text-[11px] text-muted-foreground">
-                Recorded in the immutable system audit log with your admin identity.
+                Recorded in the immutable system audit log with your admin
+                identity.
               </p>
             </div>
           </div>
@@ -353,7 +386,14 @@ export function AdminResetAllowanceDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={resetMutation.isPending}>
-              {resetMutation.isPending ? 'Resetting...' : 'Confirm Reset'}
+              {resetMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-1.5 size-3 animate-spin" />
+                  Resetting...
+                </>
+              ) : (
+                'Confirm Reset'
+              )}
             </Button>
           </DialogFooter>
         </form>

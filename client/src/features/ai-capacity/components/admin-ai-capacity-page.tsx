@@ -1,13 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import {
-  AlertTriangle,
+  AlertCircle,
   CheckCircle2,
   Cpu,
+  Info,
   Layers,
   RefreshCw,
+  RotateCw,
   Server,
 } from 'lucide-react'
 
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -90,7 +93,7 @@ export function AdminAiCapacityPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => capacityQuery.refetch()}
+              onClick={() => void capacityQuery.refetch()}
               disabled={capacityQuery.isFetching}
               className="gap-1.5 self-start sm:self-auto"
             >
@@ -105,26 +108,41 @@ export function AdminAiCapacityPage() {
             </Button>
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            Operational telemetry and health overview of upstream LLM project pools
-            and embedding vector rate limiters.
-          </p>
-
-          {/* Operational View Alert */}
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3.5 text-xs text-muted-foreground">
-            <div className="flex items-start gap-2.5">
-              <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+          <div className="rounded-lg border border-border bg-card/50 p-4 text-sm text-muted-foreground">
+            <div className="flex items-start gap-3">
+              <Info
+                className="mt-0.5 size-5 shrink-0 text-primary"
+                aria-hidden
+              />
               <div className="space-y-1">
-                <span className="font-semibold text-foreground">
+                <p className="font-medium text-foreground">
                   Local Operational View
-                </span>
-                <p className="text-[11px] leading-relaxed">
+                </p>
+                <p className="text-xs leading-relaxed">
                   {data?.disclaimer ??
                     'Telemetry snapshot based on local server state and distributed cache keys. Actual Google Cloud upstream quotas and billing accounts are configured in Google Cloud Console.'}
                 </p>
               </div>
             </div>
           </div>
+
+          {capacityQuery.isError && (
+            <Alert variant="destructive">
+              <AlertCircle className="size-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <span>Failed to load AI capacity telemetry.</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void capacityQuery.refetch()}
+                  className="h-7 text-xs"
+                >
+                  <RotateCw className="mr-1.5 size-3" />
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {capacityQuery.isLoading ? (
             <div className="grid gap-4 md:grid-cols-2">
@@ -162,7 +180,7 @@ export function AdminAiCapacityPage() {
                         {data.chatPool.totalProjects}
                       </div>
                       <div className="text-[11px] text-muted-foreground">
-                        Total
+                        Total Projects
                       </div>
                     </div>
                     <div className="rounded-lg border border-border/70 bg-muted/30 p-2.5">
@@ -170,7 +188,7 @@ export function AdminAiCapacityPage() {
                         {data.chatPool.availableProjects}
                       </div>
                       <div className="text-[11px] text-muted-foreground">
-                        Available
+                        Available Projects
                       </div>
                     </div>
                     <div className="rounded-lg border border-border/70 bg-muted/30 p-2.5">
@@ -198,7 +216,8 @@ export function AdminAiCapacityPage() {
                               Project #{detail.projectIndex + 1}
                             </span>
                             <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                              Cooldown: {Math.ceil(detail.cooldownRemainingMs / 1000)}s
+                              Cooldown:{' '}
+                              {Math.ceil(detail.cooldownRemainingMs / 1000)}s
                             </span>
                           </div>
                         ))}
@@ -312,7 +331,8 @@ export function AdminAiCapacityPage() {
                   ) : (
                     <p className="text-xs text-muted-foreground flex items-center gap-1.5 pt-1">
                       <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                      Running on deterministic local embeddings without upstream quota pressure.
+                      Running on deterministic local embeddings without upstream
+                      quota pressure.
                     </p>
                   )}
                 </div>
@@ -324,7 +344,9 @@ export function AdminAiCapacityPage() {
           {data && (
             <div className="flex items-center justify-between border-t border-border/50 pt-3 text-[11px] text-muted-foreground">
               <span>Telemetry snapshot</span>
-              <span>Observed at {new Date(data.observedAt).toLocaleTimeString()}</span>
+              <span>
+                Observed at {new Date(data.observedAt).toLocaleTimeString()}
+              </span>
             </div>
           )}
         </CardContent>

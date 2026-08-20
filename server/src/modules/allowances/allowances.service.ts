@@ -391,9 +391,18 @@ export class AllowancesService extends AllowancesResolver {
       throw new BadRequestException('Reason must not exceed 500 characters')
     }
 
-    let studentId = input.studentId
-    if (!studentId && input.studentEmail) {
-      const student = await this.repository.findStudentByEmail(input.studentEmail)
+    let studentId =
+      input.studentId !== undefined && input.studentId.length > 0
+        ? input.studentId
+        : undefined
+    if (
+      studentId === undefined &&
+      input.studentEmail !== undefined &&
+      input.studentEmail.length > 0
+    ) {
+      const student = await this.repository.findStudentByEmail(
+        input.studentEmail,
+      )
       if (!student) {
         throw new NotFoundException(
           `Student with email "${input.studentEmail}" not found`,
@@ -402,7 +411,7 @@ export class AllowancesService extends AllowancesResolver {
       studentId = student.id
     }
 
-    if (!studentId) {
+    if (studentId === undefined) {
       throw new BadRequestException(
         'A valid student ID or email is required for resetting allowance',
       )
@@ -423,7 +432,9 @@ export class AllowancesService extends AllowancesResolver {
       courseId: input.courseId,
       metadata: {
         studentId,
-        ...(input.studentEmail ? { studentEmail: input.studentEmail } : {}),
+        ...(input.studentEmail !== undefined && input.studentEmail.length > 0
+          ? { studentEmail: input.studentEmail }
+          : {}),
         scope: input.scope,
         reason: trimmedReason,
       },
