@@ -293,6 +293,153 @@ describe('Materials upload (e2e)', () => {
     expect(storedMaterial?.sha256Hash).toMatch(/^[a-f0-9]{64}$/)
   })
 
+  it('retries only a failed material without creating a duplicate', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+    const uploadResponse = await uploadPdf({
+      token,
+      title: 'Retryable PDF',
+    }).expect(201)
+    const materialId = (uploadResponse.body as { material: { id: string } })
+      .material.id
+    const materialCount = store.materials.size
+    const stored = store.materials.get(materialId)
+    if (stored === undefined)
+      throw new Error('Uploaded material was not stored')
+    store.materials.set(materialId, {
+      ...stored,
+      status: 'FAILED',
+      errorMessage: 'The PDF text could not be extracted.',
+    })
+    scheduler.scheduleMaterialProcessing.mockClear()
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/courses/${pythonCourseId()}/materials/${materialId}/retry`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+
+    expect((response.body as { material: unknown }).material).toMatchObject({
+      id: materialId,
+      title: 'Retryable PDF',
+      status: 'PROCESSING',
+      errorMessage: null,
+    })
+    expect(store.materials.size).toBe(materialCount)
+    expect(scheduler.scheduleMaterialProcessing).toHaveBeenCalledWith(
+      materialId,
+    )
+  })
+
+  it('queues only one job for repeated retry requests', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+    const uploadResponse = await uploadPdf({
+      token,
+      title: 'Single retry job PDF',
+    }).expect(201)
+    const materialId = (uploadResponse.body as { material: { id: string } })
+      .material.id
+    const stored = store.materials.get(materialId)
+    if (stored === undefined)
+      throw new Error('Uploaded material was not stored')
+    store.materials.set(materialId, { ...stored, status: 'FAILED' })
+    scheduler.scheduleMaterialProcessing.mockClear()
+    const retryUrl = `/api/v1/courses/${pythonCourseId()}/materials/${materialId}/retry`
+
+    await request(app.getHttpServer())
+      .post(retryUrl)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+    await request(app.getHttpServer())
+      .post(retryUrl)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(409)
+
+    expect(scheduler.scheduleMaterialProcessing).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['PROCESSING', 'READY', 'WARNING'] as const)(
+    'does not retry a %s material',
+    async (status) => {
+      const token = await signInAs('instructor@morshid.demo')
+      const uploadResponse = await uploadPdf({
+        token,
+        title: `${status} PDF`,
+      }).expect(201)
+      const materialId = (uploadResponse.body as { material: { id: string } })
+        .material.id
+      const stored = store.materials.get(materialId)
+      if (stored === undefined) {
+        throw new Error('Uploaded material was not stored')
+      }
+      store.materials.set(materialId, { ...stored, status })
+      scheduler.scheduleMaterialProcessing.mockClear()
+
+      await request(app.getHttpServer())
+        .post(
+          `/api/v1/courses/${pythonCourseId()}/materials/${materialId}/retry`,
+        )
+        .set('Authorization', `Bearer ${token}`)
+        .expect(409)
+        .expect({
+          code: MATERIALS_ERROR_CODES.MATERIAL_RETRY_NOT_ALLOWED,
+          message: 'Only failed materials can be retried',
+        })
+
+      expect(store.materials.get(materialId)?.status).toBe(status)
+      expect(scheduler.scheduleMaterialProcessing).not.toHaveBeenCalled()
+    },
+  )
+
+  it('denies retry through a course the instructor cannot manage', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+    const uploadResponse = await uploadPdf({
+      token,
+      title: 'Course-bound PDF',
+    }).expect(201)
+    const materialId = (uploadResponse.body as { material: { id: string } })
+      .material.id
+    const stored = store.materials.get(materialId)
+    if (stored === undefined)
+      throw new Error('Uploaded material was not stored')
+    store.materials.set(materialId, { ...stored, status: 'FAILED' })
+    scheduler.scheduleMaterialProcessing.mockClear()
+
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/courses/00000000-0000-4000-8000-000000000102/materials/${materialId}/retry`,
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
+
+    expect(store.materials.get(materialId)?.status).toBe('FAILED')
+    expect(scheduler.scheduleMaterialProcessing).not.toHaveBeenCalled()
+  })
+
+  it('returns a failed material when retry scheduling fails', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+    const uploadResponse = await uploadPdf({
+      token,
+      title: 'Scheduling failure PDF',
+    }).expect(201)
+    const materialId = (uploadResponse.body as { material: { id: string } })
+      .material.id
+    const stored = store.materials.get(materialId)
+    if (stored === undefined)
+      throw new Error('Uploaded material was not stored')
+    store.materials.set(materialId, { ...stored, status: 'FAILED' })
+    scheduler.failNextSchedule = true
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/courses/${pythonCourseId()}/materials/${materialId}/retry`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(503)
+
+    expect(store.materials.get(materialId)).toMatchObject({
+      status: 'FAILED',
+      errorMessage:
+        'The material could not be queued for processing. Try again.',
+    })
+  })
+
   it('denies admin uploads through the global role guard before storage', async () => {
     const token = await signInAs('admin@morshid.demo')
     const materialCountBefore = store.materials.size

@@ -43,6 +43,8 @@ class InMemoryMaterialsRepository extends MaterialsRepository {
   createProcessingMaterial = jest.fn()
   findCourseMaterial = jest.fn()
   findCourseMaterialStatus = jest.fn()
+  restartFailedMaterialProcessing = jest.fn()
+  failMaterialProcessingScheduling = jest.fn()
   claimMaterialProcessing = jest.fn()
   completeMaterialProcessing = jest.fn()
   failMaterialProcessing = jest.fn()

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import {
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -224,6 +225,55 @@ export class MaterialsService {
     return mapMaterialStatusRecord(material)
   }
 
+  async retryMaterialProcessing(
+    courseId: string,
+    materialId: string,
+    actor: AuthenticatedUser,
+  ): Promise<MaterialResponseDto> {
+    await this.requireCourseMaterialManagement(courseId, actor)
+
+    const material = await this.materialsRepository.findCourseMaterial(
+      courseId,
+      materialId,
+    )
+    if (material === null) throw materialNotFoundException()
+    if (material.status !== 'FAILED') throw materialRetryNotAllowedException()
+
+    const restarted =
+      await this.materialsRepository.restartFailedMaterialProcessing(
+        courseId,
+        materialId,
+      )
+    if (restarted === null) throw materialRetryNotAllowedException()
+
+    try {
+      await this.materialProcessingScheduler.scheduleMaterialProcessing(
+        materialId,
+      )
+    } catch (error) {
+      const message =
+        'The material could not be queued for processing. Try again.'
+      await this.materialsRepository.failMaterialProcessingScheduling(
+        materialId,
+        message,
+      )
+      throw new ServiceUnavailableException(
+        {
+          code: MATERIALS_ERROR_CODES.MATERIAL_RETRY_SCHEDULING_FAILED,
+          message,
+        },
+        { cause: error },
+      )
+    }
+
+    return {
+      material: mapMaterialRecord(
+        restarted,
+        restarted.uploadedById === actor.id,
+      ),
+    }
+  }
+
   async deleteMaterial(
     courseId: string,
     materialId: string,
@@ -384,5 +434,12 @@ function materialDeleteForbiddenException() {
   return new ForbiddenException({
     code: MATERIALS_ERROR_CODES.MATERIAL_DELETE_FORBIDDEN,
     message: 'Only the instructor who uploaded this material may delete it',
+  })
+}
+
+function materialRetryNotAllowedException() {
+  return new ConflictException({
+    code: MATERIALS_ERROR_CODES.MATERIAL_RETRY_NOT_ALLOWED,
+    message: 'Only failed materials can be retried',
   })
 }

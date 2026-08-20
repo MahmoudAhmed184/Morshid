@@ -58,4 +58,55 @@ describe('MaterialCard', () => {
     await user.click(confirmButton)
     expect(onDelete).toHaveBeenCalledTimes(1)
   })
+
+  it('shows retry only for failed materials and disables it while retrying', async () => {
+    const user = userEvent.setup()
+    const onRetry = vi.fn()
+    const { rerender } = render(
+      <MaterialCard material={failedMaterial} onRetry={onRetry} />,
+    )
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Open actions for module_03_control_flow_loops_matching',
+      }),
+    )
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Retry processing' }),
+    )
+    expect(onRetry).toHaveBeenCalledOnce()
+
+    rerender(
+      <MaterialCard material={failedMaterial} onRetry={onRetry} isRetrying />,
+    )
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Open actions for module_03_control_flow_loops_matching',
+      }),
+    )
+    const retryItem = await screen.findByRole('menuitem', {
+      name: 'Retrying processing...',
+    })
+    expect(retryItem).toHaveAttribute('aria-disabled', 'true')
+    await user.click(retryItem)
+    expect(onRetry).toHaveBeenCalledOnce()
+  })
+
+  it.each(['READY', 'PROCESSING', 'WARNING'] as const)(
+    'does not offer retry for %s materials',
+    (status) => {
+      render(
+        <MaterialCard
+          material={{ ...failedMaterial, status }}
+          onRetry={vi.fn()}
+        />,
+      )
+
+      expect(
+        screen.queryByRole('button', {
+          name: 'Open actions for module_03_control_flow_loops_matching',
+        }),
+      ).not.toBeInTheDocument()
+    },
+  )
 })

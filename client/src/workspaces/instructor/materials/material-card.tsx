@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Loader2, RotateCcw, Trash2 } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
@@ -47,13 +48,20 @@ export function MaterialStatusBadge({
 export function MaterialCard({
   material,
   onDelete,
+  onRetry,
+  isRetrying = false,
+  retryError,
 }: {
   material: Material
   onDelete?: () => Promise<void>
+  onRetry?: () => void
+  isRetrying?: boolean
+  retryError?: string | null
 }) {
   const statusMessage = getMaterialStatusMessage(material)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const canDelete = material.canDelete !== false && onDelete !== undefined
+  const canRetry = material.status === 'FAILED' && onRetry !== undefined
 
   return (
     <>
@@ -87,22 +95,37 @@ export function MaterialCard({
           </dl>
         }
         message={
-          statusMessage ? (
+          statusMessage || retryError ? (
             <Alert
               variant={material.status === 'FAILED' ? 'destructive' : 'default'}
             >
-              <AlertDescription>{statusMessage}</AlertDescription>
+              <AlertDescription>{retryError ?? statusMessage}</AlertDescription>
             </Alert>
           ) : null
         }
         actions={
-          canDelete ? (
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={() => setDeleteOpen(true)}
-            >
-              Delete material
-            </DropdownMenuItem>
+          canRetry || canDelete ? (
+            <>
+              {canRetry ? (
+                <DropdownMenuItem disabled={isRetrying} onClick={onRetry}>
+                  {isRetrying ? (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  ) : (
+                    <RotateCcw aria-hidden />
+                  )}
+                  {isRetrying ? 'Retrying processing...' : 'Retry processing'}
+                </DropdownMenuItem>
+              ) : null}
+              {canDelete ? (
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 aria-hidden />
+                  Delete material
+                </DropdownMenuItem>
+              ) : null}
+            </>
           ) : null
         }
       />

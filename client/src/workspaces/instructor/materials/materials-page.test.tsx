@@ -16,6 +16,7 @@ import { useCourseMembership } from '@/workspaces/instructor/use-course-membersh
 import {
   useCourseMaterials,
   useMaterialUploadConfiguration,
+  useRetryCourseMaterialProcessing,
   useUploadCourseMaterial,
 } from '@/workspaces/instructor/materials/use-materials'
 
@@ -30,6 +31,9 @@ const useMaterialUploadConfigurationMock = vi.mocked(
   useMaterialUploadConfiguration,
 )
 const useUploadCourseMaterialMock = vi.mocked(useUploadCourseMaterial)
+const useRetryCourseMaterialProcessingMock = vi.mocked(
+  useRetryCourseMaterialProcessing,
+)
 
 const course = {
   id: 'f5bb713c-09b7-42d3-acf3-02f39a902e5a',
@@ -183,6 +187,12 @@ describe('MaterialsPage', () => {
       isPending: false,
       error: null,
     } as unknown as ReturnType<typeof useUploadCourseMaterial>)
+    useRetryCourseMaterialProcessingMock.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useRetryCourseMaterialProcessing>)
   })
 
   afterEach(() => {

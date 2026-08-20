@@ -138,6 +138,16 @@ export abstract class MaterialsRepository {
     materialId: string,
   ): Promise<MaterialStatusRecord | null>
 
+  abstract restartFailedMaterialProcessing(
+    courseId: string,
+    materialId: string,
+  ): Promise<SafeMaterialRecord | null>
+
+  abstract failMaterialProcessingScheduling(
+    materialId: string,
+    errorMessage: string,
+  ): Promise<void>
+
   abstract claimMaterialProcessing(
     materialId: string,
     processingAttemptId: string,
@@ -332,6 +342,49 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
         deletedAt: null,
       },
       select: materialStatusSelect,
+    })
+  }
+
+  async restartFailedMaterialProcessing(
+    courseId: string,
+    materialId: string,
+  ): Promise<SafeMaterialRecord | null> {
+    const restarted = await this.prismaService.material.updateMany({
+      where: {
+        id: materialId,
+        courseId,
+        status: MaterialStatus.FAILED,
+        deletedAt: null,
+      },
+      data: {
+        status: MaterialStatus.PROCESSING,
+        processingAttemptId: null,
+        extractedTextLength: null,
+        chunkCount: null,
+        errorMessage: null,
+      },
+    })
+
+    if (restarted.count !== 1) return null
+    return this.findCourseMaterial(courseId, materialId)
+  }
+
+  async failMaterialProcessingScheduling(
+    materialId: string,
+    errorMessage: string,
+  ): Promise<void> {
+    await this.prismaService.material.updateMany({
+      where: {
+        id: materialId,
+        status: MaterialStatus.PROCESSING,
+        processingAttemptId: null,
+        deletedAt: null,
+      },
+      data: {
+        status: MaterialStatus.FAILED,
+        chunkCount: 0,
+        errorMessage,
+      },
     })
   }
 
