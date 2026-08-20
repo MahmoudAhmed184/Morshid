@@ -10,6 +10,13 @@ import {
 
 import { StudentChatComposer } from './chat-composer'
 import type { StudentChatComposerActions } from './chat-composer'
+import { ApiError } from '@/lib/http/http'
+
+const useStudentTutoringAllowanceMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/features/allowances/interface', () => ({
+  useStudentTutoringAllowance: useStudentTutoringAllowanceMock,
+}))
 
 function createMockStorage(): Storage {
   const map = new Map<string, string>()
@@ -40,6 +47,11 @@ describe('StudentChatComposer', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     mockStorage = createMockStorage()
+    useStudentTutoringAllowanceMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    })
   })
 
   afterEach(() => {
@@ -276,5 +288,104 @@ describe('StudentChatComposer', () => {
 
     const textarea = screen.getByRole('textbox', { name: 'Message' })
     expect(textarea).toHaveValue('Prefilled prompt')
+  })
+
+  it('renders low allowance warning when remaining turns are 1-3', () => {
+    useStudentTutoringAllowanceMock.mockReturnValue({
+      data: {
+        scope: 'TUTORING',
+        used: 28,
+        limit: 30,
+        remaining: 2,
+        policyDayWindow: {
+          start: '2026-08-20T00:00:00.000Z',
+          end: '2026-08-21T00:00:00.000Z',
+          timeZone: 'Africa/Cairo',
+        },
+      },
+      isLoading: false,
+      isError: false,
+    })
+
+    render(
+      <StudentChatComposer
+        userId={scope.userId}
+        courseId={scope.courseId}
+        sessionId={scope.sessionId}
+        debounceMs={100}
+        storage={mockStorage}
+        isGenerating={false}
+        sendError={null}
+        onDismissError={vi.fn()}
+        onSend={vi.fn().mockResolvedValue(true)}
+        onActionsReady={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId('allowance-low-banner')).toHaveTextContent(
+      '2 turns remaining today for this course.',
+    )
+  })
+
+  it('disables input and send button when allowance is exhausted', () => {
+    useStudentTutoringAllowanceMock.mockReturnValue({
+      data: {
+        scope: 'TUTORING',
+        used: 30,
+        limit: 30,
+        remaining: 0,
+        policyDayWindow: {
+          start: '2026-08-20T00:00:00.000Z',
+          end: '2026-08-21T00:00:00.000Z',
+          timeZone: 'Africa/Cairo',
+        },
+      },
+      isLoading: false,
+      isError: false,
+    })
+
+    render(
+      <StudentChatComposer
+        userId={scope.userId}
+        courseId={scope.courseId}
+        sessionId={scope.sessionId}
+        debounceMs={100}
+        storage={mockStorage}
+        isGenerating={false}
+        sendError={null}
+        onDismissError={vi.fn()}
+        onSend={vi.fn().mockResolvedValue(true)}
+        onActionsReady={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId('allowance-exhausted-banner')).toHaveTextContent(
+      'You have reached your daily tutoring allowance for this course (0 turns remaining).',
+    )
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+  })
+
+  it('renders friendly allowance exhausted error when API returns TUTORING_ALLOWANCE_EXHAUSTED', () => {
+    const error = new ApiError('Exhausted', 429, 'TUTORING_ALLOWANCE_EXHAUSTED')
+
+    render(
+      <StudentChatComposer
+        userId={scope.userId}
+        courseId={scope.courseId}
+        sessionId={scope.sessionId}
+        debounceMs={100}
+        storage={mockStorage}
+        isGenerating={false}
+        sendError={error}
+        onDismissError={vi.fn()}
+        onSend={vi.fn().mockResolvedValue(true)}
+        onActionsReady={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'You have reached your daily tutoring allowance for this course.',
+    )
   })
 })

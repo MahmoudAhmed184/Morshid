@@ -1,7 +1,8 @@
 import {
   ConflictException,
   ForbiddenException,
-  type HttpException,
+  HttpException,
+  HttpStatus,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
@@ -54,4 +55,14 @@ export function tutoringTerminalStateUnavailableException(): HttpException {
     code: CONVERSATION_ERROR_CODES.TERMINAL_STATE_UNAVAILABLE,
     message: 'The tutoring turn could not be safely persisted',
   })
+}
+
+export function tutoringAllowanceExhaustedException(): HttpException {
+  return new HttpException(
+    {
+      code: 'TUTORING_ALLOWANCE_EXHAUSTED',
+      message: 'You have reached today’s tutoring turn limit for this course.',
+    },
+    HttpStatus.TOO_MANY_REQUESTS,
+  )
 }

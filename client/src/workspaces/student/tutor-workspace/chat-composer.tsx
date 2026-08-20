@@ -5,6 +5,7 @@ import type { FormEvent, KeyboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
+import { useStudentTutoringAllowance } from '@/features/allowances/interface'
 import { useComposerDraft } from '@/features/chat/drafts/use-composer-draft'
 import {
   isChatApiError,
@@ -58,6 +59,15 @@ export function StudentChatComposer({
   const autoSubmitRef = useRef(false)
   const wasGeneratingRef = useRef(isGenerating)
 
+  const tutoringAllowanceQuery = useStudentTutoringAllowance(courseId)
+  const tutoringAllowance = tutoringAllowanceQuery.data
+  const isAllowanceExhausted =
+    tutoringAllowance !== undefined && tutoringAllowance.remaining === 0
+  const isAllowanceLow =
+    tutoringAllowance !== undefined &&
+    tutoringAllowance.remaining > 0 &&
+    tutoringAllowance.remaining <= 3
+
   const { isRestored, storageError, discardDraft, clearSavedDraft } =
     useComposerDraft({
       userId: effectiveUserId,
@@ -70,7 +80,9 @@ export function StudentChatComposer({
     })
 
   const canSend =
-    !isGenerating && chatMessageContentSchema.safeParse(draft).success
+    !isGenerating &&
+    !isAllowanceExhausted &&
+    chatMessageContentSchema.safeParse(draft).success
 
   useEffect(() => {
     onActionsReady({
@@ -199,6 +211,48 @@ export function StudentChatComposer({
         </div>
       )}
 
+      {isAllowanceExhausted && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-xs text-destructive"
+          data-testid="allowance-exhausted-banner"
+        >
+          <span>
+            You have reached your daily tutoring allowance for this course (0
+            turns remaining).
+            {tutoringAllowance.policyDayWindow.end && (
+              <>
+                {' '}
+                Turns reset at{' '}
+                {new Date(
+                  tutoringAllowance.policyDayWindow.end,
+                ).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}{' '}
+                ({tutoringAllowance.policyDayWindow.timeZone}).
+              </>
+            )}
+          </span>
+        </div>
+      )}
+
+      {isAllowanceLow && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mx-auto mb-2 flex max-w-3xl items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-1.5 text-xs text-amber-900 dark:text-amber-200"
+          data-testid="allowance-low-banner"
+        >
+          <span>
+            {tutoringAllowance.remaining}{' '}
+            {tutoringAllowance.remaining === 1 ? 'turn' : 'turns'} remaining
+            today for this course.
+          </span>
+        </div>
+      )}
+
       <div className="glass-paper mx-auto max-w-3xl rounded-t-2xl border-border-strong shadow-md focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40">
         <Textarea
           ref={textareaRef}
@@ -207,7 +261,7 @@ export function StudentChatComposer({
           aria-label="Message"
           autoComplete="off"
           className="max-h-40 min-h-12 resize-none border-0 bg-transparent px-4 pt-3.5 pb-1 text-base! leading-[1.6] shadow-none focus-visible:ring-0 md:text-base!"
-          disabled={isGenerating}
+          disabled={isGenerating || isAllowanceExhausted}
           name="chat-message"
           onChange={(event) => {
             setDraft(limitMessageDraft(event.target.value))
@@ -217,7 +271,11 @@ export function StudentChatComposer({
             }
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Ask a conceptual question about this course…"
+          placeholder={
+            isAllowanceExhausted
+              ? 'Daily tutoring allowance reached for this course.'
+              : 'Ask a conceptual question about this course…'
+          }
           rows={1}
           value={draft}
         />
@@ -274,6 +332,9 @@ function limitMessageDraft(value: string) {
 }
 
 function sendErrorMessage(error: unknown) {
+  if (isChatApiError(error, CHAT_ERROR_CODES.TUTORING_ALLOWANCE_EXHAUSTED)) {
+    return 'You have reached your daily tutoring allowance for this course. Turns will reset at midnight in the policy timezone.'
+  }
   if (isChatApiError(error, CHAT_ERROR_CODES.TURN_IN_PROGRESS)) {
     return 'This conversation is already generating a response. Refresh the history before trying again.'
   }

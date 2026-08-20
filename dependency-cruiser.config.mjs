@@ -222,6 +222,19 @@ export default {
       },
     },
     {
+      name: 'allowances-interface-only',
+      comment:
+        'Product modules may consume Allowances only through its module or named public interface.',
+      severity: 'error',
+      from: {
+        path: '^server/src/(?:app\\.module\\.ts|common/|modules/(?!allowances(?:/|$)))',
+        pathNot: testPath,
+      },
+      to: {
+        path: '^server/src/modules/allowances/(?!allowances\\.module\\.ts$|interface/)',
+      },
+    },
+    {
       name: 'reviews-interface-only',
       comment:
         'Product modules may consume Reviews only through its module or named public Reviews interface.',

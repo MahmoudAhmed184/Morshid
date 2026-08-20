@@ -3,8 +3,12 @@ import { randomUUID } from 'node:crypto'
 import { Client } from 'pg'
 
 import { Prisma } from '../../src/generated/prisma/client'
+import { ConfigService } from '@nestjs/config'
+
 import { PrismaConversationTurns } from '../../src/modules/conversations/prisma-conversation-turns'
 import { AuditService } from '../../src/modules/audit/audit.service'
+import { AllowancesPolicyRepository } from '../../src/modules/allowances/allowances-policy.repository'
+import { AllowancesService } from '../../src/modules/allowances/allowances.service'
 import { PrismaReviewCaseIntake } from '../../src/modules/reviews/intake/prisma-review-case-intake'
 import { PrismaReviewCaseRepository } from '../../src/modules/reviews/intake/review-case.repository'
 import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
@@ -39,16 +43,26 @@ describe('Tutoring turn repository (e2e)', () => {
   let repository: PrismaTutoringTurnRepository
   let conversationTurns: PrismaConversationTurns
   let reviewCaseIntake: PrismaReviewCaseIntake
+  let auditService: AuditService
+  let allowancesService: AllowancesService
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue88_turns')
     prisma = database.prisma
     conversationTurns = new PrismaConversationTurns(prisma)
+    auditService = new AuditService(prisma)
+    const allowancesRepository = new AllowancesPolicyRepository(prisma)
+    allowancesService = new AllowancesService(
+      allowancesRepository,
+      auditService,
+      new ConfigService(),
+    )
     reviewCaseIntake = new PrismaReviewCaseIntake(
       new PrismaReviewCaseRepository(
         prisma,
-        new AuditService(prisma),
+        auditService,
         new PrismaActiveCourseMembership(),
+        allowancesService,
       ),
     )
     repository = new PrismaTutoringTurnRepository(
@@ -57,7 +71,8 @@ describe('Tutoring turn repository (e2e)', () => {
       conversationTurns,
       conversationTurns,
       reviewCaseIntake,
-      new AuditService(prisma),
+      auditService,
+      allowancesService,
     )
   })
 
@@ -927,7 +942,8 @@ describe('Tutoring turn repository (e2e)', () => {
       conversationTurns,
       conversationTurns,
       reviewCaseIntake,
-      new AuditService(prisma),
+      auditService,
+      allowancesService,
     )
     const begun = await ambiguousBegin.beginTurn({
       ...beginFixture,
@@ -956,7 +972,8 @@ describe('Tutoring turn repository (e2e)', () => {
       conversationTurns,
       conversationTurns,
       reviewCaseIntake,
-      new AuditService(prisma),
+      auditService,
+      allowancesService,
     )
     const retried = await ambiguousRetry.retryTurn({
       ...beginFixture,
@@ -979,7 +996,8 @@ describe('Tutoring turn repository (e2e)', () => {
       conversationTurns,
       conversationTurns,
       reviewCaseIntake,
-      new AuditService(prisma),
+      auditService,
+      allowancesService,
     )
     const completed = await ambiguousComplete.completeTurn({
       ...beginFixture,
@@ -1022,7 +1040,8 @@ describe('Tutoring turn repository (e2e)', () => {
       conversationTurns,
       conversationTurns,
       reviewCaseIntake,
-      new AuditService(prisma),
+      auditService,
+      allowancesService,
     )
 
     await expect(

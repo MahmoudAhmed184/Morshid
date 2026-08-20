@@ -3,8 +3,12 @@ import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
+import { ConfigService } from '@nestjs/config'
+
 import { StudentFlagReason } from '../../src/generated/prisma/client'
 import { AuditService } from '../../src/modules/audit/audit.service'
+import { AllowancesPolicyRepository } from '../../src/modules/allowances/allowances-policy.repository'
+import { AllowancesService } from '../../src/modules/allowances/allowances.service'
 import { PrismaReviewCaseRepository } from '../../src/modules/reviews/intake/review-case.repository'
 import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
 import {
@@ -195,10 +199,18 @@ describe('Fresh migration and seed manual review readiness (e2e)', () => {
     await expect(prisma.reviewInboxItem.count()).resolves.toBe(0)
     await expect(prisma.idempotencyRecord.count()).resolves.toBe(0)
 
+    const auditService = new AuditService(prisma)
+    const allowancesRepository = new AllowancesPolicyRepository(prisma)
+    const allowancesService = new AllowancesService(
+      allowancesRepository,
+      auditService,
+      new ConfigService(),
+    )
     const repository = new PrismaReviewCaseRepository(
       prisma,
-      new AuditService(prisma),
+      auditService,
       new PrismaActiveCourseMembership(),
+      allowancesService,
     )
     await expect(
       repository.create({

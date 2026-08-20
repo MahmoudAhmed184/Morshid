@@ -1,14 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
-
-import { SettingsPlaceholderTab } from '@/workspaces/_shared/settings-shell'
+import { StudentUsagePage } from '@/features/allowances/interface'
 
 export const Route = createFileRoute('/_student/settings/usage')({
-  component: () => (
-    <SettingsPlaceholderTab
-      title="Usage & reviews"
-      description="Track your daily tutoring and review allowance."
-    />
-  ),
+  component: () => <StudentUsagePage />,
   head: () => ({
     meta: [{ title: 'Usage & Reviews Settings — Morshid' }],
   }),

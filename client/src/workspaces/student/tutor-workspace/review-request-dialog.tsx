@@ -1,6 +1,5 @@
 import { CircleAlert, Flag, LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
-
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,11 +12,13 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { useStudentReviewAllowance } from '@/features/allowances/interface'
 import type { StudentFlagReason } from '@/features/reviews/interface/student-review.schema'
 import { isApiError } from '@/lib/http/http'
 
 interface StudentReviewRequestDialogProps {
   messageId: string
+  courseId?: string
   onSubmit: (input: {
     messageId: string
     flagReason: StudentFlagReason
@@ -40,6 +41,7 @@ const FLAG_REASON_OPTIONS: ReadonlyArray<{
 
 export function StudentReviewRequestDialog({
   messageId,
+  courseId,
   onSubmit,
 }: StudentReviewRequestDialogProps) {
   const [open, setOpen] = useState(false)
@@ -48,6 +50,11 @@ export function StudentReviewRequestDialog({
   const [showValidation, setShowValidation] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<unknown>(null)
+
+  const reviewAllowanceQuery = useStudentReviewAllowance(courseId, open)
+  const reviewAllowance = reviewAllowanceQuery.data
+  const isAllowanceExhausted =
+    reviewAllowance !== undefined && reviewAllowance.remaining === 0
   const remaining = NOTE_LIMIT - note.length
   const requiresOtherNote = flagReason === 'OTHER' && note.trim().length === 0
   const showOtherNoteError = showValidation && requiresOtherNote
@@ -177,6 +184,34 @@ export function StudentReviewRequestDialog({
                 </p>
               ) : null}
             </div>
+
+            {isAllowanceExhausted && (
+              <Alert
+                variant="destructive"
+                role="alert"
+                data-testid="review-allowance-exhausted-alert"
+              >
+                <CircleAlert aria-hidden />
+                <AlertDescription>
+                  You have reached your daily review allowance for this course
+                  (0 requests remaining).
+                  {reviewAllowance.policyDayWindow.end && (
+                    <>
+                      {' '}
+                      Requests reset at{' '}
+                      {new Date(
+                        reviewAllowance.policyDayWindow.end,
+                      ).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      ({reviewAllowance.policyDayWindow.timeZone}).
+                    </>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
             {error ? <ReviewRequestError error={error} /> : null}
             <DialogFooter className="p-3">
               <Button
@@ -187,7 +222,10 @@ export function StudentReviewRequestDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isPending || remaining < 0}>
+              <Button
+                type="submit"
+                disabled={isPending || remaining < 0 || isAllowanceExhausted}
+              >
                 {isPending ? (
                   <LoaderCircle className="animate-spin" aria-hidden />
                 ) : null}

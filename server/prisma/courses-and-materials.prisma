@@ -33,6 +33,8 @@ model Course {
   auditLogs    AuditLog[]
   reviewCases  ReviewCase[]
   inboxItems   ReviewInboxItem[]
+  policyOverride CoursePolicyOverride?
+  allowanceResets AllowanceReset[]
 
   @@index([createdById], map: "idx_courses_created_by")
   @@index([archivedAt], map: "idx_courses_archived_at")

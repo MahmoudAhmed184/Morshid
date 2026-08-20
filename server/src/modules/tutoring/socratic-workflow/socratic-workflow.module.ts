@@ -87,6 +87,7 @@ import {
 } from './debugging-guidance/debugging-diagnosis-retry.policy'
 import { ResponseGovernanceModule } from '../response-governance/response-governance.module'
 import { SocraticWorkflow } from './socratic-workflow'
+import { AllowancesModule } from '../../allowances/allowances.module'
 import {
   readTutoringConfiguration,
   TUTORING_CONFIGURATION,
@@ -106,6 +107,7 @@ type GeminiChatFetch = FetchImplementation | null
     MaterialsModule,
     ReviewsModule,
     ResponseGovernanceModule,
+    AllowancesModule,
   ],
   providers: [
     TopicStateService,

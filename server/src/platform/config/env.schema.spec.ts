@@ -26,6 +26,7 @@ describe('validateEnv', () => {
       PDF_STORAGE_PATH: '../storage/pdfs',
       AUTH_ACCESS_TOKEN_TTL_SECONDS: 900,
       AUTH_REFRESH_TOKEN_TTL_DAYS: 7,
+      POLICY_DAY_TIME_ZONE: 'Africa/Cairo',
       EMBEDDING_PROVIDER: 'deterministic',
       EMBEDDING_QUERY_TIMEOUT_MS: 10_000,
       EMBEDDING_DOCUMENT_TIMEOUT_MS: 120_000,
@@ -63,6 +64,13 @@ describe('validateEnv', () => {
         AUTH_REFRESH_TOKEN_HASH_SECRET: validEnv.AUTH_ACCESS_TOKEN_SECRET,
       }),
     ).toThrow(/AUTH_REFRESH_TOKEN_HASH_SECRET/)
+
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        POLICY_DAY_TIME_ZONE: 'Invalid/NonExistent_Zone',
+      }),
+    ).toThrow(/POLICY_DAY_TIME_ZONE/)
   })
 
   it('requires an explicit safe embedding configuration for Gemini', () => {

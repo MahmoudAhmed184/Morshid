@@ -126,4 +126,66 @@ describe('Gemini embedding quota namespacing', () => {
     expect(hash?.get('requests_day:used')).toBe('1')
     expect(hash?.get('input_tokens_minute:tokens')).toBe('400')
   })
+
+  it('provides read-only snapshot without mutating state', async () => {
+    const redis: GeminiQuotaRedisClient = {
+      eval: jest.fn().mockResolvedValue([
+        1,
+        JSON.stringify([
+          {
+            name: 'requests_minute',
+            mode: 'token_bucket',
+            capacity: 5,
+            value: 5,
+            windowMs: 60000,
+          },
+          {
+            name: 'requests_hour',
+            mode: 'token_bucket',
+            capacity: 10,
+            value: 10,
+            windowMs: 3600000,
+          },
+          {
+            name: 'requests_day',
+            mode: 'fixed_window',
+            capacity: 20,
+            value: 2,
+            windowMs: 86400000,
+          },
+          {
+            name: 'requests_month',
+            mode: 'fixed_window',
+            capacity: 40,
+            value: 5,
+            windowMs: 2592000000,
+          },
+          {
+            name: 'input_tokens_minute',
+            mode: 'token_bucket',
+            capacity: 500,
+            value: 500,
+            windowMs: 60000,
+          },
+        ]),
+      ]),
+    }
+
+    const quota = new GeminiQuotaService(
+      redis,
+      caps,
+      { project: 'embedding-project-01' },
+      EMBEDDING_NAMESPACE,
+    )
+
+    const snapshot = await quota.snapshot()
+    expect(snapshot.status).toBe('Ready')
+    expect(snapshot.dimensions).toHaveLength(5)
+    expect(snapshot.dimensions[0]).toMatchObject({
+      name: 'requests_minute',
+      capacity: 5,
+      availableOrUsed: 5,
+      status: 'Ready',
+    })
+  })
 })

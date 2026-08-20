@@ -1,0 +1,3 @@
+# Keep AI capacity observability local and credential-opaque
+
+The Admin AI Capacity view derives readiness and pressure only from validated local configuration, local quota/cooldown coordination state, and provider failures observed during normal product traffic; it never probes an AI provider. The server exposes only aggregate allowlisted operational data and never credentials, quota-project identifiers, pool-member identifiers, credential/state digests, Redis keys, or raw provider errors. This trades provider-authoritative health and remaining-quota claims for a deterministic, credential-safe view that cannot itself consume AI capacity or require provider permissions.
