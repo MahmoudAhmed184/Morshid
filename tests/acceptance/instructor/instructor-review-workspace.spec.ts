@@ -124,7 +124,9 @@ test.describe('Instructor review queue and bounded detail', () => {
       page.getByText('Flagged acceptance assistant response'),
     ).toBeVisible()
 
-    await page.getByRole('button', { name: 'Previous & Following' }).click()
+    await page
+      .getByRole('button', { name: 'Previous & Following Context' })
+      .click()
     await expect(page.getByText('Previous bounded question')).toBeVisible()
     await expect(page.getByText('Previous bounded answer')).toBeVisible()
     await expect(page.getByText('Following bounded question')).toBeVisible()
@@ -150,9 +152,7 @@ test.describe('Instructor review queue and bounded detail', () => {
     await instructorPage.goto(
       `/instructor/review-queue/${fixture.reviewCaseId}`,
     )
-    await instructorPage
-      .getByRole('button', { name: 'Approve original guidance' })
-      .click()
+    await instructorPage.getByRole('button', { name: 'Approve' }).click()
     const confirmation = instructorPage.getByRole('alertdialog', {
       name: 'Publish this terminal review outcome?',
     })

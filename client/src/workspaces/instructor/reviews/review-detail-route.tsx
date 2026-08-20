@@ -25,7 +25,7 @@ export function InstructorReviewDetailRoute({
     <>
       <ReviewQueuePage />
       <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 sm:w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] sm:p-7 xl:max-w-7xl">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:w-[calc(100vw-3rem)] sm:max-w-4xl sm:p-6">
           <DialogTitle className="sr-only">
             Instructor review detail
           </DialogTitle>

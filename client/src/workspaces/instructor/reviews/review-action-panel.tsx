@@ -1,16 +1,9 @@
 import { useRef, useState } from 'react'
-import {
-  CheckCircle2,
-  FilePenLine,
-  LockKeyhole,
-  Save,
-  ShieldCheck,
-  XCircle,
-} from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { ShieldCheck, XCircle } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,7 +12,6 @@ import {
   useResolveInstructorReview,
 } from '@/workspaces/instructor/reviews/use-reviews'
 import { isApiError } from '@/lib/http/http'
-import { cn } from '@/lib/utils'
 
 type EditorMode = 'EDITED' | 'REJECT'
 type ReviewDrafts = Record<EditorMode, string>
@@ -33,11 +25,13 @@ export function ReviewActionPanel({
   version,
   canReject,
   originalContent,
+  editPortalId,
 }: {
   reviewCaseId: string
   version: number
   canReject: boolean
   originalContent: string
+  editPortalId: string
 }) {
   const resolveMutation = useResolveInstructorReview()
   const rejectMutation = useRejectInstructorReview()
@@ -55,14 +49,15 @@ export function ReviewActionPanel({
         REJECT: '',
       },
   )
-  const [draftSaved, setDraftSaved] = useState(
-    () => readStoredDraft(draftStorageKey, version) !== null,
-  )
   const [validationError, setValidationError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation | null>(null)
   const isPending = resolveMutation.isPending || rejectMutation.isPending
+  const editPortalTarget =
+    mode === 'EDITED' && typeof document !== 'undefined'
+      ? document.getElementById(editPortalId)
+      : null
 
   function approveOriginal() {
     if (isPending || submissionInFlight.current) return
@@ -150,191 +145,99 @@ export function ReviewActionPanel({
     setActionError(null)
   }
 
-  function saveDraft() {
+  function updateDraft(modeToUpdate: EditorMode, value: string) {
+    const nextDrafts = { ...drafts, [modeToUpdate]: value }
+    setDrafts(nextDrafts)
     try {
       window.sessionStorage.setItem(
         draftStorageKey,
         JSON.stringify({
           schemaVersion: draftStorageVersion,
           reviewVersion: version,
-          drafts,
+          drafts: nextDrafts,
         }),
       )
-      setDraftSaved(true)
-      setActionError(null)
     } catch {
-      setActionError('The draft could not be saved in this browser.')
+      // A storage failure must not interrupt editing in the current dialog.
     }
   }
 
   return (
     <section aria-labelledby="review-actions-title">
-      <Card className="overflow-hidden shadow-sm">
-        <CardHeader className="gap-2 border-b bg-muted/20 px-4 py-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <FilePenLine className="size-4" aria-hidden />
-              </span>
-              <div>
-                <CardTitle id="review-actions-title" className="text-sm">
-                  Review actions
-                </CardTitle>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Prepare the Student-facing outcome
-                </p>
-              </div>
-            </div>
-            <span className="inline-flex shrink-0 items-center gap-1 text-[0.68rem] text-muted-foreground">
-              <LockKeyhole className="size-3" aria-hidden />
-              Private
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3 p-3 sm:p-4">
-          <p className="text-sm text-muted-foreground">
-            Choose exactly what should be published. The original response
-            remains read-only.
-          </p>
-
-          <div className="grid gap-2">
-            <Button
-              type="button"
-              disabled={isPending}
-              onClick={approveOriginal}
-              className="justify-start bg-success text-success-foreground hover:bg-success/85"
-            >
-              <CheckCircle2 aria-hidden />
-              Approve original guidance
-            </Button>
+      <h2 id="review-actions-title" className="sr-only">
+        Review actions
+      </h2>
+      <div className="space-y-3 border-t pt-3">
+        <div className="flex justify-end gap-2" role="toolbar">
+          {canReject ? (
             <Button
               type="button"
               variant="outline"
               disabled={isPending}
-              onClick={() => openEditor('EDITED')}
-              className="justify-start border-info/30 bg-info/10 text-info hover:bg-info/15 hover:text-info"
+              onClick={() => openEditor('REJECT')}
+              className="border-destructive/70 text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
-              <FilePenLine aria-hidden />
-              Publish edited guidance
+              Reject
             </Button>
-            {canReject ? (
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={isPending}
-                onClick={() => openEditor('REJECT')}
-                className="justify-start bg-destructive text-destructive-foreground hover:bg-destructive/85"
-              >
-                <XCircle aria-hidden />
-                Reject request
-              </Button>
-            ) : null}
-          </div>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isPending}
+            onClick={() => openEditor('EDITED')}
+          >
+            Review & Edit
+          </Button>
+          <Button
+            type="button"
+            variant="default"
+            disabled={isPending}
+            onClick={approveOriginal}
+          >
+            Approve
+          </Button>
+        </div>
 
-          {mode !== null ? (
-            <div className="space-y-3 rounded-xl border bg-background p-3 shadow-xs">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="review-action-content">
-                  {mode === 'REJECT' ? 'Rejection reason' : 'Edited guidance'}
-                </Label>
-                <span className="text-[0.68rem] text-muted-foreground">
-                  Local draft · Version {version}
-                </span>
-              </div>
-              <Textarea
-                id="review-action-content"
+        {mode === 'REJECT' ? (
+          <ReviewEditor
+            mode={mode}
+            value={drafts[mode]}
+            isPending={isPending}
+            validationError={validationError}
+            onChange={(value) => {
+              updateDraft(mode, value)
+              if (validationError !== null) setValidationError(null)
+            }}
+            onCancel={() => setMode(null)}
+            onSubmit={() => void submitEditor()}
+          />
+        ) : null}
+
+        {mode === 'EDITED' && editPortalTarget
+          ? createPortal(
+              <ReviewEditor
+                mode={mode}
                 value={drafts[mode]}
-                disabled={isPending}
-                aria-invalid={validationError !== null}
-                aria-describedby={
-                  validationError === null ? undefined : 'review-action-error'
-                }
-                maxLength={mode === 'REJECT' ? 500 : 4_000}
-                rows={mode === 'REJECT' ? 4 : 10}
-                placeholder={
-                  mode === 'REJECT'
-                    ? 'Explain why this request is being closed…'
-                    : 'Write the guidance the Student should receive…'
-                }
-                onChange={(event) => {
-                  setDrafts((current) => ({
-                    ...current,
-                    [mode]: event.target.value,
-                  }))
-                  setDraftSaved(false)
+                isPending={isPending}
+                validationError={validationError}
+                onChange={(value) => {
+                  updateDraft(mode, value)
                   if (validationError !== null) setValidationError(null)
                 }}
-              />
-              {validationError !== null ? (
-                <p
-                  id="review-action-error"
-                  className="text-sm text-destructive"
-                >
-                  {validationError}
-                </p>
-              ) : null}
-              <div className="flex flex-nowrap justify-end gap-1 border-t pt-3">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={isPending}
-                  onClick={() => setMode(null)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={isPending}
-                  onClick={saveDraft}
-                  className="border-info/30 bg-info/10 text-info hover:bg-info/15 hover:text-info"
-                >
-                  <Save aria-hidden />
-                  Save draft
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={isPending}
-                  onClick={() => void submitEditor()}
-                  variant={mode === 'REJECT' ? 'destructive' : 'default'}
-                  className={cn(
-                    'min-w-0 flex-1 px-2',
-                    mode === 'REJECT'
-                      ? 'bg-destructive text-destructive-foreground hover:bg-destructive/85'
-                      : 'bg-success text-success-foreground hover:bg-success/85',
-                  )}
-                >
-                  {mode === 'REJECT' ? (
-                    <XCircle aria-hidden />
-                  ) : (
-                    <ShieldCheck aria-hidden />
-                  )}
-                  {isPending
-                    ? 'Publishing…'
-                    : mode === 'REJECT'
-                      ? 'Confirm rejection'
-                      : 'Publish guidance'}
-                </Button>
-              </div>
-              <p className="text-[0.68rem] leading-5 text-muted-foreground">
-                {draftSaved
-                  ? 'Draft saved in this browser for this tab.'
-                  : 'Unsaved changes remain available until this page is refreshed.'}
-              </p>
-            </div>
-          ) : null}
+                onCancel={() => setMode(null)}
+                onSubmit={() => void submitEditor()}
+              />,
+              editPortalTarget,
+            )
+          : null}
 
-          {actionError !== null ? (
-            <Alert variant="destructive" role="alert">
-              <AlertTitle>Review action failed</AlertTitle>
-              <AlertDescription>{actionError}</AlertDescription>
-            </Alert>
-          ) : null}
-        </CardContent>
-      </Card>
+        {actionError !== null ? (
+          <Alert variant="destructive" role="alert">
+            <AlertTitle>Review action failed</AlertTitle>
+            <AlertDescription>{actionError}</AlertDescription>
+          </Alert>
+        ) : null}
+      </div>
       <ConfirmDialog
         open={pendingConfirmation !== null}
         onOpenChange={(open) => {
@@ -363,6 +266,82 @@ export function ReviewActionPanel({
         onConfirm={confirmSubmission}
       />
     </section>
+  )
+}
+
+function ReviewEditor({
+  mode,
+  value,
+  isPending,
+  validationError,
+  onChange,
+  onCancel,
+  onSubmit,
+}: {
+  mode: EditorMode
+  value: string
+  isPending: boolean
+  validationError: string | null
+  onChange: (value: string) => void
+  onCancel: () => void
+  onSubmit: () => void
+}) {
+  return (
+    <div className="mt-2 space-y-2 border-t pt-2 text-left">
+      <Label htmlFor="review-action-content">
+        {mode === 'REJECT' ? 'Rejection reason' : 'Edited guidance'}
+      </Label>
+      <Textarea
+        id="review-action-content"
+        value={value}
+        disabled={isPending}
+        aria-invalid={validationError !== null}
+        aria-describedby={
+          validationError === null ? undefined : 'review-action-error'
+        }
+        maxLength={mode === 'REJECT' ? 500 : 4_000}
+        rows={mode === 'REJECT' ? 3 : 4}
+        placeholder={
+          mode === 'REJECT'
+            ? 'Explain why this request is being closed…'
+            : 'Write the guidance the Student should receive…'
+        }
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {validationError !== null ? (
+        <p id="review-action-error" className="text-sm text-destructive">
+          {validationError}
+        </p>
+      ) : null}
+      <div className="flex justify-end gap-1.5">
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={isPending}
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          disabled={isPending}
+          onClick={onSubmit}
+          variant={mode === 'REJECT' ? 'destructive' : 'default'}
+          aria-label={
+            mode === 'REJECT' ? 'Confirm rejection' : 'Publish guidance'
+          }
+        >
+          {mode === 'REJECT' ? (
+            <XCircle aria-hidden />
+          ) : (
+            <ShieldCheck aria-hidden />
+          )}
+          {isPending ? 'Publishing…' : mode === 'REJECT' ? 'Reject' : 'Publish'}
+        </Button>
+      </div>
+    </div>
   )
 }
 

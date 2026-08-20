@@ -386,11 +386,11 @@ describe('Instructor review pages', () => {
     expect(screen.getByText('Flagged question')).toBeVisible()
     expect(screen.getByText('Flagged assistant answer')).toBeVisible()
     expect(screen.getByText('Please check the explanation.')).toBeVisible()
-    expect(screen.getByText('Student flag category')).toBeVisible()
-    expect(screen.getByText('Confusing or unclear')).toBeVisible()
+    expect(screen.getByText('Status')).toBeVisible()
+    expect(screen.getAllByText('Pending')).not.toHaveLength(0)
 
     const context = screen.getByRole('button', {
-      name: 'Previous & Following',
+      name: 'Previous & Following Context',
     })
     expect(context).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Previous question')).toBeNull()
@@ -423,19 +423,20 @@ describe('Instructor review pages', () => {
     expect(screen.queryByText(/Action history/i)).toBeNull()
   })
 
-  it('places the flag category in metadata and review actions in the side region', () => {
+  it('keeps metadata compact and review actions in their own region', () => {
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    const flagLabel = screen.getByText('Student flag category')
-    expect(flagLabel.closest('dl')).not.toBeNull()
+    expect(screen.getByText('Status').closest('dl')).not.toBeNull()
+    expect(screen.getByText('Date').closest('dl')).not.toBeNull()
+    expect(screen.queryByText('Student flag category')).not.toBeInTheDocument()
 
-    const actionAside = screen.getByRole('complementary', {
+    const actionAside = screen.getByRole('region', {
       name: 'Review action',
     })
     expect(
       within(actionAside).getByRole('button', {
-        name: 'Approve original guidance',
+        name: 'Approve',
       }),
     ).toBeVisible()
     expect(
@@ -445,7 +446,7 @@ describe('Instructor review pages', () => {
     ).toBeNull()
   })
 
-  it('does not show a Student category for an automatic review detail', () => {
+  it('does not add a separate Student category to automatic review detail', () => {
     useDetailMock.mockReturnValue(
       detailQuery({
         trigger: 'POLICY_CHECK_FAILED',
@@ -470,7 +471,7 @@ describe('Instructor review pages', () => {
     ).toThrow()
   })
 
-  it('uses compact metadata in the dialog presentation', () => {
+  it('uses a minimal header without repeated queue metadata in the dialog', () => {
     useDetailMock.mockReturnValue(
       queryResult(detail()) as unknown as ReturnType<
         typeof useInstructorReviewDetail
@@ -481,24 +482,22 @@ describe('Instructor review pages', () => {
     )
 
     expect(
-      screen.getByRole('heading', { name: 'Review flagged response' }),
+      screen.getByRole('heading', { name: 'Review details' }),
     ).toBeVisible()
-    expect(screen.getByText('Course One')).toBeVisible()
-    expect(screen.getByText('Safe Student')).toBeVisible()
-    expect(screen.getByText('Student request')).toBeVisible()
+    expect(screen.queryByText('Course One')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Safe Student').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Student request')).not.toBeInTheDocument()
+    expect(screen.queryByText('Please check the explanation.')).toBeNull()
+    expect(screen.getByText('Pending')).toBeVisible()
   })
 
   it('renders the retained actions without replacement or extra information cards', () => {
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    expect(
-      screen.getByRole('button', { name: 'Approve original guidance' }),
-    ).toBeVisible()
-    expect(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    ).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Reject request' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Review & Edit' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeVisible()
     expect(
       screen.queryByRole('button', { name: 'Publish replacement guidance' }),
     ).toBeNull()
@@ -526,10 +525,8 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery({ canReject: false }))
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    expect(screen.queryByRole('button', { name: 'Reject request' })).toBeNull()
-    expect(
-      screen.getByRole('button', { name: 'Approve original guidance' }),
-    ).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Reject' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeVisible()
   })
 
   it('blocks empty edited guidance inline', async () => {
@@ -537,9 +534,7 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
     const editor = screen.getByLabelText('Edited guidance')
     expect(editor).toHaveValue('Flagged assistant answer')
     await user.clear(editor)
@@ -551,49 +546,52 @@ describe('Instructor review pages', () => {
     expect(resolveMutate).not.toHaveBeenCalled()
   })
 
+  it('expands edited guidance inside the assistant chat message', async () => {
+    const user = userEvent.setup()
+    useDetailMock.mockReturnValue(detailQuery())
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
+
+    const assistantMessage = screen.getByRole('article', {
+      name: 'Morshid assistant message',
+    })
+    expect(
+      within(assistantMessage).getByLabelText('Edited guidance'),
+    ).toHaveValue('Flagged assistant answer')
+  })
+
   it('keeps the edited working draft while switching action modes', async () => {
     const user = userEvent.setup()
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
     const editor = screen.getByLabelText('Edited guidance')
     await user.clear(editor)
     await user.type(editor, 'Working edit')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    await user.click(screen.getByRole('button', { name: 'Reject request' }))
+    await user.click(screen.getByRole('button', { name: 'Reject' }))
     expect(screen.getByLabelText('Rejection reason')).toHaveValue('')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
 
     expect(screen.getByLabelText('Edited guidance')).toHaveValue('Working edit')
   })
 
-  it('saves and restores a browser draft after remounting the review', async () => {
+  it('automatically saves and restores a browser draft after remounting', async () => {
     const user = userEvent.setup()
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
     const editor = screen.getByLabelText('Edited guidance')
     await user.clear(editor)
     await user.type(editor, 'Saved browser draft')
-    await user.click(screen.getByRole('button', { name: 'Save draft' }))
-    expect(
-      screen.getByText('Draft saved in this browser for this tab.'),
-    ).toBeVisible()
 
     cleanup()
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
 
     expect(screen.getByLabelText('Edited guidance')).toHaveValue(
       'Saved browser draft',
@@ -605,7 +603,7 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(screen.getByRole('button', { name: 'Reject request' }))
+    await user.click(screen.getByRole('button', { name: 'Reject' }))
     await user.click(screen.getByRole('button', { name: 'Confirm rejection' }))
 
     expect(
@@ -619,9 +617,7 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery({ version: 7 }))
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
     await user.clear(screen.getByLabelText('Edited guidance'))
     await user.type(
       screen.getByLabelText('Edited guidance'),
@@ -650,9 +646,7 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery({ version: 7 }))
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
     const editor = screen.getByLabelText('Edited guidance')
     await user.clear(editor)
     await user.type(editor, 'Retry-safe guidance')
@@ -677,13 +671,8 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    const actionPanel = screen
-      .getByText('Review actions')
-      .closest('[data-slot="card"]')
-    expect(actionPanel).not.toBeNull()
-    for (const button of within(actionPanel as HTMLElement).getAllByRole(
-      'button',
-    )) {
+    const actionPanel = screen.getByRole('region', { name: 'Review action' })
+    for (const button of within(actionPanel).getAllByRole('button')) {
       expect(button).toBeDisabled()
     }
   })
@@ -696,9 +685,7 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Approve original guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Approve' }))
     await user.click(screen.getByRole('button', { name: 'Publish outcome' }))
 
     expect(

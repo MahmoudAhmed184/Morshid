@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  Bot,
   BookOpen,
   ChevronDown,
   Clock,
@@ -11,7 +12,6 @@ import {
 import { useState } from 'react'
 
 import { buttonVariants } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import { StatusBadge } from '@/components/ui/custom/status-badge/status-badge'
@@ -69,18 +69,10 @@ export function ReviewDetailPage({
           </a>
         ) : null}
         {presentation === 'dialog' ? (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {review.course.code} · Instructor review
-              </p>
-              <h1 className="mt-1 text-xl font-semibold tracking-tight">
-                Review flagged response
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                The relevant exchange, evidence, and nearby context in one view.
-              </p>
-            </div>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-lg font-semibold tracking-tight">
+              Review details
+            </h1>
             <StatusBadge
               status={review.status}
               label={humanize(review.status)}
@@ -101,19 +93,22 @@ export function ReviewDetailPage({
         )}
       </div>
 
-      <CompactReviewMetadata
-        course={review.course.title}
-        student={review.student.displayName}
-        trigger={review.triggers.map(humanize).join(' · ')}
-        requested={formatDate(review.requestedAt)}
-        studentFlagCategory={
-          review.studentFlagReason
-            ? studentFlagReasonLabel(review.studentFlagReason)
-            : null
-        }
-      />
+      {presentation === 'page' ? (
+        <CompactReviewMetadata
+          course={review.course.title}
+          student={review.student.displayName}
+          triggers={[
+            ...review.triggers.map(humanize),
+            ...(review.studentFlagReason
+              ? [studentFlagReasonLabel(review.studentFlagReason)]
+              : []),
+          ]}
+          status={humanize(review.status)}
+          requested={formatDate(review.requestedAt)}
+        />
+      ) : null}
 
-      {review.studentNote ? (
+      {presentation === 'page' && review.studentNote ? (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-sm">
           <p className="min-w-0 flex-1 text-muted-foreground">
             <span className="font-medium text-foreground">Student note:</span>{' '}
@@ -122,36 +117,44 @@ export function ReviewDetailPage({
         </div>
       ) : null}
 
-      <div
-        aria-label="Review details layout"
-        className={cn(
-          'grid items-start gap-4',
-          isOpen && 'xl:grid-cols-[minmax(0,1fr)_24rem]',
-        )}
-      >
+      <div aria-label="Review details layout" className="space-y-4">
         <div className="space-y-4">
           <section
             className="space-y-3"
-            aria-labelledby="flagged-exchange-title"
+            aria-labelledby={
+              presentation === 'page' ? 'flagged-exchange-title' : undefined
+            }
+            aria-label={
+              presentation === 'dialog' ? 'Flagged exchange' : undefined
+            }
           >
-            <SectionHeading
-              id="flagged-exchange-title"
-              icon={<MessageSquareText aria-hidden />}
-              title="Flagged exchange"
-              description="The question and original response submitted for review."
-            />
-            <div className="grid gap-3 lg:grid-cols-2">
-              <MessageCard
-                title="Student message"
+            {presentation === 'page' ? (
+              <SectionHeading
+                id="flagged-exchange-title"
+                icon={<MessageSquareText aria-hidden />}
+                title="Flagged exchange"
+                description="The question and original response submitted for review."
+              />
+            ) : null}
+            <div
+              className={cn(
+                'space-y-3',
+                presentation === 'page' &&
+                  'rounded-xl border bg-muted/10 p-3 sm:p-4',
+              )}
+            >
+              <ChatMessage
+                sender={review.student.displayName}
                 content={review.flaggedExchange.content}
                 time={review.flaggedExchange.createdAt}
                 tone="student"
               />
-              <MessageCard
-                title="Original assistant response"
+              <ChatMessage
+                sender="Morshid assistant"
                 content={review.assistantResponse.content}
                 time={review.assistantResponse.createdAt}
                 tone="assistant"
+                editorPortalId={`review-edit-${review.reviewCaseId}`}
               />
             </div>
           </section>
@@ -169,22 +172,18 @@ export function ReviewDetailPage({
         </div>
 
         {isOpen ? (
-          <aside aria-label="Review action" className="xl:sticky xl:top-6">
+          <section aria-label="Review action">
             <ReviewActionPanel
               key={review.reviewCaseId}
               reviewCaseId={review.reviewCaseId}
               version={review.version}
               canReject={review.canReject}
               originalContent={review.assistantResponse.content}
+              editPortalId={`review-edit-${review.reviewCaseId}`}
             />
-          </aside>
+          </section>
         ) : null}
       </div>
-
-      <p className="text-xs text-muted-foreground">
-        Created {formatDate(review.createdAt)} · Requested{' '}
-        {formatDate(review.requestedAt)}
-      </p>
     </div>
   )
 }
@@ -192,34 +191,26 @@ export function ReviewDetailPage({
 function CompactReviewMetadata({
   course,
   student,
-  trigger,
+  triggers,
+  status,
   requested,
-  studentFlagCategory,
 }: {
   course: string
   student: string
-  trigger: string
+  triggers: string[]
+  status: string
   requested: string
-  studentFlagCategory: string | null
 }) {
   const items = [
-    { icon: <BookOpen aria-hidden />, label: 'Course', value: course },
-    { icon: <UserRound aria-hidden />, label: 'Student', value: student },
+    { icon: <UserRound aria-hidden />, label: 'Student', values: [student] },
+    { icon: <BookOpen aria-hidden />, label: 'Course', values: [course] },
     {
       icon: <MessageSquareText aria-hidden />,
       label: 'Trigger',
-      value: trigger,
+      values: triggers,
     },
-    { icon: <Clock aria-hidden />, label: 'Requested', value: requested },
-    ...(studentFlagCategory
-      ? [
-          {
-            icon: <MessageSquareText aria-hidden />,
-            label: 'Student flag category',
-            value: studentFlagCategory,
-          },
-        ]
-      : []),
+    { icon: <Clock aria-hidden />, label: 'Status', values: [status] },
+    { icon: <Clock aria-hidden />, label: 'Date', values: [requested] },
   ]
 
   return (
@@ -244,9 +235,14 @@ function CompactReviewMetadata({
             </dt>
             <dd
               className="mt-0.5 truncate text-sm font-medium"
-              title={item.value}
+              title={item.values.join(' · ')}
             >
-              {item.value}
+              {item.values.map((value, valueIndex) => (
+                <span key={value}>
+                  {valueIndex > 0 ? ' · ' : ''}
+                  <span>{value}</span>
+                </span>
+              ))}
             </dd>
           </div>
         </div>
@@ -284,19 +280,11 @@ function ReviewSources({
             {citation.snippets.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {citation.snippets.map((snippet) => (
-                  <blockquote
+                  <SourceSnippet
                     key={`${citation.materialId}-${snippet.chunkNumber}`}
-                    className="relative rounded-lg border bg-background p-3 pl-9 text-sm leading-6 text-muted-foreground"
-                  >
-                    <Quote
-                      className="absolute top-3 left-3 size-3.5 text-primary/60"
-                      aria-hidden
-                    />
-                    <span className="mb-1 block text-xs font-medium text-foreground">
-                      Chunk {snippet.chunkNumber}
-                    </span>
-                    {snippet.excerpt}
-                  </blockquote>
+                    chunkNumber={snippet.chunkNumber}
+                    excerpt={snippet.excerpt}
+                  />
                 ))}
               </div>
             ) : (
@@ -360,31 +348,92 @@ function CompactCollapsible({
   )
 }
 
-function MessageCard({
-  title,
+function SourceSnippet({
+  chunkNumber,
+  excerpt,
+}: {
+  chunkNumber: number
+  excerpt: string
+}) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const isLong = excerpt.length > 220
+
+  return (
+    <blockquote className="relative rounded-lg border bg-background p-3 pl-9 text-sm leading-6 text-muted-foreground">
+      <Quote
+        className="absolute top-3 left-3 size-3.5 text-primary/60"
+        aria-hidden
+      />
+      <span className="mb-1 block text-xs font-medium text-foreground">
+        Chunk {chunkNumber}
+      </span>
+      <span className={cn('block', isLong && !isExpanded && 'line-clamp-3')}>
+        {excerpt}
+      </span>
+      {isLong ? (
+        <button
+          type="button"
+          className="mt-1 text-xs font-medium text-primary hover:underline"
+          onClick={() => setIsExpanded((expanded) => !expanded)}
+        >
+          {isExpanded ? 'Show less' : 'Show more'}
+        </button>
+      ) : null}
+    </blockquote>
+  )
+}
+
+function ChatMessage({
+  sender,
   content,
   time,
   tone,
+  editorPortalId,
 }: {
-  title: string
+  sender: string
   content: string
   time: string
   tone: 'student' | 'assistant'
+  editorPortalId?: string
 }) {
+  const isAssistant = tone === 'assistant'
+
   return (
-    <Card
-      className={
-        tone === 'assistant' ? 'border-primary/20 bg-primary/[0.025]' : ''
-      }
+    <article
+      aria-label={`${sender} message`}
+      className={cn('flex items-end gap-2', isAssistant && 'flex-row-reverse')}
     >
-      <CardHeader className="border-b px-4 py-3">
-        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-4">
-        <p className="whitespace-pre-wrap text-sm leading-6">{content}</p>
-        <p className="mt-3 text-xs text-muted-foreground">{formatDate(time)}</p>
-      </CardContent>
-    </Card>
+      <span
+        className={cn(
+          'flex size-8 shrink-0 items-center justify-center rounded-full text-[0.65rem] font-semibold',
+          isAssistant
+            ? 'bg-primary/10 text-primary'
+            : 'bg-muted text-muted-foreground',
+        )}
+        aria-hidden
+      >
+        {isAssistant ? <Bot className="size-4" /> : initials(sender)}
+      </span>
+      <div className={cn('max-w-[88%] space-y-1', isAssistant && 'text-right')}>
+        <p className="px-1 text-xs font-medium text-muted-foreground">
+          {sender}
+        </p>
+        <div
+          className={cn(
+            'rounded-2xl border px-3 py-2 text-left shadow-xs',
+            isAssistant
+              ? 'rounded-br-md border-primary/20 bg-primary/[0.045]'
+              : 'rounded-bl-md bg-background',
+          )}
+        >
+          <p className="whitespace-pre-wrap text-sm leading-6">{content}</p>
+          {editorPortalId ? <div id={editorPortalId} /> : null}
+        </div>
+        <time className="block px-1 text-[0.68rem] text-muted-foreground">
+          {formatDate(time)}
+        </time>
+      </div>
+    </article>
   )
 }
 
@@ -424,7 +473,7 @@ function ReviewContext({
   return (
     <CompactCollapsible
       id="previous-and-following"
-      title="Previous & Following"
+      title="Previous & Following Context"
     >
       <div className="grid gap-3 p-3 lg:grid-cols-2">
         {previous ? (
@@ -496,6 +545,15 @@ function humanize(value: string) {
     .toLowerCase()
     .replaceAll('_', ' ')
     .replace(/^./u, (letter) => letter.toUpperCase())
+}
+
+function initials(displayName: string) {
+  return displayName
+    .split(/\s+/u)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('')
 }
 
 function formatDate(value: string) {

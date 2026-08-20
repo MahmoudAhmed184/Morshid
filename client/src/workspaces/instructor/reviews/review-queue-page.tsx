@@ -639,16 +639,10 @@ function ReviewQueueCards({ items }: { items: InstructorReviewQueueItem[] }) {
                     <span>{item.course.code}</span>
                     <span aria-hidden>·</span>
                     <span>{item.course.title}</span>
-                    <span aria-hidden>·</span>
-                    <span>{shortReviewId(item.reviewCaseId)}</span>
                   </p>
                 </div>
                 <ReviewStatus status={item.status} />
               </div>
-
-              <p className="mt-3 text-sm font-medium text-foreground">
-                Review request {shortReviewId(item.reviewCaseId)}
-              </p>
 
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -758,10 +752,6 @@ function initials(displayName: string) {
     .slice(0, 2)
     .map((part) => part[0].toUpperCase())
     .join('')
-}
-
-function shortReviewId(reviewCaseId: string) {
-  return `REV-${reviewCaseId.slice(0, 4).toUpperCase()}`
 }
 
 function formatAge(seconds: number) {
