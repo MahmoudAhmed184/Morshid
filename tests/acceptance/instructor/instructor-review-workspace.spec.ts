@@ -61,8 +61,10 @@ test.describe('Instructor review queue and bounded detail', () => {
     })
     await expect(dialog).toBeVisible()
     await expect(
-      dialog.getByRole('heading', { name: 'Review flagged response' }),
+      dialog.getByRole('heading', { name: 'Review details' }),
     ).toBeVisible()
+    const reviewMetadata = dialog.getByLabel('Review course and date')
+    await expect(reviewMetadata).toContainText(fixture.ownedCourseTitle)
 
     await dialog.getByRole('button', { name: 'Close' }).click()
     await expect(page).toHaveURL('/instructor/review-queue')
@@ -161,7 +163,7 @@ test.describe('Instructor review queue and bounded detail', () => {
     )
     await confirmation.getByRole('button', { name: 'Publish outcome' }).click()
     await expect(
-      instructorPage.getByText('Resolved', { exact: true }),
+      instructorPage.getByText('Resolved', { exact: true }).first(),
     ).toBeVisible()
     await expect(
       instructorPage.getByText('Flagged acceptance assistant response'),

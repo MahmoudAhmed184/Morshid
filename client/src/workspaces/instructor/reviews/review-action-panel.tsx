@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ShieldCheck, XCircle } from 'lucide-react'
+import { ShieldCheck } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -64,15 +64,16 @@ export function ReviewActionPanel({
     setPendingConfirmation({ mode: 'APPROVED', content: originalContent })
   }
 
+  function rejectRequest() {
+    if (isPending || submissionInFlight.current) return
+    setPendingConfirmation({ mode: 'REJECT', content: drafts.REJECT })
+  }
+
   async function submitEditor() {
-    if (mode === null || isPending || submissionInFlight.current) return
+    if (mode !== 'EDITED' || isPending || submissionInFlight.current) return
     const trimmedContent = drafts[mode].trim()
     if (trimmedContent.length === 0) {
-      setValidationError(
-        mode === 'REJECT'
-          ? 'Enter a reason before rejecting this request.'
-          : 'Enter reviewed guidance before publishing.',
-      )
+      setValidationError('Enter reviewed guidance before publishing.')
       return
     }
 
@@ -82,10 +83,18 @@ export function ReviewActionPanel({
   async function confirmSubmission() {
     const confirmation = pendingConfirmation
     if (confirmation === null) return
+    const content =
+      confirmation.mode === 'REJECT'
+        ? drafts.REJECT.trim()
+        : confirmation.content
+    if (confirmation.mode === 'REJECT' && content.length === 0) {
+      throw new Error('Enter a reason before rejecting this request.')
+    }
     const fingerprint = JSON.stringify({
       reviewCaseId,
       version,
       ...confirmation,
+      content,
     })
     const idempotencyKey = idempotencyKeyFor(fingerprint)
     await runSubmission(() =>
@@ -95,7 +104,7 @@ export function ReviewActionPanel({
             idempotencyKey,
             request: {
               expectedVersion: version,
-              reason: confirmation.content,
+              reason: content,
             },
           })
         : resolveMutation.mutateAsync({
@@ -104,8 +113,7 @@ export function ReviewActionPanel({
             request: {
               expectedVersion: version,
               outcome: confirmation.mode,
-              content:
-                confirmation.mode === 'APPROVED' ? null : confirmation.content,
+              content: confirmation.mode === 'APPROVED' ? null : content,
             },
           }),
     )
@@ -174,7 +182,7 @@ export function ReviewActionPanel({
               type="button"
               variant="outline"
               disabled={isPending}
-              onClick={() => openEditor('REJECT')}
+              onClick={rejectRequest}
               className="border-destructive/70 text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
               Reject
@@ -198,25 +206,9 @@ export function ReviewActionPanel({
           </Button>
         </div>
 
-        {mode === 'REJECT' ? (
-          <ReviewEditor
-            mode={mode}
-            value={drafts[mode]}
-            isPending={isPending}
-            validationError={validationError}
-            onChange={(value) => {
-              updateDraft(mode, value)
-              if (validationError !== null) setValidationError(null)
-            }}
-            onCancel={() => setMode(null)}
-            onSubmit={() => void submitEditor()}
-          />
-        ) : null}
-
         {mode === 'EDITED' && editPortalTarget
           ? createPortal(
               <ReviewEditor
-                mode={mode}
                 value={drafts[mode]}
                 isPending={isPending}
                 validationError={validationError}
@@ -248,11 +240,27 @@ export function ReviewActionPanel({
           pendingConfirmation === null ? undefined : (
             <span className="block space-y-3">
               <span className="block">
-                This action is final. The Student-facing result will be:
+                {pendingConfirmation.mode === 'REJECT'
+                  ? 'Explain why this request is being rejected:'
+                  : 'This action is final. The Student-facing result will be:'}
               </span>
-              <span className="block max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-foreground">
-                {pendingConfirmation.content}
-              </span>
+              {pendingConfirmation.mode === 'REJECT' ? (
+                <Textarea
+                  aria-label="Rejection reason"
+                  value={drafts.REJECT}
+                  disabled={isPending}
+                  maxLength={500}
+                  rows={3}
+                  placeholder="Explain why this request is being closed…"
+                  onChange={(event) =>
+                    updateDraft('REJECT', event.target.value)
+                  }
+                />
+              ) : (
+                <span className="block max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-foreground">
+                  {pendingConfirmation.content}
+                </span>
+              )}
             </span>
           )
         }
@@ -270,7 +278,6 @@ export function ReviewActionPanel({
 }
 
 function ReviewEditor({
-  mode,
   value,
   isPending,
   validationError,
@@ -278,7 +285,6 @@ function ReviewEditor({
   onCancel,
   onSubmit,
 }: {
-  mode: EditorMode
   value: string
   isPending: boolean
   validationError: string | null
@@ -288,9 +294,7 @@ function ReviewEditor({
 }) {
   return (
     <div className="mt-2 space-y-2 border-t pt-2 text-left">
-      <Label htmlFor="review-action-content">
-        {mode === 'REJECT' ? 'Rejection reason' : 'Edited guidance'}
-      </Label>
+      <Label htmlFor="review-action-content">Edited guidance</Label>
       <Textarea
         id="review-action-content"
         value={value}
@@ -299,13 +303,9 @@ function ReviewEditor({
         aria-describedby={
           validationError === null ? undefined : 'review-action-error'
         }
-        maxLength={mode === 'REJECT' ? 500 : 4_000}
-        rows={mode === 'REJECT' ? 3 : 4}
-        placeholder={
-          mode === 'REJECT'
-            ? 'Explain why this request is being closed…'
-            : 'Write the guidance the Student should receive…'
-        }
+        maxLength={4_000}
+        rows={4}
+        placeholder="Write the guidance the Student should receive…"
         onChange={(event) => onChange(event.target.value)}
       />
       {validationError !== null ? (
@@ -328,17 +328,11 @@ function ReviewEditor({
           size="sm"
           disabled={isPending}
           onClick={onSubmit}
-          variant={mode === 'REJECT' ? 'destructive' : 'default'}
-          aria-label={
-            mode === 'REJECT' ? 'Confirm rejection' : 'Publish guidance'
-          }
+          variant="default"
+          aria-label="Publish guidance"
         >
-          {mode === 'REJECT' ? (
-            <XCircle aria-hidden />
-          ) : (
-            <ShieldCheck aria-hidden />
-          )}
-          {isPending ? 'Publishing…' : mode === 'REJECT' ? 'Reject' : 'Publish'}
+          <ShieldCheck aria-hidden />
+          {isPending ? 'Publishing…' : 'Publish'}
         </Button>
       </div>
     </div>

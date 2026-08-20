@@ -69,14 +69,31 @@ export function ReviewDetailPage({
           </a>
         ) : null}
         {presentation === 'dialog' ? (
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="text-lg font-semibold tracking-tight">
-              Review details
-            </h1>
-            <StatusBadge
-              status={review.status}
-              label={humanize(review.status)}
-            />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-lg font-semibold tracking-tight">
+                Review details
+              </h1>
+              <StatusBadge
+                status={review.status}
+                label={humanize(review.status)}
+              />
+            </div>
+            <div
+              aria-label="Review course and date"
+              className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <BookOpen className="size-3.5" aria-hidden />
+                <span>
+                  {review.course.code} · {review.course.title}
+                </span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Clock className="size-3.5" aria-hidden />
+                <span>{formatDate(review.requestedAt)}</span>
+              </span>
+            </div>
           </div>
         ) : (
           <PageHeader

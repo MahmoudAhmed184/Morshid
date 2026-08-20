@@ -471,7 +471,7 @@ describe('Instructor review pages', () => {
     ).toThrow()
   })
 
-  it('uses a minimal header without repeated queue metadata in the dialog', () => {
+  it('shows course and date metadata in the dialog header', () => {
     useDetailMock.mockReturnValue(
       queryResult(detail()) as unknown as ReturnType<
         typeof useInstructorReviewDetail
@@ -484,7 +484,9 @@ describe('Instructor review pages', () => {
     expect(
       screen.getByRole('heading', { name: 'Review details' }),
     ).toBeVisible()
-    expect(screen.queryByText('Course One')).not.toBeInTheDocument()
+    const reviewMetadata = screen.getByLabelText('Review course and date')
+    expect(within(reviewMetadata).getByText('C1 · Course One')).toBeVisible()
+    expect(within(reviewMetadata).getByText(/Jul 29, 2026/)).toBeVisible()
     expect(screen.getAllByText('Safe Student').length).toBeGreaterThan(0)
     expect(screen.queryByText('Student request')).not.toBeInTheDocument()
     expect(screen.queryByText('Please check the explanation.')).toBeNull()
@@ -598,18 +600,40 @@ describe('Instructor review pages', () => {
     )
   })
 
-  it('blocks an empty rejection reason inline', async () => {
+  it('blocks an empty rejection reason in the confirmation dialog', async () => {
     const user = userEvent.setup()
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
     await user.click(screen.getByRole('button', { name: 'Reject' }))
-    await user.click(screen.getByRole('button', { name: 'Confirm rejection' }))
+    await user.click(screen.getByRole('button', { name: 'Reject request' }))
 
     expect(
-      screen.getByText('Enter a reason before rejecting this request.'),
+      await screen.findByText('Enter a reason before rejecting this request.'),
     ).toBeVisible()
     expect(rejectMutate).not.toHaveBeenCalled()
+  })
+
+  it('submits the rejection reason from the confirmation dialog', async () => {
+    const user = userEvent.setup()
+    useDetailMock.mockReturnValue(detailQuery({ version: 7 }))
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    await user.click(screen.getByRole('button', { name: 'Reject' }))
+    await user.type(
+      screen.getByLabelText('Rejection reason'),
+      '  Not supported  ',
+    )
+    await user.click(screen.getByRole('button', { name: 'Reject request' }))
+
+    expect(rejectMutate).toHaveBeenCalledWith({
+      reviewCaseId,
+      idempotencyKey: expect.any(String),
+      request: {
+        expectedVersion: 7,
+        reason: 'Not supported',
+      },
+    })
   })
 
   it('submits trimmed edited guidance with the current version', async () => {
