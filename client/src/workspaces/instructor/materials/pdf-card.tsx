@@ -2,7 +2,6 @@ import {
   CheckCircle2,
   FileText,
   Loader2,
-  MoreHorizontal,
   TriangleAlert,
   XCircle,
 } from 'lucide-react'
@@ -10,13 +9,7 @@ import type { LucideIcon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import type { badgeVariants } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import type { VariantProps } from 'class-variance-authority'
 
@@ -164,24 +157,9 @@ export function PdfCard({
                 status
               )}
               {actions ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="-mt-1 -mr-1"
-                        aria-label={`Open actions for ${title}`}
-                      />
-                    }
-                  >
-                    <MoreHorizontal aria-hidden />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {actions}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="-mt-1 -mr-1 flex items-center gap-0.5">
+                  {actions}
+                </div>
               ) : null}
             </div>
           </div>

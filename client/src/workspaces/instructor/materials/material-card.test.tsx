@@ -35,15 +35,7 @@ describe('MaterialCard', () => {
       screen.getByText('The material could not be parsed.'),
     ).toBeInTheDocument()
 
-    const actionsButton = screen.getByRole('button', {
-      name: 'Open actions for module_03_control_flow_loops_matching',
-    })
-    await user.click(actionsButton)
-
-    const deleteMenuItem = await screen.findByRole('menuitem', {
-      name: 'Delete material',
-    })
-    await user.click(deleteMenuItem)
+    await user.click(screen.getByRole('button', { name: 'Delete material' }))
 
     const dialogHeading = await screen.findByRole('heading', {
       name: 'Delete “module_03_control_flow_loops_matching”?',
@@ -67,27 +59,17 @@ describe('MaterialCard', () => {
     )
 
     await user.click(
-      screen.getByRole('button', {
-        name: 'Open actions for module_03_control_flow_loops_matching',
-      }),
-    )
-    await user.click(
-      await screen.findByRole('menuitem', { name: 'Retry processing' }),
+      screen.getByRole('button', { name: 'Retry material processing' }),
     )
     expect(onRetry).toHaveBeenCalledOnce()
 
     rerender(
       <MaterialCard material={failedMaterial} onRetry={onRetry} isRetrying />,
     )
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Open actions for module_03_control_flow_loops_matching',
-      }),
-    )
-    const retryItem = await screen.findByRole('menuitem', {
-      name: 'Retrying processing...',
+    const retryItem = screen.getByRole('button', {
+      name: 'Retrying material processing',
     })
-    expect(retryItem).toHaveAttribute('aria-disabled', 'true')
+    expect(retryItem).toBeDisabled()
     await user.click(retryItem)
     expect(onRetry).toHaveBeenCalledOnce()
   })
@@ -104,7 +86,7 @@ describe('MaterialCard', () => {
 
       expect(
         screen.queryByRole('button', {
-          name: 'Open actions for module_03_control_flow_loops_matching',
+          name: 'Retry material processing',
         }),
       ).not.toBeInTheDocument()
     },
