@@ -15,18 +15,21 @@ const databaseUrl = process.env.DATABASE_URL
 // enum label order plus every public index, CHECK/FK definition and action,
 // application trigger definition, and application function body queried below.
 const expectedCatalogSemanticFingerprint =
-  'e3b06c2c389ba0f70c652e2333ea28268df0d7a9792011179541aa9de8a14b97'
+  '0f0a48f5cdc5b90e5757f5cf762b62deb6cf68d9904eab0ed53dccda8cbdb3a0'
 
 if (databaseUrl === undefined) {
   throw new Error('DATABASE_URL is required for Prisma catalog assertions')
 }
 
 const expectedTables = [
+  'allowance_resets',
   'audit_logs',
   'chat_sessions',
   'course_memberships',
+  'course_policy_overrides',
   'courses',
   'debugging_diagnoses',
+  'deployment_policy_defaults',
   'educational_analyses',
   'educational_analysis_evidence_links',
   'educational_analysis_misconceptions',
@@ -57,14 +60,18 @@ const expectedTables = [
 ]
 
 const expectedIndexes = [
+  'allowance_resets_pkey',
   'audit_logs_pkey',
   'chat_sessions_pkey',
   'course_memberships_course_id_user_id_key',
   'course_memberships_pkey',
+  'course_policy_overrides_course_id_key',
+  'course_policy_overrides_pkey',
   'courses_code_key',
   'courses_pkey',
   'debugging_diagnoses_attempt_id_key',
   'debugging_diagnoses_pkey',
+  'deployment_policy_defaults_pkey',
   'educational_analyses_pkey',
   'educational_analyses_attempt_id_attempt_key',
   'educational_analysis_evidence_links_analysis_kind_ordinal_key',
@@ -74,6 +81,7 @@ const expectedIndexes = [
   'guard_results_attempt_stage_key',
   'idempotency_records_actor_scope_key_key',
   'idempotency_records_pkey',
+  'idx_allowance_resets_student_course_created',
   'idx_audit_actor_created',
   'idx_audit_course_created',
   'idx_citations_material',
@@ -168,8 +176,14 @@ const expectedIndexes = [
 ]
 
 const expectedChecks = [
+  'allowance_resets_reason_check',
   'audit_logs_action_check',
   'audit_logs_target_type_check',
+  'course_policy_overrides_limit_present_check',
+  'course_policy_overrides_review_limit_check',
+  'course_policy_overrides_tutoring_limit_check',
+  'deployment_policy_defaults_review_limit_check',
+  'deployment_policy_defaults_tutoring_limit_check',
   'guard_results_approval_check',
   'guard_results_severity_check',
   'guard_results_violations_check',
@@ -213,6 +227,9 @@ const expectedChecks = [
 ]
 
 const expectedForeignKeys = [
+  'allowance_resets_course_id_fkey',
+  'allowance_resets_created_by_id_fkey',
+  'allowance_resets_student_id_fkey',
   'audit_logs_actor_user_id_fkey',
   'audit_logs_course_id_fkey',
   'chat_sessions_course_id_fkey',
@@ -221,6 +238,7 @@ const expectedForeignKeys = [
   'course_memberships_course_id_fkey',
   'course_memberships_created_by_fkey',
   'course_memberships_user_id_fkey',
+  'course_policy_overrides_course_id_fkey',
   'courses_created_by_fkey',
   'debugging_diagnoses_tutoring_attempt_id_fkey',
   'educational_analyses_student_message_id_fkey',

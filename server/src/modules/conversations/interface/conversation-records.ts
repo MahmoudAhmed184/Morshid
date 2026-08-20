@@ -38,8 +38,24 @@ export interface ChatMessageRecord {
   hintLevel: number | null
   promptVersion: string | null
   errorCode: string | null
+  inputTokens?: number | null
+  outputTokens?: number | null
   createdAt: Date
   completedAt: Date | null
+}
+
+export interface ChatSessionSummaryRecord {
+  turnsUsed: number
+  turnLimit: number
+  turnsRemaining: number
+  isTurnLimitExhausted: boolean
+  contextTokens: number
+  maxContextTokens: number
+  contextPercent: number
+  totalProcessedTokens: number | null
+  policyDay: string
+  policyTimeZone: string
+  resetAt: string
 }
 
 export interface SessionListPagination {

@@ -52,10 +52,33 @@ export const listChatSessionsInputSchema = z
   })
   .strict()
 
+export const chatSessionSummarySchema = z
+  .object({
+    turnsUsed: z.number().int().nonnegative(),
+    turnLimit: z.number().int().positive(),
+    turnsRemaining: z.number().int().nonnegative(),
+    isTurnLimitExhausted: z.boolean(),
+    contextTokens: z.number().int().nonnegative(),
+    maxContextTokens: z.number().int().positive(),
+    contextPercent: z.number().int().min(0).max(100),
+    totalProcessedTokens: z.number().int().nonnegative().nullable(),
+    policyDay: z.string(),
+    policyTimeZone: z.string(),
+    resetAt: z.string(),
+  })
+  .strict()
+
+export const chatSessionSummaryResponseSchema = z
+  .object({
+    summary: chatSessionSummarySchema,
+  })
+  .strict()
+
 export type ChatSession = z.infer<typeof chatSessionSchema>
 export type ChatSessionListResponse = z.infer<
   typeof chatSessionListResponseSchema
 >
+export type ChatSessionSummary = z.infer<typeof chatSessionSummarySchema>
 export type CreateChatSessionInput = z.input<
   typeof createChatSessionRequestSchema
 >

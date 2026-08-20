@@ -26,6 +26,8 @@ export const chatMessageScalarSelect = {
   hintLevel: true,
   promptVersion: true,
   errorCode: true,
+  inputTokens: true,
+  outputTokens: true,
   createdAt: true,
   completedAt: true,
 } satisfies Prisma.MessageSelect

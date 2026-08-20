@@ -39,6 +39,11 @@ export const AUDIT_EVENT_ACTIONS = {
   REVIEW_TRIGGER_ADDED: 'review.trigger_added',
   REVIEW_CASE_RESOLVED: 'review.case_resolved',
   REVIEW_CASE_REJECTED: 'review.case_rejected',
+  ALLOWANCE_POLICY_DEFAULTS_UPDATED: 'allowance.policy_defaults_updated',
+  ALLOWANCE_COURSE_OVERRIDE_CREATED: 'allowance.course_override_created',
+  ALLOWANCE_COURSE_OVERRIDE_UPDATED: 'allowance.course_override_updated',
+  ALLOWANCE_COURSE_OVERRIDE_DELETED: 'allowance.course_override_deleted',
+  ALLOWANCE_RESET_CREATED: 'allowance.reset_created',
 } as const
 
 export type AuditEventAction =
@@ -53,6 +58,9 @@ export const AUDIT_TARGET_TYPES = {
   CHAT_SESSION: 'chat_session',
   MESSAGE: 'message',
   REVIEW_CASE: 'review_case',
+  DEPLOYMENT_POLICY_DEFAULT: 'deployment_policy_default',
+  COURSE_POLICY_OVERRIDE: 'course_policy_override',
+  ALLOWANCE_RESET: 'allowance_reset',
   SYSTEM: 'system',
 } as const
 

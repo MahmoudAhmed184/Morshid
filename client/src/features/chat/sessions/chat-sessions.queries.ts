@@ -3,6 +3,7 @@ import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 import {
   getChatMessages,
   getChatSession,
+  getChatSessionSummary,
   listChatSessions,
 } from '@/features/chat/sessions/chat-sessions.api'
 
@@ -33,6 +34,16 @@ export const chatSessionKeys = {
       sessionId,
       'detail',
     ] as const,
+  summary: ({ studentId, courseId, sessionId }: ChatSessionScope) =>
+    [
+      'chat',
+      studentId,
+      'courses',
+      courseId,
+      'sessions',
+      sessionId,
+      'summary',
+    ] as const,
   messages: ({ studentId, courseId, sessionId }: ChatSessionScope) =>
     [
       'chat',
@@ -55,6 +66,17 @@ export function chatSessionQueryOptions({
   return queryOptions({
     queryKey: chatSessionKeys.detail({ studentId, courseId, sessionId }),
     queryFn: () => getChatSession({ courseId, sessionId }),
+  })
+}
+
+export function chatSessionSummaryQueryOptions({
+  studentId,
+  courseId,
+  sessionId,
+}: ChatSessionScope) {
+  return queryOptions({
+    queryKey: chatSessionKeys.summary({ studentId, courseId, sessionId }),
+    queryFn: () => getChatSessionSummary({ courseId, sessionId }),
   })
 }
 

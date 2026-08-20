@@ -1,14 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
-
-import { SettingsPlaceholderTab } from '@/workspaces/_shared/settings-shell'
+import { AdminAllowancePolicyPage } from '@/features/allowances/interface'
 
 export const Route = createFileRoute('/admin/settings/review-policy')({
-  component: () => (
-    <SettingsPlaceholderTab
-      title="Review policy"
-      description="Configure manual review limits and operational defaults."
-    />
-  ),
+  component: () => <AdminAllowancePolicyPage scope="REVIEW" />,
   head: () => ({
     meta: [{ title: 'Review Policy Settings — Morshid' }],
   }),

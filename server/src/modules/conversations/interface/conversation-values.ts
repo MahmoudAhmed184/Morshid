@@ -44,3 +44,5 @@ export interface DecimalLike {
   toNumber(): number
   toString(): string
 }
+
+export const MAX_CONVERSATION_TURNS = 30

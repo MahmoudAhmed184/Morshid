@@ -169,6 +169,40 @@ describe('Gemini chat project configuration', () => {
       success: false,
     })
   })
+
+  it('provides credential-opaque snapshot without mutating pool state or leaking secrets', async () => {
+    const redis = new RecordingRedis([
+      [
+        1,
+        JSON.stringify([
+          [0, 0, 0],
+          [1, 5000, 1724140000000],
+        ]),
+      ],
+    ])
+    const pool = new GeminiChatProjectPool(redis, projects)
+
+    const snapshot = await pool.snapshot()
+    expect(snapshot).toEqual({
+      totalProjects: 2,
+      availableProjects: 1,
+      cooledDownProjects: 1,
+      cooldownDetails: [
+        {
+          projectIndex: 1,
+          cooldownRemainingMs: 5000,
+          cooldownUntilMs: 1724140000000,
+        },
+      ],
+      status: 'Pressured',
+    })
+
+    const payload = JSON.stringify(redis.calls[0])
+    expect(payload).not.toContain(projects[0].id)
+    expect(payload).not.toContain(projects[0].apiKey)
+    expect(payload).not.toContain(projects[1].id)
+    expect(payload).not.toContain(projects[1].apiKey)
+  })
 })
 
 interface RedisCall {

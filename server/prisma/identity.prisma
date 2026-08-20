@@ -64,6 +64,8 @@ model User {
   inboxItems         ReviewInboxItem[]   @relation("ReviewInboxRecipient")
   tutoringPreference StudentTutoringPreference?
   userImports        UserImport[]        @relation("UserImportCreatedBy")
+  allowanceResetsReceived AllowanceReset[] @relation("AllowanceResetStudent")
+  allowanceResetsCreated  AllowanceReset[] @relation("AllowanceResetCreatedBy")
 
   @@index([disabledById], map: "idx_users_disabled_by")
   @@map("users")

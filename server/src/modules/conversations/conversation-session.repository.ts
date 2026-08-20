@@ -13,14 +13,19 @@ import {
   chatSessionSelect,
   ownedActiveSessionWhere,
 } from './conversation-repository.support'
+import { resolvePolicyDayWindow } from '../allowances/interface/allowances-resolver'
+import { MAX_CONVERSATION_TURNS } from './interface/conversation-values'
 import type {
   ChatSessionRecord,
+  ChatSessionSummaryRecord,
   ExportableMessageRecord,
   ExportableSessionRecord,
   SessionListPagination,
   SoftDeleteChatSessionInput,
   SoftDeleteSessionOutcome,
 } from './interface/conversation-records'
+
+export const MAX_CONTEXT_WINDOW_TOKENS = 258_000
 
 export abstract class ConversationSessionRepository {
   abstract hasActiveStudentMembership(
@@ -52,6 +57,12 @@ export abstract class ConversationSessionRepository {
     sessionId: string,
     studentId: string,
   ): Promise<ChatSessionRecord | null>
+
+  abstract getSessionSummary(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+  ): Promise<ChatSessionSummaryRecord | null>
 
   abstract findExportableSession(
     courseId: string,
@@ -223,6 +234,83 @@ export class PrismaConversationSessionRepository extends ConversationSessionRepo
       where: ownedActiveSessionWhere(courseId, sessionId, studentId),
       select: chatSessionSelect,
     })
+  }
+
+  async getSessionSummary(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+  ): Promise<ChatSessionSummaryRecord | null> {
+    const session = await this.prismaService.chatSession.findFirst({
+      where: ownedActiveSessionWhere(courseId, sessionId, studentId),
+      select: { id: true },
+    })
+
+    if (session === null) {
+      return null
+    }
+
+    const [turnsUsed, latestAssistant, tokenAggregation] = await Promise.all([
+      this.prismaService.message.count({
+        where: {
+          sessionId,
+          role: MessageRole.STUDENT,
+        },
+      }),
+      this.prismaService.message.findFirst({
+        where: {
+          sessionId,
+          role: MessageRole.ASSISTANT,
+          status: MessageStatus.COMPLETED,
+        },
+        orderBy: {
+          sequence: 'desc',
+        },
+        select: {
+          inputTokens: true,
+        },
+      }),
+      this.prismaService.message.aggregate({
+        where: {
+          sessionId,
+          status: MessageStatus.COMPLETED,
+        },
+        _sum: {
+          inputTokens: true,
+          outputTokens: true,
+        },
+      }),
+    ])
+
+    const turnLimit = MAX_CONVERSATION_TURNS
+    const turnsRemaining = Math.max(0, turnLimit - turnsUsed)
+    const isTurnLimitExhausted = turnsRemaining === 0
+    const contextTokens = latestAssistant?.inputTokens ?? 0
+    const maxContextTokens = MAX_CONTEXT_WINDOW_TOKENS
+    const contextPercent = Math.min(
+      100,
+      Math.max(0, Math.round((contextTokens / maxContextTokens) * 100)),
+    )
+    const totalProcessed =
+      (tokenAggregation._sum.inputTokens ?? 0) +
+      (tokenAggregation._sum.outputTokens ?? 0)
+    const totalProcessedTokens = totalProcessed > 0 ? totalProcessed : 0
+
+    const policyDay = resolvePolicyDayWindow(new Date())
+
+    return {
+      turnsUsed,
+      turnLimit,
+      turnsRemaining,
+      isTurnLimitExhausted,
+      contextTokens,
+      maxContextTokens,
+      contextPercent,
+      totalProcessedTokens,
+      policyDay: policyDay.start.toISOString().slice(0, 10),
+      policyTimeZone: policyDay.policyTimeZone,
+      resetAt: policyDay.resetAt.toISOString(),
+    }
   }
 
   findExportableSession(

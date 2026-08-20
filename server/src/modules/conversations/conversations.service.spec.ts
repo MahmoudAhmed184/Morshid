@@ -18,6 +18,7 @@ import { ConversationSessionRepository } from './conversation-session.repository
 import type {
   ChatMessageRecord,
   ChatSessionRecord,
+  ChatSessionSummaryRecord,
   ExportableMessageRecord,
   ExportableSessionRecord,
   MessageListPagination,
@@ -123,6 +124,57 @@ class ConversationTestRepository
     const session = this.findOwnedSession(courseId, sessionId, studentId)
 
     return Promise.resolve(session ? toSessionRecord(session) : null)
+  }
+
+  getSessionSummary(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+  ): Promise<ChatSessionSummaryRecord | null> {
+    const session = this.findOwnedSession(courseId, sessionId, studentId)
+    if (!session) return Promise.resolve(null)
+
+    const sessionMessages = this.messages.get(sessionId) ?? []
+    const turnsUsed = sessionMessages.filter(
+      (msg) => msg.role === MessageRole.STUDENT,
+    ).length
+    const latestAssistant = [...sessionMessages]
+      .reverse()
+      .find(
+        (msg) =>
+          msg.role === MessageRole.ASSISTANT &&
+          msg.status === MessageStatus.COMPLETED,
+      )
+    const turnLimit = 30
+    const turnsRemaining = Math.max(0, turnLimit - turnsUsed)
+    const isTurnLimitExhausted = turnsRemaining === 0
+    const contextTokens = latestAssistant?.inputTokens ?? 0
+    const maxContextTokens = 258_000
+    const contextPercent = Math.min(
+      100,
+      Math.max(0, Math.round((contextTokens / maxContextTokens) * 100)),
+    )
+    const totalProcessed = sessionMessages
+      .filter((msg) => msg.status === MessageStatus.COMPLETED)
+      .reduce(
+        (sum, msg) => sum + (msg.inputTokens ?? 0) + (msg.outputTokens ?? 0),
+        0,
+      )
+    const totalProcessedTokens = totalProcessed > 0 ? totalProcessed : 0
+
+    return Promise.resolve({
+      turnsUsed,
+      turnLimit,
+      turnsRemaining,
+      isTurnLimitExhausted,
+      contextTokens,
+      maxContextTokens,
+      contextPercent,
+      totalProcessedTokens,
+      policyDay: '2026-07-14',
+      policyTimeZone: 'Africa/Cairo',
+      resetAt: '2026-07-15T00:00:00.000Z',
+    })
   }
 
   findExportableSession(
@@ -1065,6 +1117,74 @@ describe('ConversationsService', () => {
       ).rejects.toThrow('Database error during audit logging')
     })
   })
+
+  describe('getSessionSummary', () => {
+    it('returns authoritative session summary for an enrolled student', async () => {
+      const { repository, service } = buildService()
+      repository.addMembership('course-1', student.id)
+      const session = repository.addSession(
+        'course-1',
+        student.id,
+        'My Session',
+      )
+
+      repository.addMessage(session.id, {
+        sequence: 1,
+        role: MessageRole.STUDENT,
+        content: 'Question 1',
+      })
+      repository.addMessage(session.id, {
+        sequence: 2,
+        role: MessageRole.ASSISTANT,
+        content: 'Answer 1',
+        inputTokens: 1500,
+        outputTokens: 50,
+      })
+
+      const result = await service.getSessionSummary(
+        'course-1',
+        session.id,
+        student,
+      )
+
+      expect(result.summary).toEqual({
+        turnsUsed: 1,
+        turnLimit: 30,
+        turnsRemaining: 29,
+        isTurnLimitExhausted: false,
+        contextTokens: 1500,
+        maxContextTokens: 258000,
+        contextPercent: 1,
+        totalProcessedTokens: 1550,
+        policyDay: '2026-07-14',
+        policyTimeZone: 'Africa/Cairo',
+        resetAt: '2026-07-15T00:00:00.000Z',
+      })
+    })
+
+    it('rejects with 403 when student has no active membership', async () => {
+      const { repository, service } = buildService()
+      const session = repository.addSession('course-1', student.id, 'Session')
+
+      await expect(
+        service.getSessionSummary('course-1', session.id, student),
+      ).rejects.toThrow(ForbiddenException)
+    })
+
+    it('rejects with 404 when session belongs to another student', async () => {
+      const { repository, service } = buildService()
+      repository.addMembership('course-1', student.id)
+      const session = repository.addSession(
+        'course-1',
+        otherStudent.id,
+        'Other Session',
+      )
+
+      await expect(
+        service.getSessionSummary('course-1', session.id, student),
+      ).rejects.toThrow(NotFoundException)
+    })
+  })
 })
 
 function buildUser(id: string, role: UserRole): AuthenticatedUser {
@@ -1115,6 +1235,8 @@ function makeMessage(
     hintLevel: values.hintLevel ?? null,
     promptVersion: values.promptVersion ?? null,
     errorCode: values.errorCode ?? null,
+    inputTokens: values.inputTokens ?? null,
+    outputTokens: values.outputTokens ?? null,
     createdAt,
     completedAt: values.completedAt ?? null,
   }
