@@ -106,8 +106,8 @@ export function ConfirmDialog({
     <AlertDialog open={isOpen} onOpenChange={setOpen}>
       {trigger ? <AlertDialogTrigger render={trigger} /> : null}
       <AlertDialogContent className="max-w-[calc(100%-2rem)] rounded-2xl p-6 shadow-2xl sm:max-w-[460px] sm:p-7">
-        <AlertDialogHeader className="flex flex-col gap-3 text-left">
-          <div className="flex items-start gap-3">
+        <AlertDialogHeader className="min-w-0 max-w-full gap-3 text-left">
+          <div className="flex min-w-0 max-w-full items-start gap-3">
             <TriangleAlertIcon
               className={cn(
                 'size-6 shrink-0 stroke-[2] mt-0.5',
@@ -141,14 +141,17 @@ export function ConfirmDialog({
         ) : null}
 
         {errorMessage ? (
-          <p role="alert" className="mt-2 text-sm text-destructive">
+          <p
+            role="alert"
+            className="mt-2 min-w-0 text-sm text-destructive [overflow-wrap:anywhere]"
+          >
             {errorMessage}
           </p>
         ) : null}
 
         <div className="my-5 border-t border-border/70" />
 
-        <AlertDialogFooter className="flex flex-row items-center justify-end gap-3 pt-0">
+        <AlertDialogFooter className="flex flex-row flex-wrap items-center justify-end gap-3 pt-0">
           <AlertDialogCancel
             disabled={isConfirming}
             className="h-10 rounded-xl border border-input bg-background px-5 text-sm font-medium text-foreground shadow-2xs hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/30"
