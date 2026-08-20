@@ -878,7 +878,7 @@ describe('OpenAPI contract (e2e)', () => {
           method: 'post',
           tag: 'materials',
           summary: 'Upload course PDF material',
-          statuses: ['201', '400', '401', '403', '404', '413'],
+          statuses: ['201', '400', '401', '403', '404', '409', '413'],
         },
         {
           path: base,

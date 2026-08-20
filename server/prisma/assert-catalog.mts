@@ -125,6 +125,7 @@ const expectedIndexes = [
   'material_chunks_material_id_chunk_index_key',
   'material_chunks_pkey',
   'materials_processing_attempt_id_key',
+  'materials_course_id_sha256_hash_active_key',
   'material_processing_commands_pkey',
   'materials_pkey',
   'message_citations_message_id_citation_order_key',

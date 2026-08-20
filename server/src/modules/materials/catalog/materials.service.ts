@@ -25,8 +25,14 @@ import {
   type MaterialStatusDto,
 } from './materials.dto'
 import { MaterialsAuditService } from './materials.audit.service'
-import { MATERIALS_ERROR_CODES } from './materials.errors'
-import { MaterialsRepository } from './materials.repository'
+import {
+  duplicatePdfException,
+  MATERIALS_ERROR_CODES,
+} from './materials.errors'
+import {
+  DuplicateMaterialHashError,
+  MaterialsRepository,
+} from './materials.repository'
 import {
   PdfUploadValidator,
   type UploadedPdfFile,
@@ -94,6 +100,25 @@ export class MaterialsService {
     }
 
     const sha256Hash = createHash('sha256').update(upload.buffer).digest('hex')
+
+    if (
+      await this.materialsRepository.hasActiveMaterialWithHash(
+        courseId,
+        sha256Hash,
+      )
+    ) {
+      await this.materialsAuditService.recordUploadFailed({
+        actor,
+        courseId,
+        originalFilename: upload.originalFilename,
+        fileSize: upload.size,
+        mimetype: upload.mimetype,
+        reason: 'DUPLICATE_PDF',
+        requestContext,
+      })
+      throw duplicatePdfException()
+    }
+
     let storagePath: string | null = null
     let materialId: string | null = null
 
@@ -157,6 +182,10 @@ export class MaterialsService {
           'Material upload failed and cleanup was incomplete',
           { cause: error },
         )
+      }
+
+      if (error instanceof DuplicateMaterialHashError) {
+        throw duplicatePdfException()
       }
 
       throw error
