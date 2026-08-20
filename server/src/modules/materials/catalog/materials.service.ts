@@ -10,7 +10,6 @@ import {
 
 import type { AuditRequestContext } from '../../audit/audit.public'
 import type { AuthenticatedUser } from '../../identity/identity.types'
-import { UserRole } from '../../identity/identity.roles'
 import { CourseAccess } from '../../courses/interface/course-access'
 import {
   PDF_STORAGE,
@@ -28,12 +27,6 @@ import {
 import { MaterialsAuditService } from './materials.audit.service'
 import { MATERIALS_ERROR_CODES } from './materials.errors'
 import { MaterialsRepository } from './materials.repository'
-import type { MaterialAdministrationRecord } from './materials.repository'
-import {
-  type MaterialAdministrationListResponseDto,
-  type MaterialAdministrationResponseDto,
-  type UpdateMaterialAdministrationRequest,
-} from './material-administration.types'
 import {
   PdfUploadValidator,
   type UploadedPdfFile,
@@ -52,7 +45,7 @@ export class MaterialsService {
 
   async uploadMaterial(
     courseId: string,
-    input: { title: unknown; file?: UploadedPdfFile },
+    input: { courseId?: unknown; title: unknown; file?: UploadedPdfFile },
     actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<MaterialResponseDto> {
@@ -83,7 +76,10 @@ export class MaterialsService {
     let upload: ReturnType<PdfUploadValidator['validate']>
 
     try {
-      upload = this.pdfUploadValidator.validate(input)
+      upload = this.pdfUploadValidator.validate({
+        expectedCourseId: courseId,
+        ...input,
+      })
     } catch (error) {
       await this.materialsAuditService.recordUploadFailed({
         actor,
@@ -170,7 +166,7 @@ export class MaterialsService {
   async listMaterials(
     courseId: string,
     actor: AuthenticatedUser,
-    query: ListMaterialsQuery = { limit: 25 },
+    query: ListMaterialsQuery = { limit: 15 },
   ): Promise<MaterialListResponseDto> {
     await this.requireCourseMaterialManagement(courseId, actor)
 
@@ -181,11 +177,9 @@ export class MaterialsService {
 
     return {
       materials: page.materials.map((material) =>
-        mapMaterialRecord(
-          material,
-          actor.role === UserRole.ADMIN || material.uploadedById === actor.id,
-        ),
+        mapMaterialRecord(material, material.uploadedById === actor.id),
       ),
+      total: page.total,
       ...(page.nextCursor !== undefined ? { nextCursor: page.nextCursor } : {}),
     }
   }
@@ -207,10 +201,7 @@ export class MaterialsService {
     }
 
     return {
-      material: mapMaterialRecord(
-        material,
-        actor.role === UserRole.ADMIN || material.uploadedById === actor.id,
-      ),
+      material: mapMaterialRecord(material, material.uploadedById === actor.id),
     }
   }
 
@@ -233,74 +224,6 @@ export class MaterialsService {
     return mapMaterialStatusRecord(material)
   }
 
-  async listMaterialsForAdministration(
-    courseId: string,
-    actor: AuthenticatedUser,
-    query: ListMaterialsQuery = { limit: 25 },
-  ): Promise<MaterialAdministrationListResponseDto> {
-    await this.requireCourseMaterialManagement(courseId, actor)
-
-    const page =
-      await this.materialsRepository.listMaterialsForAdministrationPage(
-        courseId,
-        query,
-      )
-
-    return {
-      materials: page.materials.map(mapMaterialAdministrationRecord),
-      ...(page.nextCursor !== undefined ? { nextCursor: page.nextCursor } : {}),
-    }
-  }
-
-  async getMaterialForAdministration(
-    courseId: string,
-    materialId: string,
-    actor: AuthenticatedUser,
-  ): Promise<MaterialAdministrationResponseDto> {
-    await this.requireCourseMaterialManagement(courseId, actor)
-
-    const material =
-      await this.materialsRepository.findMaterialForAdministration(
-        courseId,
-        materialId,
-      )
-
-    if (material === null) {
-      throw materialNotFoundException()
-    }
-
-    return {
-      material: mapMaterialAdministrationRecord(material),
-    }
-  }
-
-  async updateMaterialForAdministration(
-    courseId: string,
-    materialId: string,
-    input: UpdateMaterialAdministrationRequest,
-    actor: AuthenticatedUser,
-    requestContext?: AuditRequestContext,
-  ): Promise<MaterialAdministrationResponseDto> {
-    await this.requireCourseMaterialManagement(courseId, actor)
-
-    const material =
-      await this.materialsRepository.updateMaterialForAdministration({
-        courseId,
-        materialId,
-        title: input.title,
-        actorUserId: actor.id,
-        requestContext,
-      })
-
-    if (material === null) {
-      throw materialNotFoundException()
-    }
-
-    return {
-      material: mapMaterialAdministrationRecord(material),
-    }
-  }
-
   async deleteMaterial(
     courseId: string,
     materialId: string,
@@ -313,11 +236,7 @@ export class MaterialsService {
       courseId,
       materialId,
     )
-    if (
-      material !== null &&
-      actor.role !== UserRole.ADMIN &&
-      material.uploadedById !== actor.id
-    ) {
+    if (material !== null && material.uploadedById !== actor.id) {
       throw materialDeleteForbiddenException()
     }
 
@@ -333,7 +252,7 @@ export class MaterialsService {
       throw materialNotFoundException()
     }
 
-    if (actor.role !== UserRole.ADMIN && deleted.uploadedById !== actor.id) {
+    if (deleted.uploadedById !== actor.id) {
       throw materialDeleteForbiddenException()
     }
 
@@ -440,21 +359,6 @@ export class MaterialsService {
   }
 }
 
-function mapMaterialAdministrationRecord(
-  material: MaterialAdministrationRecord,
-) {
-  return {
-    id: material.id,
-    courseId: material.courseId,
-    uploadedBy: material.uploadedBy,
-    title: material.title,
-    originalFilename: material.originalFilename,
-    status: material.status,
-    createdAt: material.createdAt.toISOString(),
-    updatedAt: material.updatedAt.toISOString(),
-  }
-}
-
 function courseManagementRequiredException() {
   return new ForbiddenException({
     code: MATERIALS_ERROR_CODES.COURSE_MANAGEMENT_REQUIRED,
@@ -479,7 +383,6 @@ function materialNotFoundException() {
 function materialDeleteForbiddenException() {
   return new ForbiddenException({
     code: MATERIALS_ERROR_CODES.MATERIAL_DELETE_FORBIDDEN,
-    message:
-      'Only an administrator or the instructor who uploaded this material may delete it',
+    message: 'Only the instructor who uploaded this material may delete it',
   })
 }

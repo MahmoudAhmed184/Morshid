@@ -75,7 +75,6 @@ TanStack Router generates the route tree into [`client/src/routeTree.gen.ts`](fi
   - `routes/admin/index.tsx`. Admin overview dashboard (`AdminDashboardPage`).
   - `routes/admin/users/students.tsx` and `instructors.tsx`. User management, creation dialog, and bulk CSV importer.
   - `routes/admin/courses/index.tsx`. Course creation and management.
-  - `routes/admin/materials/index.tsx`. Admin material explorer.
   - `routes/admin/assignments/index.tsx`. Course roster membership manager.
   - `routes/admin/audit/index.tsx`. Tamper-evident audit log explorer.
   - `routes/admin/settings.tsx`. Admin settings.

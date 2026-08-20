@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
+import type { Prisma } from '../../generated/prisma/client'
 import type { RequestContext } from '../../common/http/request-context'
 import { PrismaService } from '../../platform/database/prisma.service'
 import {
@@ -7,6 +8,9 @@ import {
   type DatabaseTransaction,
 } from '../../platform/database/database-transaction'
 import type { AuditEventAction, AuditTargetType } from './audit.constants'
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export type AuditMetadataValue =
   | string
@@ -54,6 +58,26 @@ export interface RecordAuditEventInput {
   requestContext?: AuditRequestContext
 }
 
+export interface ListAuditEventsInput {
+  page?: number
+  limit?: number
+  search?: string
+  action?: string
+  targetType?: string
+  courseId?: string
+  actorUserId?: string
+  startDate?: Date
+  endDate?: Date
+}
+
+export interface AuditLogPage {
+  events: AuditLogRecord[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
 @Injectable()
 export class AuditService {
   constructor(private readonly prismaService: PrismaService) {}
@@ -91,21 +115,99 @@ export class AuditService {
     return record === null ? null : toAuditLogRecord(record)
   }
 
-  async listRecentEvents(limit: number): Promise<AuditLogRecord[]> {
-    const records = await this.prismaService.auditLog.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      include: {
-        actor: {
-          select: {
-            id: true,
-            email: true,
-            displayName: true,
+  async listAuditEvents(
+    input: ListAuditEventsInput = {},
+  ): Promise<AuditLogPage> {
+    const page =
+      input.page !== undefined && Number.isInteger(input.page) && input.page > 0
+        ? input.page
+        : 1
+    const limit =
+      input.limit !== undefined &&
+      Number.isInteger(input.limit) &&
+      input.limit > 0
+        ? Math.min(input.limit, 100)
+        : 20
+    const skip = (page - 1) * limit
+
+    const where: Prisma.AuditLogWhereInput = {}
+
+    if (input.action !== undefined && input.action.length > 0) {
+      where.action = input.action
+    }
+
+    if (input.targetType !== undefined && input.targetType.length > 0) {
+      where.targetType = input.targetType
+    }
+
+    if (input.courseId !== undefined && input.courseId.length > 0) {
+      where.courseId = input.courseId
+    }
+
+    if (input.actorUserId !== undefined && input.actorUserId.length > 0) {
+      where.actorUserId = input.actorUserId
+    }
+
+    if (input.startDate !== undefined || input.endDate !== undefined) {
+      where.createdAt = {
+        ...(input.startDate !== undefined ? { gte: input.startDate } : {}),
+        ...(input.endDate !== undefined ? { lte: input.endDate } : {}),
+      }
+    }
+
+    if (input.search !== undefined && input.search.trim().length > 0) {
+      const search = input.search.trim()
+      const isUuid = UUID_REGEX.test(search)
+
+      where.OR = [
+        { action: { contains: search, mode: 'insensitive' } },
+        { targetType: { contains: search, mode: 'insensitive' } },
+        { actor: { displayName: { contains: search, mode: 'insensitive' } } },
+        { actor: { email: { contains: search, mode: 'insensitive' } } },
+        ...(isUuid
+          ? [
+              { id: search },
+              { targetId: search },
+              { courseId: search },
+              { actorUserId: search },
+            ]
+          : []),
+      ]
+    }
+
+    const [records, total] = await Promise.all([
+      this.prismaService.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          actor: {
+            select: {
+              id: true,
+              email: true,
+              displayName: true,
+            },
           },
         },
-      },
-    })
-    return records.map(toAuditLogRecord)
+      }),
+      this.prismaService.auditLog.count({ where }),
+    ])
+
+    const totalPages = Math.max(1, Math.ceil(total / limit))
+
+    return {
+      events: records.map(toAuditLogRecord),
+      total,
+      page,
+      limit,
+      totalPages,
+    }
+  }
+
+  async listRecentEvents(limit: number): Promise<AuditLogRecord[]> {
+    const result = await this.listAuditEvents({ limit, page: 1 })
+    return result.events
   }
 }
 

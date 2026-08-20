@@ -99,18 +99,19 @@ export class ConversationsService extends ConversationCourseBoundaryAudit {
       query.limit ?? DEFAULT_SESSION_PAGE_SIZE,
       MAX_SESSION_PAGE_SIZE,
     )
-    const sessions = await this.sessionRepository.listSessions(
+    const sessionsWithLookahead = await this.sessionRepository.listSessions(
       courseId,
       user.id,
-      { limit, cursor: query.cursor ?? null },
+      { limit: limit + 1, cursor: query.cursor ?? null },
     )
+    const hasMore = sessionsWithLookahead.length > limit
+    const sessions = hasMore
+      ? sessionsWithLookahead.slice(0, limit)
+      : sessionsWithLookahead
 
     return {
       sessions: sessions.map(mapSession),
-      nextCursor:
-        sessions.length === limit
-          ? (sessions[sessions.length - 1]?.id ?? null)
-          : null,
+      nextCursor: hasMore ? (sessions[sessions.length - 1]?.id ?? null) : null,
     }
   }
 

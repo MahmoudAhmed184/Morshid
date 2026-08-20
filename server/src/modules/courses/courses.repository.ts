@@ -12,6 +12,13 @@ import {
   CourseMemberAlreadyExistsError,
 } from './course-administration.errors'
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+export function isUuid(value: string): boolean {
+  return UUID_REGEX.test(value)
+}
+
 // ---------------------------------------------------------------------------
 // Record interfaces
 // ---------------------------------------------------------------------------
@@ -97,6 +104,27 @@ export interface BulkAddCourseMembersInput {
   role: CourseMembershipRole
   actorUserId: string
   requestContext?: AuditRequestContext
+}
+
+export interface ResolveCourseMembersInput {
+  identifiers: string[]
+  role: CourseMembershipRole
+  courseIds?: string[]
+}
+
+export interface ResolvedCourseMemberRecord {
+  id: string
+  email: string
+  displayName: string
+  role: CourseMembershipRole
+  matchedBy: string
+  alreadyAssignedCourseIds: string[]
+}
+
+export interface ResolveCourseMembersResult {
+  resolved: ResolvedCourseMemberRecord[]
+  unmatched: string[]
+  duplicates: string[]
 }
 
 export interface RemoveCourseMemberInput {
@@ -197,12 +225,15 @@ export abstract class CoursesRepository {
         course.code.toLocaleLowerCase().includes(normalizedSearch) ||
         course.title.toLocaleLowerCase().includes(normalizedSearch),
     )
+    const cursorIndex =
+      input.cursor !== undefined
+        ? courses.findIndex((course) => course.id === input.cursor)
+        : -1
     const start =
       input.cursor !== undefined
-        ? Math.max(
-            courses.findIndex((course) => course.id === input.cursor) + 1,
-            0,
-          )
+        ? cursorIndex === -1
+          ? courses.length
+          : cursorIndex + 1
         : 0
     const pageCourses = courses.slice(start, start + input.limit)
     const hasNextPage = start + input.limit < courses.length
@@ -248,6 +279,10 @@ export abstract class CoursesRepository {
     input: BulkAddCourseMembersInput,
   ): Promise<{ assignedCount: number; skippedCount: number }>
 
+  abstract resolveUsersForCourseAssignment(
+    input: ResolveCourseMembersInput,
+  ): Promise<ResolveCourseMembersResult>
+
   abstract removeMember(input: RemoveCourseMemberInput): Promise<void>
 
   abstract listMembers(courseId: string): Promise<CourseMembershipRecord[]>
@@ -266,12 +301,15 @@ export abstract class CoursesRepository {
             .includes(normalizedSearch) ||
           member.user.email.toLocaleLowerCase().includes(normalizedSearch)),
     )
+    const cursorIndex =
+      input.cursor !== undefined
+        ? members.findIndex((member) => member.id === input.cursor)
+        : -1
     const start =
       input.cursor !== undefined
-        ? Math.max(
-            members.findIndex((member) => member.id === input.cursor) + 1,
-            0,
-          )
+        ? cursorIndex === -1
+          ? members.length
+          : cursorIndex + 1
         : 0
     const pageMembers = members.slice(start, start + input.limit)
     const hasNextPage = start + input.limit < members.length
@@ -708,6 +746,117 @@ export class PrismaCoursesRepository extends CoursesRepository {
 
       return { assignedCount, skippedCount }
     })
+  }
+
+  async resolveUsersForCourseAssignment(
+    input: ResolveCourseMembersInput,
+  ): Promise<ResolveCourseMembersResult> {
+    const seenKeys = new Set<string>()
+    const duplicates: string[] = []
+    const uniqueIdentifiers: string[] = []
+
+    for (const raw of input.identifiers) {
+      const trimmed = raw.trim()
+      if (!trimmed) continue
+      const key = trimmed.toLowerCase()
+      if (seenKeys.has(key)) {
+        duplicates.push(trimmed)
+      } else {
+        seenKeys.add(key)
+        uniqueIdentifiers.push(trimmed)
+      }
+    }
+
+    if (uniqueIdentifiers.length === 0) {
+      return {
+        resolved: [],
+        unmatched: [],
+        duplicates,
+      }
+    }
+
+    const uuids: string[] = []
+    const emails: string[] = []
+
+    for (const ident of uniqueIdentifiers) {
+      if (isUuid(ident)) {
+        uuids.push(ident)
+      } else {
+        emails.push(ident)
+      }
+    }
+
+    const targetCourseIds = input.courseIds ?? []
+    const candidateUsers = await this.prismaService.user.findMany({
+      where: {
+        status: 'ACTIVE',
+        role: input.role,
+        OR: [
+          ...(uuids.length > 0 ? [{ id: { in: uuids } }] : []),
+          ...(emails.length > 0
+            ? [{ email: { in: emails, mode: 'insensitive' as const } }]
+            : []),
+        ],
+      },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        role: true,
+        memberships:
+          targetCourseIds.length > 0
+            ? {
+                where: {
+                  courseId: { in: targetCourseIds },
+                  removedAt: null,
+                },
+                select: { courseId: true },
+              }
+            : false,
+      },
+    })
+
+    const userById = new Map(
+      candidateUsers.map((user) => [user.id.toLowerCase(), user]),
+    )
+    const userByEmail = new Map(
+      candidateUsers.map((user) => [user.email.toLowerCase(), user]),
+    )
+
+    const resolvedMap = new Map<string, ResolvedCourseMemberRecord>()
+    const matchedIdentifierKeys = new Set<string>()
+
+    for (const ident of uniqueIdentifiers) {
+      const key = ident.toLowerCase()
+      const user = isUuid(ident) ? userById.get(key) : userByEmail.get(key)
+
+      if (user) {
+        matchedIdentifierKeys.add(key)
+        if (!resolvedMap.has(user.id)) {
+          const alreadyAssignedCourseIds = Array.isArray(user.memberships)
+            ? user.memberships.map((m: { courseId: string }) => m.courseId)
+            : []
+          resolvedMap.set(user.id, {
+            id: user.id,
+            email: user.email,
+            displayName: user.displayName,
+            role: input.role,
+            matchedBy: ident,
+            alreadyAssignedCourseIds,
+          })
+        }
+      }
+    }
+
+    const unmatched = uniqueIdentifiers.filter(
+      (ident) => !matchedIdentifierKeys.has(ident.toLowerCase()),
+    )
+
+    return {
+      resolved: Array.from(resolvedMap.values()),
+      unmatched,
+      duplicates,
+    }
   }
 
   findMembershipRole(

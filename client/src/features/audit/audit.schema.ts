@@ -19,6 +19,14 @@ export const auditEventSchema = z.object({
 
 export const auditEventListResponseSchema = z.object({
   events: z.array(auditEventSchema),
+  total: z.number().int().nonnegative().default(0),
+  page: z.number().int().positive().default(1),
+  limit: z.number().int().positive().default(20),
+  totalPages: z.number().int().positive().default(1),
 })
 
 export type AuditEvent = z.infer<typeof auditEventSchema>
+export type AuditActor = z.infer<typeof auditActorSchema>
+export type AuditEventListResponse = z.infer<
+  typeof auditEventListResponseSchema
+>

@@ -1425,31 +1425,11 @@ describe('OpenAPI contract (e2e)', () => {
           statuses: ['200', '400', '401', '403', '404'],
         },
         {
-          path: '/api/v1/admin/courses/{courseId}/materials',
-          method: 'get',
-          tag: 'materials',
-          summary: 'List course materials for administration',
-          statuses: ['200', '400', '401', '403', '404'],
-        },
-        {
-          path: '/api/v1/admin/courses/{courseId}/materials/{materialId}',
-          method: 'get',
-          tag: 'materials',
-          summary: 'Get a course material for administration',
-          statuses: ['200', '400', '401', '403', '404'],
-        },
-        {
-          path: '/api/v1/admin/courses/{courseId}/materials/{materialId}',
-          method: 'patch',
-          tag: 'materials',
-          summary: 'Update a course material for administration',
-          statuses: ['200', '400', '401', '403', '404'],
-        },
-        {
           path: '/api/v1/admin/audit',
           method: 'get',
           tag: 'audit',
-          summary: 'List recent audit events',
+          summary:
+            'List recent audit events with search, filters, and pagination',
           statuses: ['200', '400', '401', '403'],
         },
       ] as const
@@ -1532,21 +1512,6 @@ describe('OpenAPI contract (e2e)', () => {
       expectRequestSchemaReference(updateMember, 'UpdateMemberRoleRequestDto')
       expectBodyOrRouteParamBadRequest(updateMember)
 
-      const updateMaterial = getOperation(
-        document,
-        '/api/v1/admin/courses/{courseId}/materials/{materialId}',
-        'patch',
-      )
-      expectRequestSchemaReference(
-        updateMaterial,
-        'UpdateMaterialAdministrationRequestDto',
-      )
-      expectResponseSchemaReference(
-        updateMaterial,
-        '400',
-        'NestBadRequestErrorDto',
-      )
-
       const audit = getOperation(document, '/api/v1/admin/audit', 'get')
       expect(getParameter(audit, 'limit')).toMatchObject({
         in: 'query',
@@ -1602,24 +1567,6 @@ describe('OpenAPI contract (e2e)', () => {
           method: 'patch',
           status: '200',
           schema: 'CourseAdministrationMemberResponseDto',
-        },
-        {
-          path: '/api/v1/admin/courses/{courseId}/materials',
-          method: 'get',
-          status: '200',
-          schema: 'MaterialAdministrationListResponseDto',
-        },
-        {
-          path: '/api/v1/admin/courses/{courseId}/materials/{materialId}',
-          method: 'get',
-          status: '200',
-          schema: 'MaterialAdministrationResponseDto',
-        },
-        {
-          path: '/api/v1/admin/courses/{courseId}/materials/{materialId}',
-          method: 'patch',
-          status: '200',
-          schema: 'MaterialAdministrationResponseDto',
         },
         {
           path: '/api/v1/admin/audit',

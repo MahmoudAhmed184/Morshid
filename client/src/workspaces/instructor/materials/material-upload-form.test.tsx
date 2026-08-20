@@ -17,6 +17,19 @@ const configuration = {
   acceptedFileExtension: '.pdf',
 } as const
 
+const courses = [
+  {
+    id: '4c530c42-67bf-4cbe-a6f3-2c662564ddd1',
+    code: 'CS-101',
+    title: 'Intro to Computer Science',
+  },
+  {
+    id: '7fc308e8-dc70-43dc-933c-7ee3c548c889',
+    code: 'MATH-310',
+    title: 'Discrete Mathematics',
+  },
+]
+
 describe('MaterialUploadForm', () => {
   beforeEach(() => {
     mutateAsync.mockReset()
@@ -24,7 +37,7 @@ describe('MaterialUploadForm', () => {
 
   afterEach(cleanup)
 
-  it('offers a keyboard-focusable PDF chooser', async () => {
+  it('offers a keyboard-focusable Course select and PDF chooser', async () => {
     const user = userEvent.setup()
     const inputClick = vi
       .spyOn(HTMLInputElement.prototype, 'click')
@@ -32,11 +45,14 @@ describe('MaterialUploadForm', () => {
 
     render(
       <MaterialUploadForm
-        courseId="4c530c42-67bf-4cbe-a6f3-2c662564ddd1"
+        courses={courses}
+        defaultCourseId={courses[0].id}
         configuration={configuration}
       />,
     )
 
+    await user.tab()
+    expect(screen.getByRole('combobox', { name: 'Course' })).toHaveFocus()
     await user.tab()
     expect(
       screen.getByRole('textbox', { name: 'Material title' }),
@@ -133,5 +149,72 @@ describe('MaterialUploadForm', () => {
       )
     })
     expect(screen.getByRole('heading', { name: 'Upload Failed' })).toBeVisible()
+  })
+
+  it('allows the instructor to explicitly specify and change the target course', async () => {
+    const user = userEvent.setup()
+    mutateAsync.mockResolvedValueOnce({
+      material: { id: 'm-1', title: 'Calculus Notes', courseId: courses[1].id },
+    })
+    const file = new File(['%PDF-1.7'], 'calculus.pdf', {
+      type: 'application/pdf',
+    })
+
+    render(
+      <MaterialUploadForm
+        courses={courses}
+        defaultCourseId={courses[0].id}
+        configuration={configuration}
+      />,
+    )
+
+    const courseSelect = screen.getByRole('combobox', { name: 'Course' })
+    expect(courseSelect).toBeVisible()
+
+    await user.click(courseSelect)
+    await user.click(
+      await screen.findByRole('option', {
+        name: 'MATH-310 — Discrete Mathematics',
+      }),
+    )
+
+    const fileInput = screen.getByLabelText<HTMLInputElement>('PDF file')
+    await user.upload(fileInput, file)
+
+    await user.click(screen.getByRole('button', { name: 'Upload PDF' }))
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith({
+        courseId: courses[1].id,
+        title: 'calculus',
+        file,
+      })
+    })
+  })
+
+  it('updates the preselected course when defaultCourseId changes', async () => {
+    const { rerender } = render(
+      <MaterialUploadForm
+        courses={courses}
+        defaultCourseId={courses[0].id}
+        configuration={configuration}
+      />,
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Course' })).toHaveTextContent(
+      `${courses[0].code} — ${courses[0].title}`,
+    )
+
+    rerender(
+      <MaterialUploadForm
+        courses={courses}
+        defaultCourseId={courses[1].id}
+        configuration={configuration}
+      />,
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Course' })).toHaveTextContent(
+      `${courses[1].code} — ${courses[1].title}`,
+    )
   })
 })

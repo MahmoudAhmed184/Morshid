@@ -59,7 +59,7 @@ export function useUploadCourseMaterial() {
         throw new Error('An authenticated Instructor is required.')
       }
 
-      return uploadCourseMaterial(courseId, { title, file })
+      return uploadCourseMaterial(courseId, { courseId, title, file })
     },
     onSuccess: async (_response, { courseId }) => {
       if (!instructorId) {
@@ -95,12 +95,17 @@ export function useDeleteCourseMaterial() {
         if (!data) return data
         return {
           ...data,
-          pages: data.pages.map((page) => ({
-            ...page,
-            materials: page.materials.filter(
+          pages: data.pages.map((page) => {
+            const filtered = page.materials.filter(
               (material) => material.id !== materialId,
-            ),
-          })),
+            )
+            const removed = page.materials.length - filtered.length
+            return {
+              ...page,
+              materials: filtered,
+              total: page.total - removed,
+            }
+          }),
         }
       })
       await queryClient.invalidateQueries({ queryKey, exact: true })

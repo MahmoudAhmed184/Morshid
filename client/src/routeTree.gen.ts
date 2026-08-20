@@ -33,7 +33,6 @@ import { Route as InstructorMaterialsIndexRouteImport } from './routes/instructo
 import { Route as AdminUsersIndexRouteImport } from './routes/admin/users/index'
 import { Route as AdminSubscriptionsIndexRouteImport } from './routes/admin/subscriptions/index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin/settings/index'
-import { Route as AdminMaterialsIndexRouteImport } from './routes/admin/materials/index'
 import { Route as AdminCoursesIndexRouteImport } from './routes/admin/courses/index'
 import { Route as AdminAuditIndexRouteImport } from './routes/admin/audit/index'
 import { Route as AdminAssignmentsIndexRouteImport } from './routes/admin/assignments/index'
@@ -184,11 +183,6 @@ const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminSettingsRoute,
-} as any)
-const AdminMaterialsIndexRoute = AdminMaterialsIndexRouteImport.update({
-  id: '/materials/',
-  path: '/materials/',
-  getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminCoursesIndexRoute = AdminCoursesIndexRouteImport.update({
   id: '/courses/',
@@ -379,7 +373,6 @@ export interface FileRoutesByFullPath {
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
   '/admin/courses/': typeof AdminCoursesIndexRoute
-  '/admin/materials/': typeof AdminMaterialsIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/subscriptions/': typeof AdminSubscriptionsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -425,7 +418,6 @@ export interface FileRoutesByTo {
   '/admin/assignments': typeof AdminAssignmentsIndexRoute
   '/admin/audit': typeof AdminAuditIndexRoute
   '/admin/courses': typeof AdminCoursesIndexRoute
-  '/admin/materials': typeof AdminMaterialsIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/subscriptions': typeof AdminSubscriptionsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
@@ -480,7 +472,6 @@ export interface FileRoutesById {
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
   '/admin/courses/': typeof AdminCoursesIndexRoute
-  '/admin/materials/': typeof AdminMaterialsIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/subscriptions/': typeof AdminSubscriptionsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -535,7 +526,6 @@ export interface FileRouteTypes {
     | '/admin/assignments/'
     | '/admin/audit/'
     | '/admin/courses/'
-    | '/admin/materials/'
     | '/admin/settings/'
     | '/admin/subscriptions/'
     | '/admin/users/'
@@ -581,7 +571,6 @@ export interface FileRouteTypes {
     | '/admin/assignments'
     | '/admin/audit'
     | '/admin/courses'
-    | '/admin/materials'
     | '/admin/settings'
     | '/admin/subscriptions'
     | '/admin/users'
@@ -635,7 +624,6 @@ export interface FileRouteTypes {
     | '/admin/assignments/'
     | '/admin/audit/'
     | '/admin/courses/'
-    | '/admin/materials/'
     | '/admin/settings/'
     | '/admin/subscriptions/'
     | '/admin/users/'
@@ -826,13 +814,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/settings/'
       preLoaderRoute: typeof AdminSettingsIndexRouteImport
       parentRoute: typeof AdminSettingsRoute
-    }
-    '/admin/materials/': {
-      id: '/admin/materials/'
-      path: '/materials'
-      fullPath: '/admin/materials/'
-      preLoaderRoute: typeof AdminMaterialsIndexRouteImport
-      parentRoute: typeof AdminRouteRoute
     }
     '/admin/courses/': {
       id: '/admin/courses/'
@@ -1060,7 +1041,6 @@ interface AdminRouteRouteChildren {
   AdminAssignmentsIndexRoute: typeof AdminAssignmentsIndexRoute
   AdminAuditIndexRoute: typeof AdminAuditIndexRoute
   AdminCoursesIndexRoute: typeof AdminCoursesIndexRoute
-  AdminMaterialsIndexRoute: typeof AdminMaterialsIndexRoute
   AdminSubscriptionsIndexRoute: typeof AdminSubscriptionsIndexRoute
   AdminUsersIndexRoute: typeof AdminUsersIndexRoute
 }
@@ -1073,7 +1053,6 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminAssignmentsIndexRoute: AdminAssignmentsIndexRoute,
   AdminAuditIndexRoute: AdminAuditIndexRoute,
   AdminCoursesIndexRoute: AdminCoursesIndexRoute,
-  AdminMaterialsIndexRoute: AdminMaterialsIndexRoute,
   AdminSubscriptionsIndexRoute: AdminSubscriptionsIndexRoute,
   AdminUsersIndexRoute: AdminUsersIndexRoute,
 }

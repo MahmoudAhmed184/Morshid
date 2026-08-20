@@ -102,6 +102,14 @@ class CourseAccessTestRepository extends CoursesRepository {
     return Promise.reject(new Error('not used by CourseAccessService tests'))
   }
 
+  resolveUsersForCourseAssignment(): Promise<{
+    resolved: []
+    unmatched: []
+    duplicates: []
+  }> {
+    return Promise.reject(new Error('not used by CourseAccessService tests'))
+  }
+
   removeMember(_input: RemoveCourseMemberInput): Promise<void> {
     return Promise.reject(new Error('not used by CourseAccessService tests'))
   }
@@ -245,6 +253,18 @@ describe('CourseAccessService', () => {
     ).resolves.toEqual({
       allowed: false,
       reason: 'COURSE_NOT_FOUND',
+    })
+  })
+
+  it('denies material management to an admin', async () => {
+    const { service } = buildService()
+    const admin = buildUser('admin-user', UserRole.ADMIN)
+
+    await expect(
+      service.authorizeCourseMaterialManagement(admin, 'owned-course'),
+    ).resolves.toEqual({
+      allowed: false,
+      reason: 'COURSE_MANAGEMENT_REQUIRED',
     })
   })
 })

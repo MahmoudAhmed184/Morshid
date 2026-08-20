@@ -644,9 +644,9 @@ describe('Instructor review pages', () => {
     useWorkloadSummaryMock.mockReturnValue(
       queryResult({
         pendingCount: 1,
-        inReviewCount: 1,
+        inReviewCount: 0,
         claimedByMeCount: 0,
-        totalActiveCount: 2,
+        totalActiveCount: 1,
         oldestPendingCreatedAt: '2026-07-29T10:00:00.000Z',
         oldestPendingAge: 60,
         byStudentFlagReason: [
@@ -663,7 +663,7 @@ describe('Instructor review pages', () => {
         {
           ...queueItem(),
           reviewCaseId: '10000000-0000-4000-8000-000000000002',
-          status: 'IN_REVIEW' as const,
+          status: 'RESOLVED' as const,
           studentNote: 'Confusing explanation',
         },
       ]),
@@ -673,13 +673,13 @@ describe('Instructor review pages', () => {
 
     expect(screen.getByText('Workload by Student Flag Reason')).toBeVisible()
 
-    // Click In Review metric card
-    const inReviewBtn = screen.getByRole('button', {
-      name: /In review cases: 1/i,
+    // Click Resolved metric card
+    const resolvedBtn = screen.getByRole('button', {
+      name: /Resolved cases: 1/i,
     })
-    await user.click(inReviewBtn)
+    await user.click(resolvedBtn)
 
-    // Should now show the in review item
+    // Should now show the resolved item
     expect(screen.getByText(/Confusing explanation/)).toBeVisible()
   })
 })

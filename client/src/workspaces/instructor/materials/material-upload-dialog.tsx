@@ -12,16 +12,26 @@ import {
 import { MaterialUploadForm } from '@/workspaces/instructor/materials/material-upload-form'
 import type { MaterialUploadConfiguration } from '@/features/materials/material-ingestion/material.schema'
 
+export interface MaterialUploadCourseOption {
+  id: string
+  code: string
+  title: string
+}
+
 export function MaterialUploadDialog({
-  courseId,
+  courses,
+  defaultCourseId,
   configuration,
+  onUploadSuccess,
 }: {
-  courseId: string
+  courses: MaterialUploadCourseOption[]
+  defaultCourseId?: string
   configuration: MaterialUploadConfiguration
+  onUploadSuccess?: (courseId: string) => void
 }) {
   return (
     <Dialog>
-      <DialogTrigger render={<Button size="lg" className="w-full sm:w-auto" />}>
+      <DialogTrigger render={<Button className="w-full sm:w-auto shrink-0" />}>
         <UploadIcon aria-hidden />
         Upload Material
       </DialogTrigger>
@@ -29,10 +39,15 @@ export function MaterialUploadDialog({
         <DialogHeader>
           <DialogTitle>Upload new material</DialogTitle>
           <DialogDescription>
-            Add a clean, text-based PDF to the selected course.
+            Add a clean, text-based PDF to an assigned course.
           </DialogDescription>
         </DialogHeader>
-        <MaterialUploadForm courseId={courseId} configuration={configuration} />
+        <MaterialUploadForm
+          courses={courses}
+          defaultCourseId={defaultCourseId}
+          configuration={configuration}
+          onUploadSuccess={onUploadSuccess}
+        />
       </DialogContent>
     </Dialog>
   )

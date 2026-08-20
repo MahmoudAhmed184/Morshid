@@ -41,6 +41,9 @@ export function MaterialsPage() {
     useInstructorWorkspacePreferences()
   const [selectedCourseId, setSelectedCourseId] = useState<string>()
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<
+    'ALL' | 'READY' | 'PROCESSING' | 'WARNING' | 'FAILED'
+  >('ALL')
   const coursesQuery = useCourseMembership()
   const uploadConfigurationQuery = useMaterialUploadConfiguration()
   const courses = coursesQuery.data ?? []
@@ -58,25 +61,28 @@ export function MaterialsPage() {
 
   const materialsQuery = useCourseMaterials(activeCourseId)
   const deleteMutation = useDeleteCourseMaterial()
-  const materials = materialsQuery.data
-    ? Array.isArray(materialsQuery.data)
-      ? (materialsQuery.data as Material[])
-      : materialsQuery.data.pages.flatMap((page) => page.materials)
-    : []
+  const materials =
+    materialsQuery.data?.pages.flatMap((page) => page.materials) ?? []
   const normalizedSearch = search.trim().toLowerCase()
-  const filteredMaterials = normalizedSearch
-    ? materials.filter(
-        (material) =>
-          material.title.toLowerCase().includes(normalizedSearch) ||
-          material.originalFilename.toLowerCase().includes(normalizedSearch),
-      )
-    : materials
+  const filteredMaterials = materials.filter((material) => {
+    const matchesStatus =
+      statusFilter === 'ALL' || material.status === statusFilter
+    if (!matchesStatus) return false
+
+    if (!normalizedSearch) return true
+
+    return (
+      material.title.toLowerCase().includes(normalizedSearch) ||
+      material.originalFilename.toLowerCase().includes(normalizedSearch)
+    )
+  })
   const hasColdMaterialsError =
     materialsQuery.isError && materialsQuery.data === undefined
   const isLoading =
     coursesQuery.isPending ||
     (activeCourseId !== undefined && materialsQuery.isPending)
   const isError = coursesQuery.isError || hasColdMaterialsError
+  const hasFilter = normalizedSearch.length > 0 || statusFilter !== 'ALL'
 
   return (
     <div className="flex flex-col gap-8">
@@ -84,20 +90,6 @@ export function MaterialsPage() {
         eyebrow="COURSE SOURCES"
         title="Course Materials"
         description="Upload and manage the PDF sources that ground student guidance."
-        actions={
-          activeCourseId && uploadConfigurationQuery.data ? (
-            <MaterialUploadDialog
-              courseId={activeCourseId}
-              configuration={uploadConfigurationQuery.data}
-            />
-          ) : activeCourseId ? (
-            <Button size="lg" disabled>
-              {uploadConfigurationQuery.isError
-                ? 'Upload unavailable'
-                : 'Loading upload limits...'}
-            </Button>
-          ) : null
-        }
       />
 
       {activeCourseId && !coursesQuery.isPending ? (
@@ -106,13 +98,14 @@ export function MaterialsPage() {
           isPending={materialsQuery.isPending}
           isError={hasColdMaterialsError}
           materials={materialsQuery.data ? materials : undefined}
+          backendTotal={materialsQuery.data?.pages[0]?.total}
         />
       ) : null}
 
       <Card aria-busy={isLoading || undefined}>
         <CardHeader className="border-b">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <CardTitle className="flex items-center gap-2 text-sm">
+            <CardTitle className="flex shrink-0 items-center gap-2 text-sm">
               <FileTextIcon
                 className="size-4 text-muted-foreground"
                 aria-hidden
@@ -125,8 +118,30 @@ export function MaterialsPage() {
                 onValueChange={setSearch}
                 placeholder="Search by title or file..."
                 aria-label="Search materials"
-                className="sm:max-w-64"
+                className="w-full sm:w-48 lg:w-56"
               />
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  if (value) {
+                    setStatusFilter(value)
+                  }
+                }}
+              >
+                <SelectTrigger
+                  className="w-full shrink-0 sm:w-32 lg:w-36"
+                  aria-label="Filter materials by status"
+                >
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="ALL">All statuses</SelectItem>
+                  <SelectItem value="READY">Ready</SelectItem>
+                  <SelectItem value="PROCESSING">Processing</SelectItem>
+                  <SelectItem value="WARNING">Warning</SelectItem>
+                  <SelectItem value="FAILED">Failed</SelectItem>
+                </SelectContent>
+              </Select>
               {courses.length > 0 ? (
                 <Select
                   value={activeCourseId}
@@ -135,10 +150,11 @@ export function MaterialsPage() {
                     setSelectedCourseId(value ?? undefined)
                     setActiveCourseId(value ?? null)
                     setSearch('')
+                    setStatusFilter('ALL')
                   }}
                 >
                   <SelectTrigger
-                    className="w-full sm:w-72"
+                    className="w-full shrink-0 sm:w-56 lg:w-64"
                     aria-label="Select assigned course"
                   >
                     <SelectValue placeholder="Select a course" />
@@ -152,6 +168,25 @@ export function MaterialsPage() {
                   </SelectContent>
                 </Select>
               ) : null}
+              {courses.length > 0 && uploadConfigurationQuery.data ? (
+                <MaterialUploadDialog
+                  courses={courses}
+                  defaultCourseId={activeCourseId}
+                  configuration={uploadConfigurationQuery.data}
+                  onUploadSuccess={(uploadedCourseId) => {
+                    if (uploadedCourseId !== activeCourseId) {
+                      setSelectedCourseId(uploadedCourseId)
+                      setActiveCourseId(uploadedCourseId)
+                    }
+                  }}
+                />
+              ) : courses.length > 0 ? (
+                <Button disabled className="w-full shrink-0 sm:w-auto">
+                  {uploadConfigurationQuery.isError
+                    ? 'Upload unavailable'
+                    : 'Loading upload limits...'}
+                </Button>
+              ) : null}
             </div>
           </div>
         </CardHeader>
@@ -161,7 +196,7 @@ export function MaterialsPage() {
             isError={isError}
             hasCourse={activeCourseId !== undefined}
             materials={filteredMaterials}
-            hasSearch={normalizedSearch.length > 0}
+            hasSearch={hasFilter}
             isRetrying={coursesQuery.isFetching || materialsQuery.isFetching}
             hasRefreshError={
               materialsQuery.data !== undefined && materialsQuery.isRefetchError
@@ -198,11 +233,13 @@ function MaterialSummarySection({
   isPending,
   isError,
   materials,
+  backendTotal,
 }: {
   courseCode: string
   isPending: boolean
   isError: boolean
   materials: Material[] | undefined
+  backendTotal?: number
 }) {
   if (isPending && materials === undefined) {
     return (
@@ -247,7 +284,7 @@ function MaterialSummarySection({
   const summaryItems = [
     {
       label: 'Total materials',
-      value: summary.total,
+      value: backendTotal ?? summary.total,
       description: courseCode,
       icon: <FileTextIcon aria-hidden />,
       tone: 'default' as const,
@@ -351,7 +388,7 @@ function MaterialsContent({
         title={hasSearch ? 'No matching materials' : 'No materials yet'}
         description={
           hasSearch
-            ? 'Try a different material title or filename.'
+            ? 'Try a different material title, filename, or status filter.'
             : 'Upload a clean, text-based PDF to prepare the first course source.'
         }
         className="min-h-44"

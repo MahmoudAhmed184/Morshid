@@ -169,7 +169,7 @@ describe('Materials persistence and local storage (e2e)', () => {
   }, 30_000)
 
   it('rejects an unknown course without creating a row or file', async () => {
-    const token = await signInAs('admin@morshid.demo')
+    const token = await signInAs('instructor@morshid.demo')
     const filesBefore = await readdir(storageRoot)
     const materialsBefore = await prisma.material.count()
 
@@ -443,7 +443,7 @@ describe('Materials persistence and local storage (e2e)', () => {
   }, 30_000)
 
   it('keeps a material quarantined when PDF cleanup fails and retries idempotently', async () => {
-    const token = await signInAs('admin@morshid.demo')
+    const token = await signInAs('instructor@morshid.demo')
     const uploader = await prisma.user.findUniqueOrThrow({
       where: { email: 'instructor@morshid.demo' },
     })
@@ -498,7 +498,7 @@ describe('Materials persistence and local storage (e2e)', () => {
   })
 
   it('serializes concurrent delete requests without duplicate audit events', async () => {
-    const token = await signInAs('admin@morshid.demo')
+    const token = await signInAs('instructor@morshid.demo')
     const uploader = await prisma.user.findUniqueOrThrow({
       where: { email: 'instructor@morshid.demo' },
     })
@@ -537,7 +537,7 @@ describe('Materials persistence and local storage (e2e)', () => {
   })
 
   it('orders DELETE before a queued processing claim without deadlock or recreation', async () => {
-    const token = await signInAs('admin@morshid.demo')
+    const token = await signInAs('instructor@morshid.demo')
     const uploader = await prisma.user.findUniqueOrThrow({
       where: { email: 'instructor@morshid.demo' },
     })
@@ -565,7 +565,7 @@ describe('Materials persistence and local storage (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(204),
     )
-    await new Promise<void>((resolve) => setTimeout(resolve, 25))
+    await new Promise<void>((resolve) => setTimeout(resolve, 100))
     const claim = materialsRepository.claimMaterialProcessing(
       material.id,
       '00000000-0000-4000-8000-000000000801',
@@ -579,7 +579,7 @@ describe('Materials persistence and local storage (e2e)', () => {
   })
 
   it('orders DELETE before queued processing finalization without deadlock or recreation', async () => {
-    const token = await signInAs('admin@morshid.demo')
+    const token = await signInAs('instructor@morshid.demo')
     const uploader = await prisma.user.findUniqueOrThrow({
       where: { email: 'instructor@morshid.demo' },
     })
@@ -613,7 +613,7 @@ describe('Materials persistence and local storage (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(204),
     )
-    await new Promise<void>((resolve) => setTimeout(resolve, 25))
+    await new Promise<void>((resolve) => setTimeout(resolve, 100))
     const finalization = materialsRepository.completeMaterialProcessing(
       material.id,
       processingAttemptId,
@@ -651,7 +651,7 @@ describe('Materials persistence and local storage (e2e)', () => {
   })
 
   it('orders DELETE before queued embedding replacement without deadlock or recreation', async () => {
-    const token = await signInAs('admin@morshid.demo')
+    const token = await signInAs('instructor@morshid.demo')
     const uploader = await prisma.user.findUniqueOrThrow({
       where: { email: 'instructor@morshid.demo' },
     })
@@ -678,7 +678,7 @@ describe('Materials persistence and local storage (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(204),
     )
-    await new Promise<void>((resolve) => setTimeout(resolve, 25))
+    await new Promise<void>((resolve) => setTimeout(resolve, 100))
     const replacement = materialChunkRepository.replaceMaterialChunks(
       material.id,
       [
@@ -730,6 +730,12 @@ describe('Materials persistence and local storage (e2e)', () => {
       )
       .set('Authorization', `Bearer ${studentToken}`)
       .expect(403)
+    await request(app.getHttpServer())
+      .delete(
+        `/api/v1/courses/${seed.courses.pythonProgramming.id}/materials/${protectedMaterial.id}`,
+      )
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(403)
 
     const hiddenMaterial = await createMaterial(
       seed.courses.hiddenIsolation.id,
@@ -745,7 +751,7 @@ describe('Materials persistence and local storage (e2e)', () => {
       .delete(
         `/api/v1/courses/${seed.courses.pythonProgramming.id}/materials/${hiddenMaterial.id}`,
       )
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${instructorToken}`)
       .expect(404)
 
     const membership = await prisma.courseMembership.findUniqueOrThrow({
@@ -778,13 +784,13 @@ describe('Materials persistence and local storage (e2e)', () => {
       .delete(
         `/api/v1/courses/${seed.courses.pythonProgramming.id}/materials/00000000-0000-4000-8000-000000000998`,
       )
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${instructorToken}`)
       .expect(404)
     await request(app.getHttpServer())
       .delete(
         `/api/v1/courses/${seed.courses.pythonProgramming.id}/materials/not-a-uuid`,
       )
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${instructorToken}`)
       .expect(400)
   })
 

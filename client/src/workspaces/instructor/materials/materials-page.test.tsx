@@ -117,6 +117,27 @@ function queryResult<T>(data: T, overrides: Record<string, unknown> = {}) {
   }
 }
 
+function materialsQueryResult(
+  materials: readonly unknown[] | unknown[] | undefined,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    data:
+      materials !== undefined
+        ? {
+            pages: [{ materials: [...materials], total: materials.length }],
+            pageParams: [undefined],
+          }
+        : undefined,
+    error: null,
+    isError: false,
+    isFetching: false,
+    isPending: false,
+    refetch: vi.fn(),
+    ...overrides,
+  }
+}
+
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -145,7 +166,7 @@ describe('MaterialsPage', () => {
       }) as unknown as ReturnType<typeof useCourseMembership>,
     )
     useCourseMaterialsMock.mockReturnValue(
-      queryResult([], {
+      materialsQueryResult([], {
         refetch: refetchMaterials,
       }) as unknown as ReturnType<typeof useCourseMaterials>,
     )
@@ -201,7 +222,7 @@ describe('MaterialsPage', () => {
 
   it('shows a retryable materials error', async () => {
     useCourseMaterialsMock.mockReturnValue(
-      queryResult(undefined, {
+      materialsQueryResult(undefined, {
         isError: true,
         error: new Error('Request failed'),
         refetch: refetchMaterials,
@@ -222,7 +243,7 @@ describe('MaterialsPage', () => {
 
   it('keeps summary values pending until material data is available', () => {
     useCourseMaterialsMock.mockReturnValue(
-      queryResult(undefined, {
+      materialsQueryResult(undefined, {
         isPending: true,
       }) as unknown as ReturnType<typeof useCourseMaterials>,
     )
@@ -237,7 +258,7 @@ describe('MaterialsPage', () => {
 
   it('retains material data and offers retry after a polling refresh failure', async () => {
     useCourseMaterialsMock.mockReturnValue(
-      queryResult(statusMaterials, {
+      materialsQueryResult(statusMaterials, {
         isRefetchError: true,
         refetch: refetchMaterials,
       }) as unknown as ReturnType<typeof useCourseMaterials>,
@@ -257,7 +278,7 @@ describe('MaterialsPage', () => {
 
   it('renders the redesigned summary, repository, and material metadata', () => {
     useCourseMaterialsMock.mockReturnValue(
-      queryResult([material]) as unknown as ReturnType<
+      materialsQueryResult([material]) as unknown as ReturnType<
         typeof useCourseMaterials
       >,
     )
@@ -275,14 +296,21 @@ describe('MaterialsPage', () => {
     expect(screen.getByText('4,820 characters')).toBeVisible()
     expect(screen.getByText('Chunks:')).toBeVisible()
     expect(screen.getAllByText(material.errorMessage)).not.toHaveLength(0)
+
+    const repoCard = screen
+      .getByText('Material repository')
+      .closest('[data-slot="card"]')
+    expect(repoCard).not.toBeNull()
     expect(
-      screen.getByRole('button', { name: 'Upload Material' }),
+      within(repoCard as HTMLElement).getByRole('button', {
+        name: 'Upload Material',
+      }),
     ).toBeVisible()
   })
 
   it('renders consistent status badges and safe messages on desktop and mobile', () => {
     useCourseMaterialsMock.mockReturnValue(
-      queryResult(statusMaterials) as unknown as ReturnType<
+      materialsQueryResult(statusMaterials) as unknown as ReturnType<
         typeof useCourseMaterials
       >,
     )
@@ -306,7 +334,7 @@ describe('MaterialsPage', () => {
     const longFilename = `${'long-filename-'.repeat(12)}source.pdf`
     const longMessage = `${'Processing warning details '.repeat(10)}resolved.`
     useCourseMaterialsMock.mockReturnValue(
-      queryResult([
+      materialsQueryResult([
         {
           ...material,
           originalFilename: longFilename,
@@ -324,7 +352,7 @@ describe('MaterialsPage', () => {
 
   it('filters the repository by material title or filename', async () => {
     useCourseMaterialsMock.mockReturnValue(
-      queryResult([material]) as unknown as ReturnType<
+      materialsQueryResult([material]) as unknown as ReturnType<
         typeof useCourseMaterials
       >,
     )
@@ -339,6 +367,30 @@ describe('MaterialsPage', () => {
     expect(screen.queryByRole('heading', { name: material.title })).toBeNull()
   })
 
+  it('filters the repository by status', async () => {
+    useCourseMaterialsMock.mockReturnValue(
+      materialsQueryResult(statusMaterials) as unknown as ReturnType<
+        typeof useCourseMaterials
+      >,
+    )
+    const user = userEvent.setup()
+
+    renderMaterialsPage()
+
+    expect(
+      screen.getByRole('heading', { name: 'Available source' }),
+    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Queued source' })).toBeVisible()
+
+    await user.click(screen.getByLabelText('Filter materials by status'))
+    await user.click(await screen.findByRole('option', { name: 'Ready' }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Available source' }),
+    ).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Queued source' })).toBeNull()
+  })
+
   it('switches material data, summaries, and upload target with the selected course', async () => {
     useCourseMembershipMock.mockReturnValue(
       queryResult([course, secondCourse]) as unknown as ReturnType<
@@ -347,7 +399,7 @@ describe('MaterialsPage', () => {
     )
     useCourseMaterialsMock.mockImplementation(
       (courseId) =>
-        queryResult(
+        materialsQueryResult(
           courseId === secondCourse.id ? [secondCourseMaterial] : [material],
         ) as unknown as ReturnType<typeof useCourseMaterials>,
     )
@@ -364,6 +416,13 @@ describe('MaterialsPage', () => {
       screen.getByLabelText('Select assigned course'),
     ).not.toHaveTextContent(course.id)
     expect(screen.getByRole('heading', { name: material.title })).toBeVisible()
+
+    // Open upload modal initially to verify first course is preselected
+    await user.click(screen.getByRole('button', { name: 'Upload Material' }))
+    expect(screen.getByRole('combobox', { name: 'Course' })).toHaveTextContent(
+      `${course.code} — ${course.title}`,
+    )
+    await user.keyboard('{Escape}')
 
     await user.click(screen.getByLabelText('Select assigned course'))
     await user.click(
@@ -395,6 +454,9 @@ describe('MaterialsPage', () => {
     expect(within(attentionCard as HTMLElement).getByText('0')).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Upload Material' }))
+    expect(screen.getByRole('combobox', { name: 'Course' })).toHaveTextContent(
+      `${secondCourse.code} — ${secondCourse.title}`,
+    )
     const file = new File(['%PDF-1.7'], 'graph-theory.pdf', {
       type: 'application/pdf',
     })

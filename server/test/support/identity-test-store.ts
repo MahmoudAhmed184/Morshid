@@ -78,6 +78,30 @@ interface CreateUserArgs {
 }
 
 interface FindManyUserArgs {
+  where?: {
+    role?: User['role']
+    status?: User['status']
+    OR?: {
+      id?: { in?: string[] }
+      email?: { in?: string[]; mode?: 'insensitive' }
+    }[]
+  }
+  select?: {
+    id?: boolean
+    email?: boolean
+    displayName?: boolean
+    role?: boolean
+    status?: boolean
+    memberships?:
+      | boolean
+      | {
+          where?: {
+            courseId?: { in?: string[] }
+            removedAt?: null | Date
+          }
+          select?: { courseId?: boolean }
+        }
+  }
   orderBy?: {
     createdAt?: 'asc' | 'desc'
     id?: 'asc' | 'desc'
@@ -150,9 +174,17 @@ interface UpdateManyRefreshTokenArgs {
 
 interface FindManyMembershipArgs {
   where?: {
-    userId?: string
-    courseId?: string
+    userId?: string | { in?: string[] }
+    courseId?: string | { in?: string[] }
     removedAt?: Date | null
+  }
+  select?: {
+    id?: boolean
+    courseId?: boolean
+    userId?: boolean
+    removedAt?: boolean
+    role?: boolean
+    createdAt?: boolean
   }
   include?: {
     course?: boolean
@@ -318,6 +350,14 @@ interface UpdateCourseArgs {
     id: string
   }
   data: Partial<Pick<Course, 'code' | 'title'>>
+}
+
+interface CountMaterialArgs {
+  where?: {
+    courseId?: string
+    deletedAt?: null | Date
+    title?: { contains: string; mode?: 'insensitive' }
+  }
 }
 
 interface FindManyMaterialArgs {
@@ -614,6 +654,9 @@ export class IdentityTestStore {
       ),
     },
     material: {
+      count: jest.fn((args?: CountMaterialArgs) =>
+        Promise.resolve(this.countMaterials(args)),
+      ),
       findMany: jest.fn((args?: FindManyMaterialArgs) =>
         Promise.resolve(this.findMaterials(args)),
       ),
@@ -949,6 +992,40 @@ export class IdentityTestStore {
 
   private findUsers(args: FindManyUserArgs | undefined) {
     let users = [...this.users.values()]
+
+    if (args?.where) {
+      const { role, status, OR } = args.where
+      users = users.filter((user) => {
+        if (role !== undefined && user.role !== role) return false
+        if (status !== undefined && user.status !== status) return false
+        if (OR !== undefined && OR.length > 0) {
+          const matchesOr = OR.some((condition) => {
+            if (condition.id?.in !== undefined) {
+              if (
+                condition.id.in.some(
+                  (id) => id.toLowerCase() === user.id.toLowerCase(),
+                )
+              ) {
+                return true
+              }
+            }
+            if (condition.email?.in !== undefined) {
+              if (
+                condition.email.in.some(
+                  (email) => email.toLowerCase() === user.email.toLowerCase(),
+                )
+              ) {
+                return true
+              }
+            }
+            return false
+          })
+          if (!matchesOr) return false
+        }
+        return true
+      })
+    }
+
     const createdAtOrder = args?.orderBy?.find(
       (order) => order.createdAt !== undefined,
     )?.createdAt
@@ -975,17 +1052,39 @@ export class IdentityTestStore {
       users = users.slice(0, args.take)
     }
 
-    return users.map((user) => ({
-      id: user.id,
-      email: user.email,
-      displayName: user.displayName,
-      role: user.role,
-      status: user.status,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      memberships: this.memberships
-        .filter((membership) => membership.userId === user.id)
-        .map((membership) => {
+    return users.map((user) => {
+      const membershipsSelect = args?.select?.memberships
+      let userMemberships = this.memberships.filter(
+        (membership) => membership.userId === user.id,
+      )
+
+      if (
+        membershipsSelect !== undefined &&
+        typeof membershipsSelect === 'object' &&
+        'where' in membershipsSelect &&
+        membershipsSelect.where !== undefined
+      ) {
+        const whereM = membershipsSelect.where
+        if (whereM.courseId?.in !== undefined) {
+          const inIds = whereM.courseId.in
+          userMemberships = userMemberships.filter((m) =>
+            inIds.includes(m.courseId),
+          )
+        }
+        if (whereM.removedAt === null) {
+          userMemberships = userMemberships.filter((m) => m.removedAt === null)
+        }
+      }
+
+      return {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        memberships: userMemberships.map((membership) => {
           const course = this.courses.get(membership.courseId)
 
           if (!course) {
@@ -1002,7 +1101,8 @@ export class IdentityTestStore {
             },
           }
         }),
-    }))
+      }
+    })
   }
 
   private countUsers(args: CountUserArgs | undefined): number {
@@ -1295,12 +1395,30 @@ export class IdentityTestStore {
 
     const userId = args?.where?.userId
     if (userId !== undefined) {
-      memberships = memberships.filter((m) => m.userId === userId)
+      if (typeof userId === 'string') {
+        memberships = memberships.filter((m) => m.userId === userId)
+      } else if (
+        typeof userId === 'object' &&
+        'in' in userId &&
+        Array.isArray(userId.in)
+      ) {
+        const userIds = userId.in
+        memberships = memberships.filter((m) => userIds.includes(m.userId))
+      }
     }
 
     const courseId = args?.where?.courseId
     if (courseId !== undefined) {
-      memberships = memberships.filter((m) => m.courseId === courseId)
+      if (typeof courseId === 'string') {
+        memberships = memberships.filter((m) => m.courseId === courseId)
+      } else if (
+        typeof courseId === 'object' &&
+        'in' in courseId &&
+        Array.isArray(courseId.in)
+      ) {
+        const courseIds = courseId.in
+        memberships = memberships.filter((m) => courseIds.includes(m.courseId))
+      }
     }
 
     if (args?.where?.removedAt === null) {
@@ -1665,6 +1783,28 @@ export class IdentityTestStore {
     }
 
     return { count: matches.length }
+  }
+
+  private countMaterials(args: CountMaterialArgs | undefined): number {
+    let materials = [...this.materials.values()]
+
+    const courseId = args?.where?.courseId
+    if (courseId !== undefined) {
+      materials = materials.filter((m) => m.courseId === courseId)
+    }
+
+    if (args?.where?.deletedAt === null) {
+      materials = materials.filter((m) => m.deletedAt === null)
+    }
+
+    const titleSearch = args?.where?.title?.contains.toLocaleLowerCase()
+    if (titleSearch !== undefined) {
+      materials = materials.filter((m) =>
+        m.title.toLocaleLowerCase().includes(titleSearch),
+      )
+    }
+
+    return materials.length
   }
 
   private findMaterials(

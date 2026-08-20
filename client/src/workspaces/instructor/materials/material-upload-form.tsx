@@ -9,7 +9,7 @@ import {
   UploadIcon,
   XIcon,
 } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,13 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { isApiError } from '@/features/auth/session/interface/authenticated-api-client'
 import { useUploadCourseMaterial } from '@/workspaces/instructor/materials/use-materials'
 import {
@@ -37,12 +44,24 @@ import { cn } from '@/lib/utils'
 
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'error'
 
+export interface MaterialUploadCourseOption {
+  id: string
+  code: string
+  title: string
+}
+
 export function MaterialUploadForm({
+  courses = [],
   courseId,
+  defaultCourseId,
   configuration,
+  onUploadSuccess,
 }: {
-  courseId: string
+  courses?: MaterialUploadCourseOption[]
+  courseId?: string
+  defaultCourseId?: string
   configuration: MaterialUploadConfiguration
+  onUploadSuccess?: (courseId: string) => void
 }) {
   const uploadMutation = useUploadCourseMaterial()
   const [status, setStatus] = useState<UploadStatus>('idle')
@@ -50,6 +69,33 @@ export function MaterialUploadForm({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const normalizedCourses = useMemo(() => {
+    if (courses.length > 0) {
+      return courses
+    }
+    if (courseId) {
+      return [{ id: courseId, code: 'Assigned', title: 'Course' }]
+    }
+    return []
+  }, [courses, courseId])
+
+  const initialCourseId =
+    defaultCourseId &&
+    normalizedCourses.some((course) => course.id === defaultCourseId)
+      ? defaultCourseId
+      : courseId && normalizedCourses.some((course) => course.id === courseId)
+        ? courseId
+        : (normalizedCourses[0]?.id ?? '')
+
+  const courseSelectItems = useMemo(
+    () =>
+      normalizedCourses.map((course) => ({
+        label: course.title ? `${course.code} — ${course.title}` : course.code,
+        value: course.id,
+      })),
+    [normalizedCourses],
+  )
 
   const uploadSchema = useMemo(
     () => createMaterialUploadSchema(configuration.maxUploadBytes),
@@ -60,23 +106,35 @@ export function MaterialUploadForm({
     resolver: zodResolver(uploadSchema),
     mode: 'onChange',
     defaultValues: {
+      courseId: initialCourseId,
       title: '',
       file: undefined,
     },
   })
 
-  const handleSubmit = async ({ title, file }: MaterialUpload) => {
+  useEffect(() => {
+    if (status === 'idle' && !form.formState.isDirty) {
+      form.setValue('courseId', initialCourseId)
+    }
+  }, [form, initialCourseId, status])
+
+  const handleSubmit = async ({
+    courseId: targetCourseId,
+    title,
+    file,
+  }: MaterialUpload) => {
     setErrorMessage(null)
     setStatus('uploading')
 
     try {
       await uploadMutation.mutateAsync({
-        courseId,
+        courseId: targetCourseId,
         title,
         file,
       })
 
       setStatus('success')
+      onUploadSuccess?.(targetCourseId)
     } catch (error) {
       setStatus('error')
       setErrorMessage(
@@ -91,7 +149,11 @@ export function MaterialUploadForm({
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
-    form.reset({ title: '', file: undefined })
+    form.reset({
+      courseId: initialCourseId,
+      title: '',
+      file: undefined,
+    })
     setSelectedFile(null)
     setStatus('idle')
     setErrorMessage(null)
@@ -156,6 +218,40 @@ export function MaterialUploadForm({
 
         {status === 'idle' ? (
           <>
+            <FormField
+              control={form.control}
+              name="courseId"
+              render={({ field }) => (
+                <FormItem className="w-full min-w-0">
+                  <FormLabel>Course</FormLabel>
+                  <Select
+                    value={field.value || undefined}
+                    onValueChange={(value) => {
+                      field.onChange(value ?? '')
+                    }}
+                    items={courseSelectItems}
+                  >
+                    <FormControl>
+                      <SelectTrigger
+                        className="w-full truncate"
+                        aria-label="Course"
+                      >
+                        <SelectValue placeholder="Select a course" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {courseSelectItems.map((course) => (
+                        <SelectItem key={course.value} value={course.value}>
+                          {course.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="title"

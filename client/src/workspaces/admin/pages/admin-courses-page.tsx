@@ -47,8 +47,14 @@ export function AdminCoursesPage() {
           isEmpty={coursesQuery.data?.length === 0}
           onRetry={() => void coursesQuery.refetch()}
           isRetrying={coursesQuery.isFetching}
-          emptyTitle="No courses found"
-          emptyDescription="Courses returned by the API will appear here."
+          emptyTitle={
+            debouncedSearch ? 'No matching courses' : 'No courses found'
+          }
+          emptyDescription={
+            debouncedSearch
+              ? `No courses match "${search.trim()}".`
+              : 'Courses returned by the API will appear here.'
+          }
         >
           <AdminCoursesTable
             courses={coursesQuery.data ?? []}

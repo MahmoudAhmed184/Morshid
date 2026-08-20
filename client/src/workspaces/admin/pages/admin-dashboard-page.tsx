@@ -2,7 +2,6 @@ import { Link } from '@tanstack/react-router'
 import {
   BookOpenIcon,
   ChevronRightIcon,
-  FileTextIcon,
   GraduationCapIcon,
   ScrollTextIcon,
   UsersIcon,
@@ -15,7 +14,7 @@ import { EmptyState } from '@/components/ui/custom/empty-state'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import { StatCard } from '@/components/ui/custom/stat-card'
 import { cn } from '@/lib/utils'
-import { AdminPanel } from '../components/admin-panel'
+import { AdminPanel } from '@/workspaces/admin/components/admin-panel'
 import { useAudit } from '@/workspaces/admin/audit/use-audit'
 import { useCourseAdministration } from '@/workspaces/admin/use-course-administration'
 import { useManagedUsers } from '@/workspaces/admin/users/use-user-management'
@@ -41,12 +40,6 @@ const quickNav: {
     tone: 'neutral',
   },
   {
-    title: 'Materials',
-    to: '/admin/materials',
-    icon: FileTextIcon,
-    tone: 'gold',
-  },
-  {
     title: 'Audit Logs',
     to: '/admin/audit',
     icon: ScrollTextIcon,
@@ -69,12 +62,9 @@ export function AdminDashboardPage() {
   const usersQuery = useManagedUsers()
   const coursesQuery = useCourseAdministration()
   const auditQuery = useAudit(5)
+  const auditEvents = auditQuery.data?.events ?? []
   const users = usersQuery.data?.pages.flatMap((page) => page.users) ?? []
   const courses = coursesQuery.data ?? []
-  const materialCount = courses.reduce(
-    (total, course) => total + course.adminMetadata.materialCount,
-    0,
-  )
   const studentCount = users.filter((user) => user.role === 'STUDENT').length
   const instructorCount = users.filter(
     (user) => user.role === 'INSTRUCTOR',
@@ -103,13 +93,6 @@ export function AdminDashboardPage() {
       icon: <BookOpenIcon aria-hidden />,
       tone: 'gold',
       description: 'Active course shells across the platform',
-    },
-    {
-      label: 'Materials',
-      value: materialCount,
-      icon: <FileTextIcon aria-hidden />,
-      tone: 'success',
-      description: 'Learning assets ingested into courses',
     },
   ] as const
 
@@ -159,7 +142,7 @@ export function AdminDashboardPage() {
               <DataTableState
                 isLoading={auditQuery.isPending}
                 isError={auditQuery.isError}
-                isEmpty={auditQuery.data?.length === 0}
+                isEmpty={auditEvents.length === 0}
                 onRetry={() => void auditQuery.refetch()}
                 isRetrying={auditQuery.isFetching}
                 empty={
@@ -171,7 +154,7 @@ export function AdminDashboardPage() {
                 }
               >
                 <ol className="space-y-2.5">
-                  {auditQuery.data?.map((event) => (
+                  {auditEvents.map((event) => (
                     <li
                       key={event.id}
                       className="rounded-xl bg-secondary/30 p-3.5 transition-colors hover:bg-secondary/50"

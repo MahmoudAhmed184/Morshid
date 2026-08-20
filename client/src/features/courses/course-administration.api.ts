@@ -11,6 +11,7 @@ import {
   courseAdministrationSchema,
   courseMemberResponseSchema,
   courseMembersResponseSchema,
+  resolveCourseMembersResponseSchema,
 } from './course-administration.schema'
 import type { CourseMembershipRole } from './course-administration.schema'
 
@@ -127,6 +128,21 @@ export async function bulkAddCourseMembers(
     jsonRequestOptions('POST', input, options),
   )
   return bulkCourseAssignmentResponseSchema.parse(response)
+}
+
+export async function resolveCourseMembers(
+  input: {
+    identifiers: string[]
+    role: CourseMembershipRole
+    courseIds?: string[]
+  },
+  options: ApiFetchOptions = {},
+) {
+  const response = await apiJson<unknown>(
+    '/api/v1/admin/courses/members/resolve',
+    jsonRequestOptions('POST', input, options),
+  )
+  return resolveCourseMembersResponseSchema.parse(response)
 }
 
 export async function updateCourseMemberRole(

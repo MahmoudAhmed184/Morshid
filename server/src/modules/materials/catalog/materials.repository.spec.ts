@@ -239,4 +239,53 @@ describe('PrismaMaterialsRepository terminal processing transactions', () => {
     ).rejects.toThrow('audit failed')
     expect(transactionCommitted).toBe(false)
   })
+
+  it('searches course materials by title or original filename with pagination', async () => {
+    const courseId = '00000000-0000-4000-8000-000000000101'
+    const findManyMock = jest.fn().mockResolvedValue([
+      {
+        id: 'mat-1',
+        courseId,
+        uploadedById: 'user-1',
+        title: 'Week 1 Slides',
+        originalFilename: 'slides-intro.pdf',
+        status: 'READY',
+        extractedTextLength: 100,
+        chunkCount: 1,
+        errorMessage: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ])
+    const countMock = jest.fn().mockResolvedValue(1)
+    ;(
+      repository as unknown as {
+        prismaService: {
+          material: { findMany: jest.Mock; count: jest.Mock }
+        }
+      }
+    ).prismaService = {
+      material: { findMany: findManyMock, count: countMock },
+    }
+
+    const page = await repository.listCourseMaterialsPage(courseId, {
+      limit: 10,
+      search: 'intro',
+    })
+
+    expect(findManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          courseId,
+          deletedAt: null,
+          OR: [
+            { title: { contains: 'intro', mode: 'insensitive' } },
+            { originalFilename: { contains: 'intro', mode: 'insensitive' } },
+          ],
+        },
+        take: 11,
+      }),
+    )
+    expect(page.materials).toHaveLength(1)
+  })
 })

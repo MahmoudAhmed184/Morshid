@@ -245,11 +245,13 @@ describe('Review Queue Saved Filters & URL Sync', () => {
     const user = userEvent.setup()
     render(<ReviewQueuePage />)
 
-    // Click 'In review' status tab
-    const inReviewTab = screen.getByRole('tab', { name: /In review/i })
-    await user.click(inReviewTab)
+    expect(screen.queryByRole('tab', { name: /In review/i })).toBeNull()
 
-    expect(window.location.search).toContain('status=IN_REVIEW')
+    // Click 'Resolved' status tab
+    const resolvedTab = screen.getByRole('tab', { name: /Resolved/i })
+    await user.click(resolvedTab)
+
+    expect(window.location.search).toContain('status=RESOLVED')
 
     // Click CS-101 course filter
     const cs101Btn = screen.getByRole('button', { name: 'CS-101' })

@@ -102,7 +102,7 @@ describe('MaterialsPage query recovery', () => {
   it('renders material data after the failed request itself is retried successfully', async () => {
     listCourseMaterialsMock
       .mockRejectedValueOnce(new Error('materials unavailable'))
-      .mockResolvedValueOnce({ materials: [material] })
+      .mockResolvedValueOnce({ materials: [material], total: 1 })
     const user = userEvent.setup()
     const { queryClient } = renderPage()
 
@@ -121,7 +121,7 @@ describe('MaterialsPage query recovery', () => {
           materialKeys.list({ instructorId, courseId: course.id }),
         ),
       ).toEqual({
-        pages: [{ materials: [material] }],
+        pages: [{ materials: [material], total: 1 }],
         pageParams: [undefined],
       }),
     )

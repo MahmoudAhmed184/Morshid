@@ -17,10 +17,6 @@ import type {
   CourseAdministrationMemberListResponseDto,
   CourseAdministrationMemberResponseDto,
 } from '../../src/modules/courses/course-administration.types'
-import type {
-  MaterialAdministrationListResponseDto,
-  MaterialAdministrationResponseDto,
-} from '../../src/modules/materials/catalog/material-administration.types'
 import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import { PrismaService } from '../../src/platform/database/prisma.service'
 import { RedisService } from '../../src/platform/cache/redis.service'
@@ -97,7 +93,7 @@ describe('Course administration (e2e)', () => {
   }
 
   const pythonCourseId = '00000000-0000-4000-8000-000000000101'
-  const pythonMaterialId = '00000000-0000-4000-8000-000000000401'
+  const hiddenCourseId = '00000000-0000-4000-8000-000000000102'
 
   describe('GET /api/v1/admin/courses', () => {
     it('returns all courses and their metadata for admins', async () => {
@@ -678,86 +674,142 @@ describe('Course administration (e2e)', () => {
     })
   })
 
-  describe('GET /api/v1/admin/courses/:courseId/materials', () => {
-    it('lists materials for a course', async () => {
+  describe('POST /api/v1/admin/courses/members/resolve', () => {
+    it('resolves active users by email and uuid for a role with duplicate and alreadyAssigned detection', async () => {
       const token = await signInAs('admin@morshid.demo')
+      const student1 = requireUserByEmail('student1@morshid.demo')
+      const student2 = requireUserByEmail('student2@morshid.demo')
+      const instructor = requireUserByEmail('instructor@morshid.demo')
 
       const response = await request(app.getHttpServer())
-        .get(`/api/v1/admin/courses/${pythonCourseId}/materials`)
+        .post('/api/v1/admin/courses/members/resolve')
         .set('Authorization', `Bearer ${token}`)
-        .expect(200)
-
-      const body = response.body as MaterialAdministrationListResponseDto
-      expect(body.materials).toHaveLength(1)
-      expect(body.materials[0]?.title).toBe('Python Basics')
-    })
-  })
-
-  describe('GET /api/v1/admin/courses/:courseId/materials/:materialId', () => {
-    it('gets a specific material', async () => {
-      const token = await signInAs('admin@morshid.demo')
-
-      const response = await request(app.getHttpServer())
-        .get(
-          `/api/v1/admin/courses/${pythonCourseId}/materials/${pythonMaterialId}`,
-        )
-        .set('Authorization', `Bearer ${token}`)
-        .expect(200)
-
-      const body = response.body as MaterialAdministrationResponseDto
-      expect(body.material.id).toBe(pythonMaterialId)
-    })
-  })
-
-  describe('PATCH /api/v1/admin/courses/:courseId/materials/:materialId', () => {
-    it('updates material title and creates audit log', async () => {
-      const token = await signInAs('admin@morshid.demo')
-      const admin = requireUserByEmail('admin@morshid.demo')
-
-      const response = await request(app.getHttpServer())
-        .patch(
-          `/api/v1/admin/courses/${pythonCourseId}/materials/${pythonMaterialId}`,
-        )
-        .set('Authorization', `Bearer ${token}`)
-        .set('User-Agent', auditUserAgent)
         .send({
-          title: 'Updated Python Basics',
+          identifiers: [
+            student1.email.toUpperCase(), // case-insensitive email
+            student2.id, // UUID match
+            student1.email, // duplicate
+            instructor.email, // wrong role (INSTRUCTOR when resolving STUDENT)
+            '00000000-0000-4000-8000-000000009999', // unknown UUID
+            'nonexistent@morshid.demo', // unknown email
+          ],
+          role: CourseMembershipRole.STUDENT,
+          courseIds: [pythonCourseId],
         })
         .expect(200)
 
-      const body = response.body as MaterialAdministrationResponseDto
-      expect(body.material.title).toBe('Updated Python Basics')
+      const body = response.body as {
+        resolved: {
+          id: string
+          email: string
+          displayName: string
+          role: string
+          matchedBy: string
+          alreadyAssignedCourseIds: string[]
+        }[]
+        unmatched: string[]
+        duplicates: string[]
+      }
 
-      const auditLogs = [...store.auditLogs.values()].filter(
-        (log) => log.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPDATED,
+      expect(body.resolved).toHaveLength(2)
+      expect(body.resolved.map((u) => u.id).sort()).toEqual(
+        [student1.id, student2.id].sort(),
       )
 
-      expect(auditLogs).toEqual([
-        expect.objectContaining({
-          actorUserId: admin.id,
-          action: AUDIT_EVENT_ACTIONS.MATERIAL_UPDATED,
-          targetType: AUDIT_TARGET_TYPES.MATERIAL,
-          targetId: pythonMaterialId,
-          courseId: pythonCourseId,
-          metadata: {
-            title: 'Updated Python Basics',
-          },
-        }),
+      const resolvedStudent1 = body.resolved.find((u) => u.id === student1.id)
+      expect(resolvedStudent1?.alreadyAssignedCourseIds).toContain(
+        pythonCourseId,
+      )
+
+      expect(body.duplicates).toEqual([student1.email])
+      expect(body.unmatched).toEqual([
+        instructor.email,
+        '00000000-0000-4000-8000-000000009999',
+        'nonexistent@morshid.demo',
       ])
     })
 
-    it('rejects validation errors', async () => {
+    it('resolves instructors when requested and isolates roles', async () => {
       const token = await signInAs('admin@morshid.demo')
+      const student1 = requireUserByEmail('student1@morshid.demo')
+      const instructor = requireUserByEmail('instructor@morshid.demo')
 
-      await request(app.getHttpServer())
-        .patch(
-          `/api/v1/admin/courses/${pythonCourseId}/materials/${pythonMaterialId}`,
-        )
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/admin/courses/members/resolve')
         .set('Authorization', `Bearer ${token}`)
         .send({
-          title: '', // Too short
+          identifiers: [instructor.email, student1.email],
+          role: CourseMembershipRole.INSTRUCTOR,
         })
-        .expect(400)
+        .expect(200)
+
+      const body = response.body as {
+        resolved: { id: string; email: string; role: string }[]
+        unmatched: string[]
+      }
+
+      expect(body.resolved).toHaveLength(1)
+      expect(body.resolved[0]?.id).toBe(instructor.id)
+      expect(body.resolved[0]?.role).toBe(CourseMembershipRole.INSTRUCTOR)
+      expect(body.unmatched).toEqual([student1.email])
+    })
+
+    it('reports disabled users as unmatched', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const student2 = requireUserByEmail('student2@morshid.demo')
+      store.disableUser(student2.email)
+
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/admin/courses/members/resolve')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          identifiers: [student2.email],
+          role: CourseMembershipRole.STUDENT,
+        })
+        .expect(200)
+
+      const body = response.body as {
+        resolved: unknown[]
+        unmatched: string[]
+      }
+
+      expect(body.resolved).toHaveLength(0)
+      expect(body.unmatched).toEqual([student2.email])
+    })
+
+    it('rejects non-admin users from resolving members', async () => {
+      const token = await signInAs('instructor@morshid.demo')
+
+      await request(app.getHttpServer())
+        .post('/api/v1/admin/courses/members/resolve')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          identifiers: ['student1@morshid.demo'],
+          role: CourseMembershipRole.STUDENT,
+        })
+        .expect(403)
+    })
+  })
+
+  describe('POST /api/v1/admin/courses/members/bulk', () => {
+    it('assigns multiple users to courses and skips existing memberships', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const student1 = requireUserByEmail('student1@morshid.demo') // already in python course, not in hidden course
+
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/admin/courses/members/bulk')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          courseIds: [pythonCourseId, hiddenCourseId],
+          userIds: [student1.id],
+          role: CourseMembershipRole.STUDENT,
+        })
+        .expect(201)
+
+      expect(response.body).toEqual({
+        assignedCount: 1,
+        skippedCount: 1,
+      })
     })
   })
 })
