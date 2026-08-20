@@ -1,24 +1,16 @@
 import { useState, useId } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+  Gauge,
+  Plus,
+  RotateCcw,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react'
+
 import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -27,6 +19,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -35,6 +29,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import {
   updateAdminPolicyDefault,
   setAdminCourseOverride,
@@ -64,6 +66,7 @@ export function AdminAllowancePolicyPage({
   const minLimit = 0
   const maxLimit = isTutoring ? 500 : 20
   const scopeLabel = isTutoring ? 'Tutoring turns' : 'Review requests'
+  const PageIcon = isTutoring ? Gauge : ShieldCheck
 
   // Fetch policy defaults & overrides
   const defaultsQuery = useQuery(adminPolicyDefaultsQueryOptions())
@@ -155,202 +158,213 @@ export function AdminAllowancePolicyPage({
   }
 
   const overrides = overridesQuery.data ?? []
+  const selectedOverrideCourse = courses.find((c) => c.id === overrideCourseId)
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight">
-            {isTutoring ? 'Tutoring Usage Policy' : 'Review Request Policy'}
-          </h2>
+    <div className="space-y-4">
+      <Card className="relative -mx-4 overflow-hidden rounded-none border-x-0 py-0 sm:mx-0 sm:rounded-xl sm:border-x">
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-[radial-gradient(ellipse_at_65%_100%,color-mix(in_oklab,var(--primary)_12%,transparent),transparent_65%)]"
+          aria-hidden
+        />
+        <CardContent className="relative flex flex-col gap-6 px-5 py-5 sm:px-6">
+          {/* Header row with Reset Student Quota action */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <PageIcon className="size-4 text-muted-foreground" aria-hidden />
+              <h2 className="text-base font-medium text-foreground">
+                {isTutoring ? 'Tutoring Usage Policy' : 'Review Request Policy'}
+              </h2>
+            </div>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setResetDialogOpen(true)}
+              data-testid="reset-allowance-trigger"
+              className="gap-1.5 self-start sm:self-auto"
+            >
+              <RotateCcw className="size-3.5" aria-hidden />
+              Reset Student Quota
+            </Button>
+          </div>
+
           <p className="text-sm text-muted-foreground">
             {isTutoring
-              ? 'Configure deployment-wide default tutoring turns and per-course overrides.'
+              ? 'Configure deployment-wide default tutoring turns and per-course overrides for student AI tutoring.'
               : 'Configure deployment-wide default manual review limits and per-course overrides.'}
           </p>
-        </div>
 
-        <Button
-          variant="outline"
-          onClick={() => setResetDialogOpen(true)}
-          data-testid="reset-allowance-trigger"
-        >
-          Reset Student Quota
-        </Button>
-      </div>
-
-      {/* Deployment Default Card */}
-      <Card data-testid="policy-default-card">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-semibold">
-                Deployment Default Limit
-              </CardTitle>
-              <CardDescription>
-                Applied to all courses without an explicit override (
-                {scopeLabel} per Policy Day).
-              </CardDescription>
-            </div>
-            {!editingDefault && (
-              <Badge variant="secondary" className="text-sm font-semibold">
-                {currentDefaultLimit} / day
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {defaultsQuery.isLoading ? (
-            <Skeleton className="h-10 w-48" />
-          ) : editingDefault ? (
-            <div className="space-y-4">
-              {defaultError && (
-                <div className="text-sm text-destructive">{defaultError}</div>
-              )}
-              <div className="flex items-center gap-4">
-                <div className="w-32">
-                  <Label htmlFor={defaultLimitInputId} className="sr-only">
-                    Default Limit
-                  </Label>
-                  <Input
-                    id={defaultLimitInputId}
-                    type="number"
-                    min={minLimit}
-                    max={maxLimit}
-                    value={defaultInputValue}
-                    onChange={(e) =>
-                      setDefaultInputValue(
-                        Number.parseInt(e.target.value, 10) || 0,
-                      )
-                    }
-                  />
-                </div>
-                <Button
-                  size="sm"
-                  onClick={handleSaveDefault}
-                  disabled={updateDefaultMutation.isPending}
-                >
-                  {updateDefaultMutation.isPending ? 'Saving...' : 'Save'}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditingDefault(false)
-                    setDefaultInputValue(currentDefaultLimit)
-                    setDefaultError(null)
-                  }}
-                >
-                  Cancel
-                </Button>
+          {/* Deployment Default Row */}
+          <div
+            data-testid="policy-default-card"
+            className="border-t border-border/60 pt-5"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <h3 className="text-sm font-medium text-foreground">
+                  Deployment Default Limit
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Applied to all courses without an explicit override (
+                  {scopeLabel} per Policy Day).
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Allowed range: {minLimit} to {maxLimit}{' '}
-                {scopeLabel.toLowerCase()}.
-              </p>
+
+              {defaultsQuery.isLoading ? (
+                <Skeleton className="h-9 w-32" />
+              ) : editingDefault ? (
+                <div className="flex flex-col gap-2 sm:items-end">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={defaultLimitInputId} className="sr-only">
+                      Default Limit
+                    </Label>
+                    <Input
+                      id={defaultLimitInputId}
+                      type="number"
+                      min={minLimit}
+                      max={maxLimit}
+                      value={defaultInputValue}
+                      onChange={(e) =>
+                        setDefaultInputValue(
+                          Number.parseInt(e.target.value, 10) || 0,
+                        )
+                      }
+                      className="h-9 w-24 text-center"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleSaveDefault}
+                      disabled={updateDefaultMutation.isPending}
+                    >
+                      {updateDefaultMutation.isPending ? 'Saving...' : 'Save'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditingDefault(false)
+                        setDefaultInputValue(currentDefaultLimit)
+                        setDefaultError(null)
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  {defaultError && (
+                    <p className="text-xs text-destructive">{defaultError}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary" className="text-xs font-semibold px-2.5 py-1">
+                    {currentDefaultLimit} / day
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setDefaultInputValue(currentDefaultLimit)
+                      setEditingDefault(true)
+                    }}
+                  >
+                    Change Default
+                  </Button>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                Current limit:{' '}
-                <span className="font-semibold text-foreground">
-                  {currentDefaultLimit}
-                </span>{' '}
-                {scopeLabel.toLowerCase()}
-              </span>
+          </div>
+
+          {/* Course Policy Overrides Section */}
+          <div
+            data-testid="course-overrides-card"
+            className="border-t border-border/60 pt-5 space-y-4"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <h3 className="text-sm font-medium text-foreground">
+                  Course Policy Overrides
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Custom daily allowance limits tailored to specific courses.
+                </p>
+              </div>
+
               <Button
                 size="sm"
-                variant="outline"
                 onClick={() => {
-                  setDefaultInputValue(currentDefaultLimit)
-                  setEditingDefault(true)
+                  setOverrideCourseId(courses[0]?.id || '')
+                  setOverrideLimit(currentDefaultLimit)
+                  setOverrideError(null)
+                  setOverrideModalOpen(true)
                 }}
+                className="gap-1.5 self-start sm:self-auto"
               >
-                Change Default
+                <Plus className="size-3.5" aria-hidden />
+                Add Override
               </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Course Overrides Card */}
-      <Card data-testid="course-overrides-card">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-base font-semibold">
-              Course Policy Overrides
-            </CardTitle>
-            <CardDescription>
-              Custom daily allowance limits tailored to specific courses.
-            </CardDescription>
-          </div>
-          <Button
-            size="sm"
-            onClick={() => {
-              setOverrideCourseId(courses[0]?.id || '')
-              setOverrideLimit(currentDefaultLimit)
-              setOverrideError(null)
-              setOverrideModalOpen(true)
-            }}
-          >
-            Add Override
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {overridesQuery.isLoading ? (
-            <Skeleton className="h-32 w-full" />
-          ) : overrides.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              No course overrides configured. All courses follow the deployment
-              default limit ({currentDefaultLimit}).
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Course</TableHead>
-                  <TableHead>Override Limit</TableHead>
-                  <TableHead>Last Updated</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {overrides.map((override) => {
-                  const course = courses.find((c) => c.id === override.courseId)
-                  return (
-                    <TableRow key={override.id}>
-                      <TableCell className="font-medium">
-                        {course
-                          ? `${course.code} — ${course.title}`
-                          : override.courseId}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {override.overrideLimit} / day
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {new Date(override.updatedAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() =>
-                            deleteOverrideMutation.mutate(override.courseId)
-                          }
-                          disabled={deleteOverrideMutation.isPending}
-                        >
-                          Remove
-                        </Button>
-                      </TableCell>
+            {overridesQuery.isLoading ? (
+              <Skeleton className="h-28 w-full rounded-xl" />
+            ) : overrides.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-6 text-center text-xs text-muted-foreground">
+                No course overrides configured. All courses follow the deployment
+                default limit ({currentDefaultLimit}).
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-border/80 bg-background/50">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="text-xs font-medium">Course</TableHead>
+                      <TableHead className="text-xs font-medium">Override Limit</TableHead>
+                      <TableHead className="text-xs font-medium">Last Updated</TableHead>
+                      <TableHead className="text-right text-xs font-medium">Actions</TableHead>
                     </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          )}
+                  </TableHeader>
+                  <TableBody>
+                    {overrides.map((override) => {
+                      const course = courses.find(
+                        (c) => c.id === override.courseId,
+                      )
+                      return (
+                        <TableRow key={override.id}>
+                          <TableCell className="text-sm font-medium text-foreground">
+                            {course
+                              ? `${course.code} — ${course.title}`
+                              : override.courseId}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {override.overrideLimit} / day
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {new Date(override.updatedAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10 gap-1 text-xs"
+                              onClick={() =>
+                                deleteOverrideMutation.mutate(override.courseId)
+                              }
+                              disabled={deleteOverrideMutation.isPending}
+                            >
+                              <Trash2 className="size-3.5" aria-hidden />
+                              Remove
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -365,15 +379,17 @@ export function AdminAllowancePolicyPage({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-2">
             {overrideError && (
-              <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+              <div className="rounded-lg bg-destructive/15 p-3 text-xs text-destructive">
                 {overrideError}
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor={overrideCourseSelectId}>Course</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor={overrideCourseSelectId} className="text-xs font-medium">
+                Course
+              </Label>
               <Select
                 value={overrideCourseId}
                 onValueChange={(value) => setOverrideCourseId(value ?? '')}
@@ -381,8 +397,13 @@ export function AdminAllowancePolicyPage({
                 <SelectTrigger
                   id={overrideCourseSelectId}
                   aria-label="Select course"
+                  className="w-full"
                 >
-                  <SelectValue placeholder="Select course" />
+                  <SelectValue placeholder="Select course">
+                    {selectedOverrideCourse
+                      ? `${selectedOverrideCourse.code} — ${selectedOverrideCourse.title}`
+                      : undefined}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map((course) => (
@@ -394,8 +415,8 @@ export function AdminAllowancePolicyPage({
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor={overrideLimitInputId}>
+            <div className="space-y-1.5">
+              <Label htmlFor={overrideLimitInputId} className="text-xs font-medium">
                 Daily Limit ({scopeLabel})
               </Label>
               <Input

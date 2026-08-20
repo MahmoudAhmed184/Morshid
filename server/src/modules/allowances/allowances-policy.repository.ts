@@ -259,6 +259,25 @@ export class AllowancesPolicyRepository {
     return latest ? latest.createdAt : null
   }
 
+  async findStudentByEmail(
+    email: string,
+    tx?: DatabaseTransaction,
+  ): Promise<{ id: string; email: string; displayName: string } | null> {
+    const client = this.getClient(tx)
+    const user = await client.user.findFirst({
+      where: {
+        email: { equals: email.trim().toLowerCase(), mode: 'insensitive' },
+        role: 'STUDENT',
+      },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+      },
+    })
+    return user
+  }
+
   async createReset(
     data: {
       studentId: string

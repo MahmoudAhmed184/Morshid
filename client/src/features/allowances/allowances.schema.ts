@@ -8,11 +8,13 @@ export const policyDayWindowSchema = z.object({
 export type PolicyDayWindow = z.infer<typeof policyDayWindowSchema>
 
 export const studentAllowanceSchema = z.object({
-  scope: z.enum(['TUTORING', 'REVIEW']),
-  used: z.number(),
   limit: z.number(),
+  used: z.number(),
   remaining: z.number(),
-  policyDayWindow: policyDayWindowSchema,
+  resetAt: z.string(),
+  policyTimeZone: z.string(),
+  scope: z.enum(['TUTORING', 'REVIEW']).optional(),
+  policyDayWindow: policyDayWindowSchema.optional(),
 })
 export type StudentAllowance = z.infer<typeof studentAllowanceSchema>
 
@@ -50,14 +52,16 @@ export const adminAllowanceResetSchema = z.object({
   id: z.string(),
   studentId: z.string(),
   courseId: z.string(),
-  scope: z.enum(['TUTORING', 'REVIEW']),
-  resetAt: z.string(),
+  scope: z.enum(['TUTORING', 'REVIEW', 'BOTH']),
   reason: z.string(),
+  createdById: z.string().nullable().optional(),
+  createdAt: z.string().optional(),
+  resetAt: z.string().optional(),
 })
 export type AdminAllowanceReset = z.infer<typeof adminAllowanceResetSchema>
 
 export const adminAllowanceResetResponseSchema = z.object({
-  reset: adminAllowanceResetSchema,
+  reset: adminAllowanceResetSchema.optional(),
 })
 export type AdminAllowanceResetResponse = z.infer<
   typeof adminAllowanceResetResponseSchema

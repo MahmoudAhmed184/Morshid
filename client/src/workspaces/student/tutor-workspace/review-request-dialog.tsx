@@ -195,17 +195,18 @@ export function StudentReviewRequestDialog({
                 <AlertDescription>
                   You have reached your daily review allowance for this course
                   (0 requests remaining).
-                  {reviewAllowance.policyDayWindow.end && (
+                  {reviewAllowance.resetAt && (
                     <>
                       {' '}
                       Requests reset at{' '}
-                      {new Date(
-                        reviewAllowance.policyDayWindow.end,
-                      ).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}{' '}
-                      ({reviewAllowance.policyDayWindow.timeZone}).
+                      {new Date(reviewAllowance.resetAt).toLocaleTimeString(
+                        [],
+                        {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        },
+                      )}{' '}
+                      ({reviewAllowance.policyTimeZone}).
                     </>
                   )}
                 </AlertDescription>

@@ -221,17 +221,15 @@ export function StudentChatComposer({
           <span>
             You have reached your daily tutoring allowance for this course (0
             turns remaining).
-            {tutoringAllowance.policyDayWindow.end && (
+            {tutoringAllowance.resetAt && (
               <>
                 {' '}
                 Turns reset at{' '}
-                {new Date(
-                  tutoringAllowance.policyDayWindow.end,
-                ).toLocaleTimeString([], {
+                {new Date(tutoringAllowance.resetAt).toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
                 })}{' '}
-                ({tutoringAllowance.policyDayWindow.timeZone}).
+                ({tutoringAllowance.policyTimeZone}).
               </>
             )}
           </span>

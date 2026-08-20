@@ -65,12 +65,22 @@ export type SetCoursePolicyOverrideDto = z.infer<
   typeof setCoursePolicyOverrideSchema
 >
 
-export const createAllowanceResetSchema = z.object({
-  studentId: z.uuid(),
-  courseId: z.uuid(),
-  scope: z.enum(['TUTORING', 'REVIEW', 'BOTH']),
-  reason: z.string().trim().min(1).max(500),
-})
+export const createAllowanceResetSchema = z
+  .object({
+    studentId: z.uuid().optional(),
+    studentEmail: z.string().trim().email().optional(),
+    courseId: z.uuid(),
+    scope: z.enum(['TUTORING', 'REVIEW', 'BOTH']),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .refine(
+    (data) =>
+      Boolean(data.studentId) ||
+      Boolean(data.studentEmail && data.studentEmail.length > 0),
+    {
+      message: 'Either studentId or studentEmail must be provided',
+    },
+  )
 
 export type CreateAllowanceResetDto = z.infer<typeof createAllowanceResetSchema>
 

@@ -42,6 +42,7 @@ describe('AllowancesService', () => {
   let setCourseOverrideMock: jest.Mock
   let removeCourseOverrideMock: jest.Mock
   let getLatestResetCutoffMock: jest.Mock
+  let findStudentByEmailMock: jest.Mock
   let createResetMock: jest.Mock
   let countTutoringTurnsMock: jest.Mock
   let countReviewRequestsMock: jest.Mock
@@ -76,6 +77,7 @@ describe('AllowancesService', () => {
       )
     removeCourseOverrideMock = jest.fn().mockResolvedValue(true)
     getLatestResetCutoffMock = jest.fn().mockResolvedValue(null)
+    findStudentByEmailMock = jest.fn().mockResolvedValue(null)
     createResetMock = jest
       .fn()
       .mockImplementation(
@@ -102,6 +104,7 @@ describe('AllowancesService', () => {
       setCourseOverride: setCourseOverrideMock,
       removeCourseOverride: removeCourseOverrideMock,
       getLatestResetCutoff: getLatestResetCutoffMock,
+      findStudentByEmail: findStudentByEmailMock,
       createReset: createResetMock,
       countTutoringTurns: countTutoringTurnsMock,
       countReviewRequests: countReviewRequestsMock,
@@ -368,6 +371,34 @@ describe('AllowancesService', () => {
           },
         }),
       )
+    })
+
+    it('creates an audited allowance reset resolving student by email', async () => {
+      findStudentByEmailMock.mockResolvedValueOnce({
+        id: 'student-from-email',
+        email: 'student@morshid.demo',
+        displayName: 'Test Student',
+      })
+
+      const reset = await service.createAllowanceReset(
+        {
+          studentEmail: 'student@morshid.demo',
+          courseId: 'course-1',
+          scope: 'TUTORING',
+          reason: 'Manual test reset',
+        },
+        adminUser,
+      )
+
+      expect(findStudentByEmailMock).toHaveBeenCalledWith('student@morshid.demo')
+      expect(createResetMock).toHaveBeenCalledWith({
+        studentId: 'student-from-email',
+        courseId: 'course-1',
+        scope: 'TUTORING',
+        reason: 'Manual test reset',
+        createdById: adminUser.id,
+      })
+      expect(reset.id).toBe('reset-1')
     })
 
     it('rejects allowance reset with blank reason', async () => {

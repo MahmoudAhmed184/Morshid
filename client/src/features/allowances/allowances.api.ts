@@ -8,7 +8,7 @@ import {
   adminPolicyDefaultsResponseSchema,
   adminCourseOverridesResponseSchema,
   adminCourseOverrideSchema,
-  adminAllowanceResetResponseSchema,
+  adminAllowanceResetSchema,
 } from './allowances.schema'
 import type {
   StudentAllowance,
@@ -115,9 +115,10 @@ export async function deleteAdminCourseOverride(
 
 export async function adminResetAllowance(
   input: {
-    studentId: string
+    studentId?: string
+    studentEmail?: string
     courseId: string
-    scope: 'TUTORING' | 'REVIEW'
+    scope: 'TUTORING' | 'REVIEW' | 'BOTH'
     reason: string
   },
   options: ApiFetchOptions = {},
@@ -126,5 +127,5 @@ export async function adminResetAllowance(
     '/api/v1/admin/allowances/resets',
     jsonRequestOptions('POST', input, options),
   )
-  return adminAllowanceResetResponseSchema.parse(response).reset
+  return adminAllowanceResetSchema.parse(response)
 }

@@ -46,7 +46,8 @@ export interface SetCoursePolicyOverrideInput {
 }
 
 export interface CreateAllowanceResetInput {
-  studentId: string
+  studentId?: string
+  studentEmail?: string
   courseId: string
   scope: AllowanceResetScope
   reason: string
@@ -390,8 +391,25 @@ export class AllowancesService extends AllowancesResolver {
       throw new BadRequestException('Reason must not exceed 500 characters')
     }
 
+    let studentId = input.studentId
+    if (!studentId && input.studentEmail) {
+      const student = await this.repository.findStudentByEmail(input.studentEmail)
+      if (!student) {
+        throw new NotFoundException(
+          `Student with email "${input.studentEmail}" not found`,
+        )
+      }
+      studentId = student.id
+    }
+
+    if (!studentId) {
+      throw new BadRequestException(
+        'A valid student ID or email is required for resetting allowance',
+      )
+    }
+
     const reset = await this.repository.createReset({
-      studentId: input.studentId,
+      studentId,
       courseId: input.courseId,
       scope: input.scope,
       reason: trimmedReason,
@@ -404,7 +422,8 @@ export class AllowancesService extends AllowancesResolver {
       target: { type: 'allowance_reset', id: reset.id },
       courseId: input.courseId,
       metadata: {
-        studentId: input.studentId,
+        studentId,
+        ...(input.studentEmail ? { studentEmail: input.studentEmail } : {}),
         scope: input.scope,
         reason: trimmedReason,
       },
