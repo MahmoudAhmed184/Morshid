@@ -195,7 +195,9 @@ export function EditCustomPriceDialog({
                 name="customPricePerSeat"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs">Custom Rate / Seat</FormLabel>
+                    <FormLabel className="text-xs">
+                      Custom Rate / Seat
+                    </FormLabel>
                     <FormControl>
                       <div className="relative">
                         <span className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3 text-sm font-medium text-muted-foreground">
@@ -220,7 +222,8 @@ export function EditCustomPriceDialog({
                       </div>
                     </FormControl>
                     <FormDescription className="text-[11px] leading-tight">
-                      Leave empty to use default rate (${subscription.defaultPricePerSeat.toFixed(2)}).
+                      Leave empty to use default rate ($
+                      {subscription.defaultPricePerSeat.toFixed(2)}).
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -232,7 +235,9 @@ export function EditCustomPriceDialog({
                 name="status"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs">Subscription Status</FormLabel>
+                    <FormLabel className="text-xs">
+                      Subscription Status
+                    </FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger className="w-full h-9 text-xs">

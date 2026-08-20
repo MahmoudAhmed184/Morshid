@@ -1,7 +1,5 @@
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Landmark, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useState } from 'react'
-import type { FieldErrors } from 'react-hook-form'
 import { useForm } from 'react-hook-form'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -17,7 +15,6 @@ import {
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -31,7 +28,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { isApiError } from '@/features/auth/session/interface/authenticated-api-client'
-import { createUniversityFormSchema } from '@/features/universities/universities.schema'
+import {
+  createUniversityDetailsFormSchema,
+  createUniversityFormSchema,
+} from '@/features/universities/universities.schema'
 import type {
   CreateUniversityFormValues,
   UniversityStatus,
@@ -55,6 +55,7 @@ export function CreateUniversityDialog() {
     'university',
   )
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [showManagerValidation, setShowManagerValidation] = useState(false)
   const [serverFieldErrors, setServerFieldErrors] = useState<
     Partial<Record<keyof CreateUniversityFormValues, string>>
   >({})
@@ -62,9 +63,7 @@ export function CreateUniversityDialog() {
   const { createUniversity } = useUniversityMutations()
 
   const form = useForm<CreateUniversityFormValues>({
-    resolver: zodResolver(createUniversityFormSchema),
-    mode: 'onSubmit',
-    reValidateMode: 'onChange',
+    shouldUnregister: false,
     defaultValues: {
       name: '',
       code: '',
@@ -81,16 +80,86 @@ export function CreateUniversityDialog() {
       form.reset()
       setActiveTab('university')
       setErrorMessage(null)
+      setShowManagerValidation(false)
       setServerFieldErrors({})
     }
   }
 
-  const onSubmit = async (values: CreateUniversityFormValues) => {
+  const validateUniversityStep = () => {
+    form.clearErrors(['name', 'code', 'status'])
+    const values = form.getValues()
+    const result = createUniversityDetailsFormSchema.safeParse(values)
+
+    if (result.success) {
+      form.clearErrors(['ownerDisplayName', 'ownerEmail', 'ownerPassword'])
+      return true
+    }
+
+    for (const issue of result.error.issues) {
+      const field = issue.path[0] as keyof CreateUniversityFormValues
+      if (field === 'name' || field === 'code' || field === 'status') {
+        form.setError(field, { type: 'manual', message: issue.message })
+      }
+    }
+    return false
+  }
+
+  const handleTabChange = (nextTab: 'university' | 'admin') => {
+    if (nextTab === 'admin') {
+      if (validateUniversityStep()) {
+        setShowManagerValidation(false)
+        form.clearErrors(['ownerDisplayName', 'ownerEmail', 'ownerPassword'])
+        setActiveTab('admin')
+      }
+    } else {
+      setShowManagerValidation(false)
+      form.clearErrors(['ownerDisplayName', 'ownerEmail', 'ownerPassword'])
+      setActiveTab('university')
+    }
+  }
+
+  const handleNext = () => {
+    if (validateUniversityStep()) {
+      setShowManagerValidation(false)
+      form.clearErrors(['ownerDisplayName', 'ownerEmail', 'ownerPassword'])
+      setActiveTab('admin')
+    }
+  }
+
+  const handleCreate = async () => {
+    form.clearErrors()
+    const values = form.getValues()
+    const result = createUniversityFormSchema.safeParse(values)
+
+    if (!result.success) {
+      let hasUniversityError = false
+      let hasManagerError = false
+
+      for (const issue of result.error.issues) {
+        const field = issue.path[0] as keyof CreateUniversityFormValues
+        form.setError(field, { type: 'manual', message: issue.message })
+        if (field === 'name' || field === 'code' || field === 'status') {
+          hasUniversityError = true
+        } else {
+          hasManagerError = true
+        }
+      }
+
+      if (hasUniversityError) {
+        setActiveTab('university')
+        setShowManagerValidation(false)
+      } else if (hasManagerError) {
+        setShowManagerValidation(true)
+      }
+      return
+    }
+
+    setShowManagerValidation(true)
     setErrorMessage(null)
     setServerFieldErrors({})
 
     try {
-      await createUniversity.mutateAsync(values)
+      await createUniversity.mutateAsync(result.data)
       handleOpenChange(false)
     } catch (error) {
       if (isApiError(error)) {
@@ -146,31 +215,16 @@ export function CreateUniversityDialog() {
     }
   }
 
-  const onInvalid = (errors: FieldErrors<CreateUniversityFormValues>) => {
-    if (errors.name || errors.code || errors.status) {
-      setActiveTab('university')
-    } else if (
-      errors.ownerDisplayName ||
-      errors.ownerEmail ||
-      errors.ownerPassword
-    ) {
-      setActiveTab('admin')
-    }
-  }
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button />}>
         <Plus className="size-4" aria-hidden />
         Create University
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Landmark className="size-5" aria-hidden />
-          </div>
           <DialogTitle>Create University</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs">
             Provision a new university tenant along with its initial primary
             manager account.
           </DialogDescription>
@@ -184,17 +238,17 @@ export function CreateUniversityDialog() {
 
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+            onSubmit={(event) => event.preventDefault()}
             noValidate
-            className="space-y-5"
+            className="space-y-4"
           >
             <UniversityDialogTabs
               activeTab={activeTab}
-              onTabChange={setActiveTab}
+              onTabChange={handleTabChange}
               universityDescription="Basic information about the university and its lifecycle status."
               managerDescription="The primary manager account responsible for managing this university."
               universityContent={
-                <>
+                <div className="space-y-3.5">
                   <UniversityFields
                     form={form}
                     serverFieldErrors={serverFieldErrors}
@@ -204,17 +258,20 @@ export function CreateUniversityDialog() {
                     name="status"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>
+                        <FormLabel className="text-xs">
                           Initial Status{' '}
                           <span className="text-destructive">*</span>
                         </FormLabel>
                         <Select
                           items={STATUS_OPTIONS}
                           value={field.value}
-                          onValueChange={field.onChange}
+                          onValueChange={(value) => {
+                            field.onChange(value)
+                            form.clearErrors('status')
+                          }}
                         >
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="h-9 text-xs">
                               <SelectValue placeholder="Select status">
                                 {(val) =>
                                   STATUS_OPTIONS.find(
@@ -235,9 +292,6 @@ export function CreateUniversityDialog() {
                             ))}
                           </SelectContent>
                         </Select>
-                        <FormDescription className="text-xs">
-                          Set the initial lifecycle status.
-                        </FormDescription>
                         <FormMessage />
                         {serverFieldErrors.status ? (
                           <p className="text-xs font-semibold text-destructive">
@@ -247,22 +301,19 @@ export function CreateUniversityDialog() {
                       </FormItem>
                     )}
                   />
-                </>
+                </div>
               }
               managerContent={
                 <ManagerFields
                   form={form}
                   serverFieldErrors={serverFieldErrors}
                   passwordLabel="Initial Password"
+                  showValidationErrors={showManagerValidation}
                 />
               }
               onCancel={() => handleOpenChange(false)}
-              onNext={async () => {
-                const isValid = await form.trigger(['name', 'code', 'status'])
-                if (isValid) {
-                  setActiveTab('admin')
-                }
-              }}
+              onNext={handleNext}
+              onSubmit={handleCreate}
               submitLabel="Create University"
               submittingLabel="Creating..."
               isSubmitting={form.formState.isSubmitting}

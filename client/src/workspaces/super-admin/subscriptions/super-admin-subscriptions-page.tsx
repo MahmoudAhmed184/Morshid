@@ -90,13 +90,13 @@ export function SuperAdminSubscriptionsPage() {
         <StatCard
           icon={<Coins />}
           tone="default"
-          label="Default Seat Rate"
+          label="Default Renewal Rate"
           value={
             globalPricingQuery.data
               ? `$${globalPricingQuery.data.defaultPricePerSeat.toFixed(2)}`
               : '—'
           }
-          description="Standard monthly rate per student seat"
+          description="Applied when each university starts its next cycle"
         />
         <StatCard
           icon={<Landmark />}
@@ -181,15 +181,16 @@ export function SuperAdminSubscriptionsPage() {
         <div className="space-y-4">
           <SubscriptionsTable subscriptions={data} />
 
-          {totalPages > 1 ? (
-            <NumberedPagination
-              page={page}
-              totalPages={totalPages}
-              totalCount={totalCount}
-              limit={limit}
-              onPageChange={setPage}
-            />
-          ) : null}
+          {/* Numbered Pagination */}
+          <NumberedPagination
+            page={page}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            limit={limit}
+            onPageChange={setPage}
+            disabled={subscriptionsQuery.isFetching}
+            itemName="universities"
+          />
         </div>
       )}
     </div>

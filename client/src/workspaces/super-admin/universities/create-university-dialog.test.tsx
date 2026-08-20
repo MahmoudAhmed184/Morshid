@@ -75,6 +75,16 @@ describe('CreateUniversityDialog', () => {
     // Navigate to Tab 2 via Next button
     await user.click(screen.getByRole('button', { name: /next: manager/i }))
 
+    expect(
+      screen.queryByText('Owner display name is required'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Owner email is required'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Password must be at least 15 characters'),
+    ).not.toBeInTheDocument()
+
     // Tab 2: Fill manager info
     await user.type(screen.getByLabelText(/manager full name/i), 'Prof. Khalid')
     await user.type(
@@ -104,7 +114,72 @@ describe('CreateUniversityDialog', () => {
     })
     const dialogSubmitBtn = submitButtons[submitButtons.length - 1]
     await user.click(dialogSubmitBtn)
-
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled())
+  })
+
+  it('does not show manager validation errors when advancing to manager tab, but shows them on submit', async () => {
+    const user = userEvent.setup()
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+
+    render(<CreateUniversityDialog />, { wrapper })
+
+    // Open dialog
+    await user.click(screen.getByRole('button', { name: /create university/i }))
+
+    // Fill university info
+    await user.type(
+      screen.getByLabelText(/university name/i),
+      'Test University',
+    )
+    await user.type(screen.getByLabelText(/university code/i), 'TEST')
+
+    // Click Next: Manager
+    await user.click(screen.getByRole('button', { name: /next: manager/i }))
+
+    // Wait for manager tab content to be in document
+    expect(
+      await screen.findByLabelText(/manager full name/i),
+    ).toBeInTheDocument()
+
+    // Ensure NO manager errors exist upon advancing
+    expect(
+      screen.queryByText('Owner display name is required'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Owner email is required'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Password must be at least 15 characters'),
+    ).not.toBeInTheDocument()
+
+    // Click "Create University" inside the dialog without filling manager fields
+    const submitButtons = screen.getAllByRole('button', {
+      name: /create university/i,
+    })
+    const dialogSubmitBtn = submitButtons[submitButtons.length - 1]
+    await user.click(dialogSubmitBtn)
+
+    // Now manager validation errors SHOULD appear
+    expect(
+      screen.getByText('Owner display name is required'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Owner email is required|Invalid email address/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Password must be at least 15 characters'),
+    ).toBeInTheDocument()
+
+    // Typing in field should clear its error
+    await user.type(screen.getByLabelText(/manager full name/i), 'Dr. John')
+    expect(
+      screen.queryByText('Owner display name is required'),
+    ).not.toBeInTheDocument()
   })
 })

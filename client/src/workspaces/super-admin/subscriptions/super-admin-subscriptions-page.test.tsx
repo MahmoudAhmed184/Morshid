@@ -164,7 +164,7 @@ describe('SuperAdminSubscriptionsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Global Pricing Standard')).toBeInTheDocument()
       expect(
-        screen.getByLabelText(/Set new price for next month/i),
+        screen.getByLabelText(/Set default renewal rate/i),
       ).toBeInTheDocument()
     })
   })

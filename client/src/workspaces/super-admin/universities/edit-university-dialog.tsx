@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Landmark, Loader2, User } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
@@ -148,19 +148,12 @@ export function EditUniversityDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            {editingManager ? (
-              <User className="size-5" aria-hidden />
-            ) : (
-              <Landmark className="size-5" aria-hidden />
-            )}
-          </div>
           <DialogTitle>
             {editingManager ? 'Edit Manager' : 'Edit University'}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs">
             {editingManager
               ? `Update the primary administrator for ${university.name}.`
               : `Update the institution details for ${university.name}.`}
@@ -177,7 +170,7 @@ export function EditUniversityDialog({
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             noValidate
-            className="space-y-5"
+            className="space-y-4"
           >
             {editingManager ? (
               university.owner ? (

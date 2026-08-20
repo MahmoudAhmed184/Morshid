@@ -87,6 +87,13 @@ export const createUniversityFormSchema = z.object({
     .max(128, 'Password must be at most 128 characters'),
 })
 
+export const createUniversityDetailsFormSchema =
+  createUniversityFormSchema.pick({
+    name: true,
+    code: true,
+    status: true,
+  })
+
 export const updateUniversityFormSchema = z
   .object({
     name: z

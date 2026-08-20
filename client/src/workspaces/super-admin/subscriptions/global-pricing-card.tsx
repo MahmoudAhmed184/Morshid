@@ -91,15 +91,16 @@ export function GlobalPricingCard({
         </div>
         <CardDescription>
           Base student seat rate applied to universities without custom
-          overrides. Updates take effect at the start of the next billing month.
+          overrides. Existing universities keep their current cycle rate and
+          adopt updates at their next anniversary renewal.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Active vs Next month scheduled rate badge */}
+        {/* Published and optionally scheduled renewal rates */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-baseline gap-1.5 rounded-lg border bg-muted/30 px-3 py-2">
             <span className="text-xs text-muted-foreground">
-              Current Month Rate:
+              Published Renewal Rate:
             </span>
             <span className="font-bold text-foreground">
               ${currentPrice.toFixed(2)}
@@ -110,7 +111,7 @@ export function GlobalPricingCard({
           {nextScheduledPrice !== null ? (
             <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-medium text-foreground">
               <ArrowRight className="size-3.5 text-primary shrink-0" />
-              <span>Next Month:</span>
+              <span>Scheduled Renewal Rate:</span>
               <Badge variant="default" className="font-bold text-xs">
                 ${nextScheduledPrice.toFixed(2)} / seat
               </Badge>
@@ -130,7 +131,7 @@ export function GlobalPricingCard({
               htmlFor="global-price-input"
               className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
             >
-              Set new price for next month
+              Set default renewal rate
             </label>
             <div className="relative flex items-center max-w-xs">
               <span className="pointer-events-none absolute left-3 text-sm font-semibold text-muted-foreground">
@@ -179,15 +180,15 @@ export function GlobalPricingCard({
               {updateMutation.isPending ? (
                 <>
                   <Loader2 className="size-3.5 animate-spin" />
-                  Scheduling...
+                  Saving...
                 </>
               ) : savedRecently ? (
                 <>
                   <Check className="size-3.5 text-emerald-500" />
-                  Scheduled for Next Month
+                  Saved for Upcoming Renewals
                 </>
               ) : (
-                'Save for Next Month'
+                'Save Renewal Rate'
               )}
             </Button>
           </div>

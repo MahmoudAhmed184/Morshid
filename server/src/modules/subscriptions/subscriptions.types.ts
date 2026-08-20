@@ -226,7 +226,7 @@ export class UniversitySubscriptionItemDto {
   @ApiPropertyOptional({
     example: 12.0,
     nullable: true,
-    description: 'Upcoming effective seat price starting next billing month',
+    description: 'Upcoming effective seat price starting next billing cycle',
   })
   nextEffectivePricePerSeat!: number | null
 

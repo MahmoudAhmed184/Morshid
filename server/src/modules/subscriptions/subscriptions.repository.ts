@@ -488,6 +488,9 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
   async updateGlobalPricing(
     input: UpdateGlobalPricingRequest,
   ): Promise<GlobalPricingRecord> {
+    const currentPricing = await this.getGlobalPricing()
+    await this.processBillingLifecycle(new Date(), currentPricing)
+
     const config = await this.prismaService.globalPricingConfig.upsert({
       where: { id: 'default' },
       update: {
