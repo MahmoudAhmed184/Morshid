@@ -8,7 +8,7 @@ import type { DebuggingGuidanceContext } from '../debugging-guidance/debugging-g
 import type { StudentActionObligation } from '../teaching-decision/student-action-obligation'
 
 export const MVP_RESPONSE_VALIDATION_POLICY_VERSION =
-  'response-validation.mvp.v2'
+  'response-validation.mvp.v3'
 export const MAX_MVP_CANDIDATE_ATTEMPTS = 3
 
 export const RESPONSE_VALIDATION_STAGE = {

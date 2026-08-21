@@ -888,7 +888,7 @@ describe('Socratic Tutor Behavioral Hardening', () => {
   })
 
   describe('4-turn progressive scaffolding, struggle, and resolution journey', () => {
-    it('executes a 4-turn struggle and resolution journey without false final-answer rejection, over-escalation, or stale technique retention', async () => {
+    it('completes an explicitly correct justified answer while keeping y = 5 incomplete', async () => {
       const activeProblemText = 'x = 5\ny = x + 1\nwhat is the value of y?'
 
       // === Turn 1: Problem statement ===
@@ -1425,7 +1425,7 @@ describe('Socratic Tutor Behavioral Hardening', () => {
 
       const turn4Candidate: CandidateResponse = {
         message:
-          'You correctly substituted 5 into x + 1 to find 6. That completes the evaluation of y.',
+          'Your answer is correct. You used x = 5 and the calculation 5 + 1 = 6 to complete the evaluation of y.',
         debuggingGuidance: null,
         responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
         usedCitationIds: [],
@@ -1520,13 +1520,57 @@ describe('Socratic Tutor Behavioral Hardening', () => {
         expect(turn4Result.approvedResponse.safeFallbackUsed).toBe(false)
         expect(turn4Result.approvedResponse.requiresStudentAction).toBe(false)
         expect(turn4Result.approvedResponse.message).toBe(
-          'You correctly substituted 5 into x + 1 to find 6. That completes the evaluation of y.',
+          'Your answer is correct. You used x = 5 and the calculation 5 + 1 = 6 to complete the evaluation of y.',
         )
         expect(turn4Result.approvedResponse.message).not.toContain('?')
         expect(turn4Result.approvedResponse.message).not.toMatch(
           /what did you try|what steps or thought process|what was the first step|how would you check/i,
         )
       }
+
+      const wrongFinalAnalysis = baseAnalysis(
+        {
+          requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+          studentState: StudentState.NEAR_SOLUTION,
+          effortEvidence: {
+            present: true,
+            quality: EFFORT_QUALITY.STRONG,
+            type: EFFORT_TYPE.REASONING_ATTEMPT,
+            addressesPreviousTutorAction: true,
+            isRepeated: false,
+            evidenceMessageIds: ['msg-wrong-final'],
+          },
+          learningEvidence: {
+            present: true,
+            strength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+            evidenceMessageIds: ['msg-wrong-final'],
+          },
+          answerCorrectness: ANSWER_CORRECTNESS.INCORRECT,
+          objectiveCompleted: false,
+          misconceptionRecoveryVerified: false,
+          misconceptions: [],
+        },
+        EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+        {
+          id: 'analysis-wrong-final',
+          attemptId: 'attempt-wrong-final',
+          studentMessageId: 'msg-wrong-final',
+        },
+      )
+      const wrongFinalDraft = selectTeachingDecisionDraft({
+        analysis: wrongFinalAnalysis,
+        topicState: null,
+        previousTeachingDecision: turn4DecisionRecord,
+        topicResolutionOutcome: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      })
+
+      expect(wrongFinalDraft.requireStudentAction).toBe(true)
+      expect(wrongFinalDraft.primaryTechnique).not.toBe(
+        TeachingTechnique.VERIFICATION,
+      )
+      expect(wrongFinalDraft.decisionReason).not.toContain(
+        'correctly completed the objective',
+      )
     })
   })
 })

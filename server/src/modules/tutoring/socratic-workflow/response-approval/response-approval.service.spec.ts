@@ -569,7 +569,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v10',
+    promptVersion: 'tutor-generation.mvp.v11',
     tokenUsage: { input: 10, output: 5 },
     ...patch,
   }
@@ -703,7 +703,7 @@ function approvedSemanticResult(): ValidationResult {
     provider: 'deterministic',
     model: 'semantic-guard',
     promptVersion: 'semantic-guard.mvp.v3',
-    policyVersion: 'response-validation.mvp.v2',
+    policyVersion: 'response-validation.mvp.v3',
   }
 }
 
@@ -717,6 +717,6 @@ function semanticFailureResult(): ValidationResult {
     provider: null,
     model: null,
     promptVersion: 'semantic-guard.mvp.v3',
-    policyVersion: 'response-validation.mvp.v2',
+    policyVersion: 'response-validation.mvp.v3',
   }
 }

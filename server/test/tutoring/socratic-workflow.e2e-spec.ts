@@ -464,7 +464,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       approvalSource: 'VALIDATED_CANDIDATE',
       approvedCandidateAttempt: 1,
       safeFallbackReason: null,
-      validationPolicyVersion: 'response-validation.mvp.v2',
+      validationPolicyVersion: 'response-validation.mvp.v3',
     })
     await expect(
       prisma.tutoringCandidateAttempt.count({
@@ -532,7 +532,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(turn.assistantMessage.citations).toHaveLength(1)
 
     const promptVersion = Reflect.get(turn.assistantMessage, 'promptVersion')
-    expect(promptVersion).toBe('tutor-generation.mvp.v10')
+    expect(promptVersion).toBe('tutor-generation.mvp.v11')
 
     const reloadResponse = await request(requireApp().getHttpServer())
       .get(messagesPath(session.id))
@@ -648,7 +648,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(persisted.candidateAttempts[0]).toMatchObject({
       candidateAttempt: 1,
       generationOutcome: 'GENERATED',
-      promptVersion: 'tutor-generation.mvp.v10',
+      promptVersion: 'tutor-generation.mvp.v11',
     })
     expect(
       persisted.candidateAttempts[0].guardResults.map((result) => ({
@@ -2014,7 +2014,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       approvalSource: 'VALIDATED_CANDIDATE',
       approvedCandidateAttempt: 2,
       safeFallbackReason: null,
-      validationPolicyVersion: 'response-validation.mvp.v2',
+      validationPolicyVersion: 'response-validation.mvp.v3',
     })
     expect(persistedTurn.candidateAttempts).toHaveLength(2)
     expect(persistedTurn.candidateAttempts[0].guardResults).toHaveLength(2)
@@ -2361,7 +2361,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       approvalSource: 'SAFE_FALLBACK',
       approvedCandidateAttempt: null,
       safeFallbackReason: 'GUARD_UNAVAILABLE',
-      validationPolicyVersion: 'response-validation.mvp.v2',
+      validationPolicyVersion: 'response-validation.mvp.v3',
     })
     await expect(
       prisma.tutoringCandidateAttempt.count({

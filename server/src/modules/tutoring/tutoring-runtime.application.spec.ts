@@ -333,7 +333,7 @@ describe('TutoringRuntimeApplication', () => {
             promptVersion: 'safe-fallback.mvp.v2',
             inputTokens: 0,
             outputTokens: 0,
-            validationPolicyVersion: 'response-validation.mvp.v2',
+            validationPolicyVersion: 'response-validation.mvp.v3',
             structuralApproved: false,
             deterministicApproved: false,
             semanticApproved: null,

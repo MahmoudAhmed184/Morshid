@@ -789,7 +789,7 @@ function debuggingCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v10',
+    promptVersion: 'tutor-generation.mvp.v11',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

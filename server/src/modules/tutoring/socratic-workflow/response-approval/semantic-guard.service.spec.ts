@@ -88,6 +88,9 @@ describe('SemanticGuardService', () => {
     expect(payload.adjudicationRules.join(' ')).toContain(
       'reject any claim that the objective, solution, or step is complete',
     )
+    expect(payload.adjudicationRules.join(' ')).toContain(
+      'allow a concise confirmation that repeats only the final result and justification already supplied by the student',
+    )
   })
 
   it('uses the focused TeachingDecision obligation without adding a prior-attempt requirement', async () => {
@@ -868,7 +871,7 @@ function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v10',
+    promptVersion: 'tutor-generation.mvp.v11',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

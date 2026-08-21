@@ -292,10 +292,10 @@ export function revealsFinalAnswer(
   context?: ProblemProtectionContext,
 ): boolean {
   if (
-    [
-      /\b(?:the\s+answer|final\s+answer|answer)\s*(?:is|:)\s*\S+/u,
-      /\b(?:the\s+result|final\s+result|result)\s*(?:is|:)\s*[-+]?\d/u,
-    ].some((pattern) => pattern.test(normalizedMessage))
+    containsExplicitAnswerValue(normalizedMessage) ||
+    /\b(?:the\s+result|final\s+result|result)\s*(?:is|:)\s*[-+]?\d/u.test(
+      normalizedMessage,
+    )
   ) {
     return true
   }
@@ -329,6 +329,36 @@ export function revealsFinalAnswer(
     }
 
     if (isTargetVariable(context, varName)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+const answerAssessmentTerms = new Set([
+  'complete',
+  'correct',
+  'incorrect',
+  'incomplete',
+  'invalid',
+  'right',
+  'supported',
+  'unsupported',
+  'unverified',
+  'valid',
+  'verified',
+  'wrong',
+])
+
+function containsExplicitAnswerValue(normalizedMessage: string): boolean {
+  const matches = normalizedMessage.matchAll(
+    /\b(?:the\s+answer|final\s+answer|answer)\s*(?:is|:)\s*([^\s,.;!?]+)/gu,
+  )
+
+  for (const match of matches) {
+    const value = match[1].replace(/^[`'"([{]+|[`'"\])}]+$/gu, '')
+    if (!answerAssessmentTerms.has(value)) {
       return true
     }
   }

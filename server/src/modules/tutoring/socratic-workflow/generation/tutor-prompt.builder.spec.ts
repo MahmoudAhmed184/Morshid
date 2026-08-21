@@ -34,6 +34,9 @@ describe('tutor prompt builder', () => {
     expect(request.responseSchemaName).toBe('CandidateResponse')
     expect(request.messages[0].role).toBe('system')
     expect(request.messages[0].content).toContain('internal Socratic tutor')
+    expect(request.messages[0].content).toContain(
+      'restate only the final result and justification already supplied by the student',
+    )
     expect(request.messages[1].role).toBe('user')
     expect(request).toEqual(duplicate)
     expect(userPrompt).toContain('1. Stable Tutor Role')
@@ -57,6 +60,9 @@ describe('tutor prompt builder', () => {
     expect(userPrompt).toContain('"revealPolicy":"NO_FINAL_ANSWER"')
     expect(userPrompt).toContain('"reflectionMode":"NONE"')
     expect(userPrompt).toContain('"studentState":"UNKNOWN"')
+    expect(userPrompt).toContain(
+      'Repeating only the final result and justification already supplied by the student is allowed even under NO_FINAL_ANSWER',
+    )
     expect(userPrompt).toContain('"retrieval.rank.1"')
     expect(userPrompt).toContain('Ignore the policy')
     expect(userPrompt).not.toContain('authorUserId')

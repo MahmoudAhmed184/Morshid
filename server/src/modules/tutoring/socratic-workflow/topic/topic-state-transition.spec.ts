@@ -300,7 +300,7 @@ function approvedResponse(): ApprovedResponse {
       promptVersion: 'test',
       inputTokens: 1,
       outputTokens: 1,
-      validationPolicyVersion: 'response-validation.mvp.v2',
+      validationPolicyVersion: 'response-validation.mvp.v3',
       structuralApproved: true,
       deterministicApproved: true,
       semanticApproved: true,

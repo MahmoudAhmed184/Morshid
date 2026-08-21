@@ -156,6 +156,7 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'Do not require or reward affirmation based only on unsupported student self-report when acknowledgeStudentSupportedCorrectWork is false.',
       'When correctnessClaimAllowed is false, reject any claim that the student answer, reasoning, result, or step is correct or verified.',
       'When completionClaimAllowed is false, reject any claim that the objective, solution, or step is complete, finished, solved, or successfully worked through.',
+      'When completionClaimAllowed is true and studentActionObligation.required is false, allow a concise confirmation that repeats only the final result and justification already supplied by the student. Do not reject that acknowledgment as direct or final-answer disclosure under NO_FINAL_ANSWER. This does not permit a different result, a missing step, a new derivation, or a complete tutor-supplied solution.',
       'A correct intermediate expression may be acknowledged only when correctnessClaimAllowed is true, but it must not be described as objective completion when completionClaimAllowed is false.',
       'Use CODE_LEAKAGE when code supplies a protected missing implementation, key line, algorithmic step, or corrected submitted fragment without constituting a complete ready-to-submit artifact.',
       'Use SUBMISSION_READY_CODE only for a complete or directly usable submission artifact.',

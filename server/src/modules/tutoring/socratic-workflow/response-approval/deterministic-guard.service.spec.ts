@@ -211,6 +211,35 @@ describe('DeterministicGuardService', () => {
       )
     })
 
+    it('does not mistake a correctness assessment for a disclosed answer value', () => {
+      const result = service().evaluate(
+        validCandidate({
+          message:
+            'Your answer is correct. Your substitution and arithmetic justify the result.',
+          requiresStudentAction: false,
+          studentAction: {
+            type: TeachingTechnique.VERIFICATION,
+            description: 'Confirm the verified result and reasoning.',
+          },
+        }),
+        context({
+          givenPremises,
+          targetVariables,
+          studentActionObligation: {
+            version: 'student-action-obligation.v1',
+            required: false,
+            purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+            technique: TeachingTechnique.VERIFICATION,
+            maximumMeaningfulActions: 1,
+            generationInstruction:
+              'Confirm correctness without requiring another student action.',
+          },
+        }),
+      )
+
+      expect(result.approved).toBe(true)
+    })
+
     it('rejects candidate asserting conclusion', () => {
       const result = service().evaluate(
         validCandidate({
@@ -529,7 +558,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v10',
+    promptVersion: 'tutor-generation.mvp.v11',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }
