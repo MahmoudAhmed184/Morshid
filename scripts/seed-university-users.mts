@@ -1,7 +1,5 @@
 import { config as loadEnv } from 'dotenv'
 
-import type { PrismaClient } from '../server/src/generated/prisma/client.js'
-
 const DEMO_PASSWORD = 'MorshidDemoP0!'
 
 for (const path of ['server/.env', '.env', '../.env']) {
@@ -14,6 +12,55 @@ interface SeedUserSpec {
   email: string
   displayName: string
   role: 'STUDENT' | 'INSTRUCTOR'
+}
+
+interface SeedUniversity {
+  id: string
+  name: string
+  code: string
+}
+
+interface SeedAdminUser {
+  id: string
+  universityId: string | null
+  university: SeedUniversity | null
+  ownedUniversity: SeedUniversity | null
+}
+
+interface SeededUser {
+  id: string
+}
+
+interface SeedPrismaClient {
+  user: {
+    findUnique(input: unknown): Promise<SeedAdminUser | null>
+    upsert(input: unknown): Promise<SeededUser>
+  }
+  university: {
+    findUnique(input: unknown): Promise<SeedUniversity | null>
+  }
+  course: {
+    findFirst(input: unknown): Promise<{ id: string } | null>
+  }
+  courseMembership: {
+    upsert(input: unknown): Promise<unknown>
+  }
+  $disconnect(): Promise<void>
+}
+
+type SeedPrismaClientConstructor = new (options: {
+  adapter: unknown
+}) => SeedPrismaClient
+
+function isPrismaClientModule(
+  value: unknown,
+): value is { PrismaClient: SeedPrismaClientConstructor } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'PrismaClient' in value &&
+    typeof value.PrismaClient === 'function'
+  )
 }
 
 export const SEEDED_50_USERS: readonly SeedUserSpec[] = [
@@ -273,7 +320,7 @@ export const SEEDED_50_USERS: readonly SeedUserSpec[] = [
 
 export async function seed50UniversityUsers(options?: {
   adminEmail?: string
-  prisma?: PrismaClient
+  prisma?: SeedPrismaClient
 }) {
   const adminEmail = options?.adminEmail ?? DEFAULT_ADMIN_EMAIL
   const localDatabaseUrl =
@@ -281,11 +328,13 @@ export async function seed50UniversityUsers(options?: {
 
   let prisma = options?.prisma
   if (prisma === undefined) {
-    const [{ PrismaPg }, { PrismaClient }] = await Promise.all([
-      import('@prisma/adapter-pg'),
-      import('../server/src/generated/prisma/client.js'),
-    ])
-    prisma = new PrismaClient({
+    const { PrismaPg } = await import('@prisma/adapter-pg')
+    const generatedClientPath = '../server/src/generated/prisma/client.js'
+    const prismaClientModule: unknown = await import(generatedClientPath)
+    if (!isPrismaClientModule(prismaClientModule)) {
+      throw new Error('Generated Prisma client does not export PrismaClient.')
+    }
+    prisma = new prismaClientModule.PrismaClient({
       adapter: new PrismaPg({
         connectionString: process.env.DATABASE_URL ?? localDatabaseUrl,
       }),
@@ -338,7 +387,7 @@ export async function seed50UniversityUsers(options?: {
       },
     })
 
-    const seededUsers = []
+    const seededUsers: SeededUser[] = []
 
     for (const spec of SEEDED_50_USERS) {
       const passwordSalt = `morshid-user-${spec.email}`
