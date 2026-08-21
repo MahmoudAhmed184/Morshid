@@ -131,7 +131,9 @@ test.describe('Student debugging guidance', () => {
     const history = page.getByRole('list', { name: 'Conversation history' })
     await expect(history.getByLabel('javascript code')).toBeVisible()
     await expect(
-      history.getByText(/show the last step you were confident about/iu),
+      history.getByText(
+        /how would you explain what this concept does|explore the core concept|what part are you most confident about/iu,
+      ),
     ).toBeVisible()
     await expect(
       history.getByText(/supported code snippet/iu),
@@ -145,7 +147,7 @@ test.describe('Student debugging guidance', () => {
     await signInThroughUi(page, demoAccounts.student2)
 
     const longPython = [
-      'if True:',
+      'Why does this code fail? if True:',
       ...Array.from({ length: 100 }, () => '    pass'),
     ].join('\n')
     const composer = page.getByRole('textbox', { name: 'Message', exact: true })
