@@ -480,6 +480,11 @@ describe('OpenAPI contract (e2e)', () => {
           name: 'user-administration',
           description: 'Administrative user account operations.',
         },
+        {
+          name: 'universities',
+          description:
+            'University tenant management and administration operations.',
+        },
         { name: 'audit', description: 'Audit event access.' },
         { name: 'health', description: 'Service health checks.' },
       ])
@@ -878,7 +883,7 @@ describe('OpenAPI contract (e2e)', () => {
           method: 'post',
           tag: 'materials',
           summary: 'Upload course PDF material',
-          statuses: ['201', '400', '401', '403', '404', '413'],
+          statuses: ['201', '400', '401', '403', '404', '409', '413'],
         },
         {
           path: base,

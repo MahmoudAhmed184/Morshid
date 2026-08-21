@@ -22,6 +22,7 @@ import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import { updateOwnProfile } from '@/features/auth/session/interface/account-profile'
 
 const roleLabelByRole = {
+  SUPER_ADMIN: 'Super Administrator',
   ADMIN: 'Administrator',
   INSTRUCTOR: 'Instructor',
   STUDENT: 'Student',

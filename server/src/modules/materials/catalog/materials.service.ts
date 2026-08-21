@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import {
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -25,8 +26,14 @@ import {
   type MaterialStatusDto,
 } from './materials.dto'
 import { MaterialsAuditService } from './materials.audit.service'
-import { MATERIALS_ERROR_CODES } from './materials.errors'
-import { MaterialsRepository } from './materials.repository'
+import {
+  duplicatePdfException,
+  MATERIALS_ERROR_CODES,
+} from './materials.errors'
+import {
+  DuplicateMaterialHashError,
+  MaterialsRepository,
+} from './materials.repository'
 import {
   PdfUploadValidator,
   type UploadedPdfFile,
@@ -94,6 +101,25 @@ export class MaterialsService {
     }
 
     const sha256Hash = createHash('sha256').update(upload.buffer).digest('hex')
+
+    if (
+      await this.materialsRepository.hasActiveMaterialWithHash(
+        courseId,
+        sha256Hash,
+      )
+    ) {
+      await this.materialsAuditService.recordUploadFailed({
+        actor,
+        courseId,
+        originalFilename: upload.originalFilename,
+        fileSize: upload.size,
+        mimetype: upload.mimetype,
+        reason: 'DUPLICATE_PDF',
+        requestContext,
+      })
+      throw duplicatePdfException()
+    }
+
     let storagePath: string | null = null
     let materialId: string | null = null
 
@@ -159,6 +185,10 @@ export class MaterialsService {
         )
       }
 
+      if (error instanceof DuplicateMaterialHashError) {
+        throw duplicatePdfException()
+      }
+
       throw error
     }
   }
@@ -222,6 +252,55 @@ export class MaterialsService {
     }
 
     return mapMaterialStatusRecord(material)
+  }
+
+  async retryMaterialProcessing(
+    courseId: string,
+    materialId: string,
+    actor: AuthenticatedUser,
+  ): Promise<MaterialResponseDto> {
+    await this.requireCourseMaterialManagement(courseId, actor)
+
+    const material = await this.materialsRepository.findCourseMaterial(
+      courseId,
+      materialId,
+    )
+    if (material === null) throw materialNotFoundException()
+    if (material.status !== 'FAILED') throw materialRetryNotAllowedException()
+
+    const restarted =
+      await this.materialsRepository.restartFailedMaterialProcessing(
+        courseId,
+        materialId,
+      )
+    if (restarted === null) throw materialRetryNotAllowedException()
+
+    try {
+      await this.materialProcessingScheduler.scheduleMaterialProcessing(
+        materialId,
+      )
+    } catch (error) {
+      const message =
+        'The material could not be queued for processing. Try again.'
+      await this.materialsRepository.failMaterialProcessingScheduling(
+        materialId,
+        message,
+      )
+      throw new ServiceUnavailableException(
+        {
+          code: MATERIALS_ERROR_CODES.MATERIAL_RETRY_SCHEDULING_FAILED,
+          message,
+        },
+        { cause: error },
+      )
+    }
+
+    return {
+      material: mapMaterialRecord(
+        restarted,
+        restarted.uploadedById === actor.id,
+      ),
+    }
   }
 
   async deleteMaterial(
@@ -384,5 +463,12 @@ function materialDeleteForbiddenException() {
   return new ForbiddenException({
     code: MATERIALS_ERROR_CODES.MATERIAL_DELETE_FORBIDDEN,
     message: 'Only the instructor who uploaded this material may delete it',
+  })
+}
+
+function materialRetryNotAllowedException() {
+  return new ConflictException({
+    code: MATERIALS_ERROR_CODES.MATERIAL_RETRY_NOT_ALLOWED,
+    message: 'Only failed materials can be retried',
   })
 }

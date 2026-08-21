@@ -42,7 +42,8 @@ export type AuthenticatedSidebarNavItem = {
   exact?: boolean
 }
 
-export type AuthenticatedSidebarRole = 'student' | 'instructor' | 'admin'
+export type AuthenticatedSidebarRole =
+  'student' | 'instructor' | 'admin' | 'super-admin'
 
 type AuthenticatedSidebarProps = {
   role: AuthenticatedSidebarRole
@@ -57,12 +58,14 @@ const wordmarkTargetByRole: Record<AuthenticatedSidebarRole, string> = {
   student: '/chat',
   instructor: '/instructor',
   admin: '/admin',
+  'super-admin': '/super-admin',
 }
 
 const settingsTargetByRole: Record<AuthenticatedSidebarRole, string> = {
   student: '/settings',
   instructor: '/instructor/settings',
   admin: '/admin/settings',
+  'super-admin': '/super-admin/settings',
 }
 
 function isActiveNavItem(item: AuthenticatedSidebarNavItem, pathname: string) {

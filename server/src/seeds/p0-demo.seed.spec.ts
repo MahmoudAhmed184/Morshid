@@ -17,12 +17,21 @@ type UserRole = (typeof P0_DEMO_USERS)[number]['role']
 type UserStatus = 'ACTIVE' | 'DISABLED'
 type CourseMembershipRole = 'INSTRUCTOR' | 'STUDENT'
 
+interface UniversityRecord {
+  id: string
+  name: string
+  code: string
+  status: string
+  ownerId: string | null
+}
+
 interface UserRecord {
   id: string
   email: string
   displayName: string
   role: UserRole
   status: UserStatus
+  universityId: string | null
   passwordHash: string
   disabledAt: Date | null
   disabledById: string | null
@@ -31,6 +40,7 @@ interface UserRecord {
 
 interface CourseRecord {
   id: string
+  universityId: string
   code: string
   title: string
   createdById: string | null
@@ -42,6 +52,33 @@ interface MembershipRecord {
   userId: string
   role: CourseMembershipRole
   createdById: string | null
+}
+
+interface UniversityUpsertArgs {
+  where: {
+    code: string
+  }
+  update: {
+    name: string
+    status: string
+  }
+  create: {
+    name: string
+    code: string
+    status: string
+    ownerId: string | null
+  }
+}
+
+interface UniversityUpdateArgs {
+  where: {
+    id: string
+  }
+  data: {
+    ownerId?: string | null
+    name?: string
+    status?: string
+  }
 }
 
 interface UserUpsertArgs {
@@ -59,11 +96,13 @@ interface CourseUpsertArgs {
   update: {
     title: string
     createdById?: string | null
+    universityId?: string
   }
   create: {
     code: string
     title: string
     createdById?: string | null
+    universityId: string
   }
 }
 
@@ -114,6 +153,8 @@ interface MembershipUpsertArgs {
 }
 
 class InMemorySeedPrisma implements P0DemoSeedClient {
+  readonly universities = new Map<string, UniversityRecord>()
+
   readonly users = new Map<string, UserRecord>()
 
   readonly courses = new Map<string, CourseRecord>()
@@ -121,6 +162,51 @@ class InMemorySeedPrisma implements P0DemoSeedClient {
   readonly memberships = new Map<string, MembershipRecord>()
 
   private nextSequence = 1
+
+  readonly university = {
+    upsert: jest.fn((args: UniversityUpsertArgs) => {
+      const existing = this.universities.get(args.where.code)
+
+      if (existing) {
+        const updated = {
+          ...existing,
+          name: args.update.name,
+          status: args.update.status,
+        }
+        this.universities.set(updated.code, updated)
+
+        return Promise.resolve(updated)
+      }
+
+      const created = {
+        id: this.nextId('university'),
+        name: args.create.name,
+        code: args.create.code,
+        status: args.create.status,
+        ownerId: args.create.ownerId,
+      }
+      this.universities.set(created.code, created)
+
+      return Promise.resolve(created)
+    }),
+    update: jest.fn((args: UniversityUpdateArgs) => {
+      const univ = [...this.universities.values()].find(
+        (u) => u.id === args.where.id,
+      )
+
+      if (!univ) {
+        throw new Error(`University ${args.where.id} not found`)
+      }
+
+      const updated = {
+        ...univ,
+        ...args.data,
+      }
+      this.universities.set(updated.code, updated)
+
+      return Promise.resolve(updated)
+    }),
+  }
 
   readonly user = {
     upsert: jest.fn((args: UserUpsertArgs) => {
@@ -150,6 +236,74 @@ class InMemorySeedPrisma implements P0DemoSeedClient {
   }
 
   readonly course = {
+    findFirst: jest.fn(
+      (args: {
+        where: {
+          universityId?: string
+          code?: string
+          archivedAt?: Date | null
+        }
+      }) => {
+        const found = [...this.courses.values()].find((c) => {
+          if (
+            args.where.universityId !== undefined &&
+            c.universityId !== args.where.universityId
+          ) {
+            return false
+          }
+          if (args.where.code !== undefined && c.code !== args.where.code) {
+            return false
+          }
+          return true
+        })
+        return Promise.resolve(found ?? null)
+      },
+    ),
+    create: jest.fn(
+      (args: {
+        data: {
+          code: string
+          title: string
+          createdById?: string | null
+          universityId: string
+        }
+      }) => {
+        const created = {
+          id: this.nextId('course'),
+          code: args.data.code,
+          title: args.data.title,
+          createdById: args.data.createdById ?? null,
+          universityId: args.data.universityId,
+        }
+        this.courses.set(created.code, created)
+        return Promise.resolve(created)
+      },
+    ),
+    update: jest.fn(
+      (args: {
+        where: { id: string }
+        data: {
+          title: string
+          createdById?: string | null
+          universityId?: string
+        }
+      }) => {
+        const course = [...this.courses.values()].find(
+          (c) => c.id === args.where.id,
+        )
+        if (!course) {
+          throw new Error(`Course ${args.where.id} not found`)
+        }
+        const updated = {
+          ...course,
+          title: args.data.title,
+          createdById: args.data.createdById ?? null,
+          universityId: args.data.universityId ?? course.universityId,
+        }
+        this.courses.set(updated.code, updated)
+        return Promise.resolve(updated)
+      },
+    ),
     upsert: jest.fn((args: CourseUpsertArgs) => {
       const existing = this.courses.get(args.where.code)
 
@@ -158,6 +312,7 @@ class InMemorySeedPrisma implements P0DemoSeedClient {
           ...existing,
           title: args.update.title,
           createdById: args.update.createdById ?? null,
+          universityId: args.update.universityId ?? existing.universityId,
         }
         this.courses.set(updated.code, updated)
 
@@ -169,6 +324,7 @@ class InMemorySeedPrisma implements P0DemoSeedClient {
         code: args.create.code,
         title: args.create.title,
         createdById: args.create.createdById ?? null,
+        universityId: args.create.universityId,
       }
       this.courses.set(created.code, created)
 
@@ -295,12 +451,20 @@ class InMemorySeedPrisma implements P0DemoSeedClient {
 }
 
 describe('seedP0DemoData', () => {
-  it('creates all five demo accounts with expected identity, role, status, and hash', async () => {
+  it('creates all six demo accounts with expected identity, role, status, and hash, and links to demo university', async () => {
     const prisma = new InMemorySeedPrisma()
 
     await seedP0DemoData(prisma)
 
-    expect([...prisma.users.values()]).toHaveLength(5)
+    expect([...prisma.users.values()]).toHaveLength(6)
+    expect([...prisma.universities.values()]).toHaveLength(1)
+    const university = [...prisma.universities.values()][0]
+    expect(university).toMatchObject({
+      name: 'Morshid Demo University',
+      code: 'MORSHID-DEMO',
+      status: 'ACTIVE',
+      ownerId: prisma.getUser('admin@morshid.demo').id,
+    })
 
     for (const expectedUser of P0_DEMO_USERS) {
       const user = prisma.getUser(expectedUser.email)
@@ -310,6 +474,8 @@ describe('seedP0DemoData', () => {
         displayName: expectedUser.displayName,
         role: expectedUser.role,
         status: P0_ACTIVE_USER_STATUS,
+        universityId:
+          expectedUser.role === 'SUPER_ADMIN' ? null : university.id,
         disabledAt: null,
         disabledById: null,
         lastLoginAt: null,
@@ -418,6 +584,7 @@ describe('seedP0DemoData', () => {
     })
     prisma.courses.set('EXTRA-INSTRUCTOR-OWNED', {
       id: 'extra-instructor-owned',
+      universityId: pythonCourse.universityId,
       code: 'EXTRA-INSTRUCTOR-OWNED',
       title: 'Extra Instructor-Owned Course',
       createdById: instructor.id,
@@ -438,7 +605,7 @@ describe('seedP0DemoData', () => {
 
     await seedP0DemoData(prisma)
 
-    expect([...prisma.users.values()]).toHaveLength(5)
+    expect([...prisma.users.values()]).toHaveLength(6)
     expect([...prisma.courses.values()]).toHaveLength(3)
     expect([...prisma.memberships.values()]).toHaveLength(4)
 

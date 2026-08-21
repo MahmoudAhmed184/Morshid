@@ -356,6 +356,85 @@ redis.call('PEXPIRE', KEYS[1], math.floor(request.ttlMs))
 return { 1, 'ok' }
 `
 
+export const GEMINI_QUOTA_SNAPSHOT_LUA = `
+local ok, request = pcall(cjson.decode, ARGV[1])
+if not ok or type(request) ~= 'table' or type(request.dimensions) ~= 'table' then
+  return { -1, 'invalid_request' }
+end
+
+local redis_time = redis.call('TIME')
+local now_ms = (tonumber(redis_time[1]) * 1000) + math.floor(tonumber(redis_time[2]) / 1000)
+local results = {}
+
+local function stored_number(field)
+  local raw = redis.call('HGET', KEYS[1], field)
+  if raw == false then return nil, true end
+  local parsed = tonumber(raw)
+  if parsed == nil then return nil, false end
+  return parsed, true
+end
+
+for _, dimension in ipairs(request.dimensions) do
+  if dimension.mode == 'token_bucket' then
+    local tokens_field = dimension.name .. ':tokens'
+    local updated_field = dimension.name .. ':updated_ms'
+    local tokens, tokens_readable = stored_number(tokens_field)
+    if not tokens_readable then return { -1, 'corrupt_state' } end
+    local updated_ms, updated_readable = stored_number(updated_field)
+    if not updated_readable then return { -1, 'corrupt_state' } end
+    if tokens == nil then tokens = dimension.capacity end
+    if updated_ms == nil then updated_ms = now_ms end
+    local elapsed_ms = math.max(0, now_ms - updated_ms)
+    local refilled = math.min(
+      dimension.capacity,
+      tokens + (elapsed_ms * dimension.capacity / dimension.windowMs)
+    )
+    table.insert(results, {
+      name = dimension.name,
+      mode = dimension.mode,
+      capacity = dimension.capacity,
+      value = math.max(0, refilled),
+      windowMs = dimension.windowMs
+    })
+  elseif dimension.mode == 'fixed_window' then
+    local used_field = dimension.name .. ':used'
+    local start_field = dimension.name .. ':window_start_ms'
+    local used, used_readable = stored_number(used_field)
+    if not used_readable then return { -1, 'corrupt_state' } end
+    local stored_start, start_readable = stored_number(start_field)
+    if not start_readable then return { -1, 'corrupt_state' } end
+    local window_start_ms = math.floor(now_ms / dimension.windowMs) * dimension.windowMs
+    if stored_start == nil or stored_start < window_start_ms then
+      used = 0
+    end
+    if used == nil then used = 0 end
+    table.insert(results, {
+      name = dimension.name,
+      mode = dimension.mode,
+      capacity = dimension.capacity,
+      value = used,
+      windowMs = dimension.windowMs
+    })
+  end
+end
+
+return { 1, cjson.encode(results) }
+`
+
+export interface GeminiQuotaDimensionSnapshot {
+  readonly name: GeminiQuotaDimension
+  readonly mode: GeminiQuotaMode
+  readonly capacity: number
+  readonly availableOrUsed: number
+  readonly windowMs: number
+  readonly status: 'Ready' | 'Pressured' | 'Blocked'
+}
+
+export interface GeminiQuotaSnapshot {
+  readonly dimensions: readonly GeminiQuotaDimensionSnapshot[]
+  readonly status: 'Ready' | 'Pressured' | 'Blocked'
+}
+
 /** Common supertype so one `catch` can still see every guard outcome. */
 export abstract class GeminiQuotaError extends Error {
   abstract readonly kind: 'quota_exhausted' | 'quota_unavailable'
@@ -520,6 +599,101 @@ export class GeminiQuotaService {
     if (outcome.kind === 'unavailable') {
       throw new GeminiQuotaUnavailableError(outcome.reason)
     }
+  }
+
+  async snapshot(): Promise<GeminiQuotaSnapshot> {
+    if (!areValidCaps(this.caps)) {
+      throw new GeminiQuotaUnavailableError('invalid_configuration')
+    }
+
+    const dimensions = GEMINI_QUOTA_PLAN.map((plan) => ({
+      name: plan.name,
+      mode: plan.mode,
+      capacity: this.caps[plan.capKey],
+      windowMs: plan.windowMs,
+    }))
+
+    let raw: unknown
+    try {
+      raw = await this.redis.eval(GEMINI_QUOTA_SNAPSHOT_LUA, {
+        keys: [this.key],
+        arguments: [JSON.stringify({ dimensions })],
+      })
+    } catch {
+      throw new GeminiQuotaUnavailableError('redis_unavailable')
+    }
+
+    if (!Array.isArray(raw) || raw[0] !== 1 || typeof raw[1] !== 'string') {
+      if (Array.isArray(raw) && raw[0] === -1 && raw[1] === 'corrupt_state') {
+        throw new GeminiQuotaUnavailableError('corrupt_state')
+      }
+      throw new GeminiQuotaUnavailableError('invalid_reply')
+    }
+
+    let parsedJson: unknown
+    try {
+      parsedJson = JSON.parse(raw[1])
+    } catch {
+      throw new GeminiQuotaUnavailableError('invalid_reply')
+    }
+
+    if (!Array.isArray(parsedJson)) {
+      throw new GeminiQuotaUnavailableError('invalid_reply')
+    }
+
+    const parsed = parsedJson as {
+      name: GeminiQuotaDimension
+      mode: GeminiQuotaMode
+      capacity: number
+      value: number
+      windowMs: number
+    }[]
+
+    const dimensionSnapshots: GeminiQuotaDimensionSnapshot[] = []
+    let hasBlocked = false
+    let hasPressured = false
+
+    for (const item of parsed) {
+      let dimStatus: 'Ready' | 'Pressured' | 'Blocked' = 'Ready'
+      if (item.mode === 'token_bucket') {
+        if (item.value <= 0) {
+          dimStatus = 'Blocked'
+          hasBlocked = true
+        } else if (item.value < item.capacity * 0.2) {
+          dimStatus = 'Pressured'
+          hasPressured = true
+        }
+      } else {
+        if (item.value >= item.capacity) {
+          dimStatus = 'Blocked'
+          hasBlocked = true
+        } else if (item.value >= item.capacity * 0.8) {
+          dimStatus = 'Pressured'
+          hasPressured = true
+        }
+      }
+      dimensionSnapshots.push(
+        Object.freeze({
+          name: item.name,
+          mode: item.mode,
+          capacity: item.capacity,
+          availableOrUsed: item.value,
+          windowMs: item.windowMs,
+          status: dimStatus,
+        }),
+      )
+    }
+
+    const overallStatus: 'Ready' | 'Pressured' | 'Blocked' = hasBlocked
+      ? 'Blocked'
+      : hasPressured
+        ? 'Pressured'
+        : 'Ready'
+
+    return Object.freeze({
+      dimensions: Object.freeze(dimensionSnapshots),
+      status: overallStatus,
+    })
   }
 }
 

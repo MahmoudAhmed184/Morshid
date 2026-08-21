@@ -448,4 +448,211 @@ describe('IdentityService token lifecycle', () => {
       expect(blockLogs).toHaveLength(1)
     })
   })
+
+  describe('tenant authorization and status lifecycle', () => {
+    it('allows SUPER_ADMIN with universityId = null to sign in and authenticate access tokens', async () => {
+      const { service } = buildIdentityServiceTestHarness()
+      const session = await service.signIn(
+        {
+          email: 'superadmin@morshid.demo',
+          password: P0_DEMO_PASSWORD,
+        },
+        requestContext,
+      )
+
+      expect(session.response.user.role).toBe('SUPER_ADMIN')
+
+      const user = await service.authenticateAccessToken(
+        session.response.accessToken,
+        requestContext,
+      )
+
+      expect(user.role).toBe('SUPER_ADMIN')
+      expect(user.universityId).toBeNull()
+    })
+
+    it('allows ADMIN, INSTRUCTOR, and STUDENT to sign in when their university is ACTIVE', async () => {
+      const { service } = buildIdentityServiceTestHarness()
+
+      for (const email of [
+        'admin@morshid.demo',
+        'instructor@morshid.demo',
+        'student1@morshid.demo',
+      ]) {
+        const session = await service.signIn(
+          {
+            email,
+            password: P0_DEMO_PASSWORD,
+          },
+          requestContext,
+        )
+
+        const user = await service.authenticateAccessToken(
+          session.response.accessToken,
+          requestContext,
+        )
+        expect(user.universityId).toBe('00000000-0000-4000-8000-000000000000')
+      }
+    })
+
+    it('rejects sign-in when the university is SUSPENDED', async () => {
+      const { service, store } = buildIdentityServiceTestHarness()
+      const student = store.findUserByEmail('student1@morshid.demo')
+      if (
+        student?.universityId === null ||
+        student?.universityId === undefined
+      ) {
+        throw new Error('Missing student university')
+      }
+
+      store.setUniversityStatus(student.universityId, 'SUSPENDED')
+
+      const signIn = service.signIn(
+        {
+          email: 'student1@morshid.demo',
+          password: P0_DEMO_PASSWORD,
+        },
+        requestContext,
+      )
+
+      await expect(signIn).rejects.toBeInstanceOf(ForbiddenException)
+      await expect(signIn).rejects.toMatchObject({
+        response: {
+          code: IDENTITY_ERROR_CODES.UNIVERSITY_SUSPENDED,
+          message: 'University is suspended',
+        },
+      })
+    })
+
+    it('rejects sign-in when the university is INACTIVE', async () => {
+      const { service, store } = buildIdentityServiceTestHarness()
+      const instructor = store.findUserByEmail('instructor@morshid.demo')
+      if (
+        instructor?.universityId === null ||
+        instructor?.universityId === undefined
+      ) {
+        throw new Error('Missing instructor university')
+      }
+
+      store.setUniversityStatus(instructor.universityId, 'INACTIVE')
+
+      const signIn = service.signIn(
+        {
+          email: 'instructor@morshid.demo',
+          password: P0_DEMO_PASSWORD,
+        },
+        requestContext,
+      )
+
+      await expect(signIn).rejects.toBeInstanceOf(ForbiddenException)
+      await expect(signIn).rejects.toMatchObject({
+        response: {
+          code: IDENTITY_ERROR_CODES.UNIVERSITY_INACTIVE,
+          message: 'University is inactive',
+        },
+      })
+    })
+
+    it('immediately rejects existing access tokens once the university becomes SUSPENDED', async () => {
+      const { service, store } = buildIdentityServiceTestHarness()
+      const session = await service.signIn(
+        {
+          email: 'student1@morshid.demo',
+          password: P0_DEMO_PASSWORD,
+        },
+        requestContext,
+      )
+
+      // Active university authenticates fine
+      const activeUser = await service.authenticateAccessToken(
+        session.response.accessToken,
+        requestContext,
+      )
+      expect(activeUser.email).toBe('student1@morshid.demo')
+
+      // University status changes to SUSPENDED in DB
+      const student = store.findUserByEmail('student1@morshid.demo')
+      if (
+        student?.universityId === null ||
+        student?.universityId === undefined
+      ) {
+        throw new Error('Missing student university')
+      }
+      store.setUniversityStatus(student.universityId, 'SUSPENDED')
+
+      // Next request with existing token is rejected immediately without stale access
+      const authenticate = service.authenticateAccessToken(
+        session.response.accessToken,
+        requestContext,
+      )
+
+      await expect(authenticate).rejects.toBeInstanceOf(ForbiddenException)
+      await expect(authenticate).rejects.toMatchObject({
+        response: {
+          code: IDENTITY_ERROR_CODES.UNIVERSITY_SUSPENDED,
+        },
+      })
+    })
+
+    it('rejects refresh token rotation when the university is SUSPENDED', async () => {
+      const { service, store } = buildIdentityServiceTestHarness()
+      const session = await service.signIn(
+        {
+          email: 'student1@morshid.demo',
+          password: P0_DEMO_PASSWORD,
+        },
+        requestContext,
+      )
+
+      const student = store.findUserByEmail('student1@morshid.demo')
+      if (
+        student?.universityId === null ||
+        student?.universityId === undefined
+      ) {
+        throw new Error('Missing student university')
+      }
+      store.setUniversityStatus(student.universityId, 'SUSPENDED')
+
+      const refresh = service.refresh(
+        {
+          refreshToken: session.refreshToken,
+        },
+        requestContext,
+      )
+
+      await expect(refresh).rejects.toBeInstanceOf(ForbiddenException)
+      await expect(refresh).rejects.toMatchObject({
+        response: {
+          code: IDENTITY_ERROR_CODES.UNIVERSITY_SUSPENDED,
+        },
+      })
+    })
+
+    it('rejects non-superadmin user with missing university invariant', async () => {
+      const { service, store } = buildIdentityServiceTestHarness()
+      const student = store.findUserByEmail('student1@morshid.demo')
+      if (!student) throw new Error('Missing student')
+
+      // Invariant violation: tenant user without universityId
+      store.users.set(student.id, {
+        ...student,
+        universityId: null,
+      })
+
+      const signIn = service.signIn(
+        {
+          email: 'student1@morshid.demo',
+          password: P0_DEMO_PASSWORD,
+        },
+        requestContext,
+      )
+
+      await expect(signIn).rejects.toBeInstanceOf(ForbiddenException)
+      await expect(signIn).rejects.toMatchObject({
+        response: {
+          code: IDENTITY_ERROR_CODES.UNIVERSITY_NOT_FOUND,
+        },
+      })
+    })
+  })
 })

@@ -338,3 +338,56 @@ export class TutoringTurnResponseDto {
   @ApiProperty({ type: ChatMessageDto })
   assistantMessage!: ChatMessageDto
 }
+
+export class ChatSessionSummaryDto {
+  @Expose()
+  @ApiProperty({ minimum: 0 })
+  turnsUsed!: number
+
+  @Expose()
+  @ApiProperty({ minimum: 1 })
+  turnLimit!: number
+
+  @Expose()
+  @ApiProperty({ minimum: 0 })
+  turnsRemaining!: number
+
+  @Expose()
+  @ApiProperty()
+  isTurnLimitExhausted!: boolean
+
+  @Expose()
+  @ApiProperty({ minimum: 0 })
+  contextTokens!: number
+
+  @Expose()
+  @ApiProperty({ minimum: 1 })
+  maxContextTokens!: number
+
+  @Expose()
+  @ApiProperty({ minimum: 0, maximum: 100 })
+  contextPercent!: number
+
+  @Expose()
+  @ApiProperty({ minimum: 0, nullable: true })
+  totalProcessedTokens!: number | null
+
+  @Expose()
+  @ApiProperty()
+  policyDay!: string
+
+  @Expose()
+  @ApiProperty()
+  policyTimeZone!: string
+
+  @Expose()
+  @ApiProperty({ format: 'date-time' })
+  resetAt!: string
+}
+
+export class ChatSessionSummaryResponseDto {
+  @Expose()
+  @Type(() => ChatSessionSummaryDto)
+  @ApiProperty({ type: ChatSessionSummaryDto })
+  summary!: ChatSessionSummaryDto
+}

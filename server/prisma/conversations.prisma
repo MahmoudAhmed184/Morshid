@@ -51,13 +51,13 @@ model ChatSession {
   updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   lastSequence  Int       @default(0) @map("last_sequence")
 
-  course     Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  student    User             @relation("ChatSessionStudent", fields: [studentId], references: [id], onDelete: Restrict)
-  membership CourseMembership @relation("ChatSessionMembership", fields: [courseId, studentId], references: [courseId, userId], onDelete: Restrict)
-  messages   Message[]
-  topics     Topic[]
+  course           Course            @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  student          User              @relation("ChatSessionStudent", fields: [studentId], references: [id], onDelete: Restrict)
+  membership       CourseMembership  @relation("ChatSessionMembership", fields: [courseId, studentId], references: [courseId, userId], onDelete: Restrict)
+  messages         Message[]
+  topics           Topic[]
   tutoringAttempts TutoringAttempt[]
-  inboxItems ReviewInboxItem[]
+  inboxItems       ReviewInboxItem[]
 
   @@index([courseId], map: "idx_sessions_course")
   @@index([courseId, studentId], map: "idx_sessions_course_student")
@@ -66,39 +66,39 @@ model ChatSession {
 }
 
 model Message {
-  id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sessionId               String                @map("session_id") @db.Uuid
-  attemptId                  String?               @map("attempt_id") @db.Uuid
-  topicId                 String?               @map("topic_id") @db.Uuid
-  sequence                Int
-  role                    MessageRole
-  authorUserId            String?               @map("author_user_id") @db.Uuid
-  responseToMessageId     String?               @unique(map: "messages_response_to_message_id_key") @map("response_to_message_id") @db.Uuid
-  content                 String                @db.Text
-  status                  MessageStatus
-  requestKind             MessageRequestKind?   @map("request_kind")
-  guidanceLabel           MessageGuidanceLabel? @map("guidance_label")
-  hintLevel               Int?                  @map("hint_level") @db.SmallInt
-  provider                String?               @db.VarChar(80)
-  model                   String?               @db.VarChar(120)
-  promptVersion           String?               @map("prompt_version") @db.VarChar(80)
-  inputTokens             Int?                  @map("input_tokens")
-  outputTokens            Int?                  @map("output_tokens")
-  errorCode               String?               @map("error_code") @db.VarChar(80)
-  errorMessage            String?               @map("error_message") @db.Text
-  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  completedAt             DateTime?             @map("completed_at") @db.Timestamptz(6)
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId           String                @map("session_id") @db.Uuid
+  attemptId           String?               @map("attempt_id") @db.Uuid
+  topicId             String?               @map("topic_id") @db.Uuid
+  sequence            Int
+  role                MessageRole
+  authorUserId        String?               @map("author_user_id") @db.Uuid
+  responseToMessageId String?               @unique(map: "messages_response_to_message_id_key") @map("response_to_message_id") @db.Uuid
+  content             String                @db.Text
+  status              MessageStatus
+  requestKind         MessageRequestKind?   @map("request_kind")
+  guidanceLabel       MessageGuidanceLabel? @map("guidance_label")
+  hintLevel           Int?                  @map("hint_level") @db.SmallInt
+  provider            String?               @db.VarChar(80)
+  model               String?               @db.VarChar(120)
+  promptVersion       String?               @map("prompt_version") @db.VarChar(80)
+  inputTokens         Int?                  @map("input_tokens")
+  outputTokens        Int?                  @map("output_tokens")
+  errorCode           String?               @map("error_code") @db.VarChar(80)
+  errorMessage        String?               @map("error_message") @db.Text
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt         DateTime?             @map("completed_at") @db.Timestamptz(6)
 
   session                          ChatSession                        @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  attempt                         TutoringAttempt?                         @relation("MessageAttempt", fields: [attemptId], references: [id], onDelete: SetNull)
+  attempt                          TutoringAttempt?                   @relation("MessageAttempt", fields: [attemptId], references: [id], onDelete: SetNull)
   topic                            Topic?                             @relation("MessageTopic", fields: [topicId], references: [id], onDelete: SetNull)
   author                           User?                              @relation("MessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
   responseToMessage                Message?                           @relation("MessageResponse", fields: [responseToMessageId], references: [id], onDelete: SetNull)
   response                         Message?                           @relation("MessageResponse")
   retrievals                       MessageRetrieval[]
   citations                        MessageCitation[]
-  studentTutoringAttempts          TutoringAttempt[]                        @relation("TutoringAttemptStudentMessage")
-  assistantTutoringAttempts         TutoringAttempt[]                        @relation("TutoringAttemptAssistantMessage")
+  studentTutoringAttempts          TutoringAttempt[]                  @relation("TutoringAttemptStudentMessage")
+  assistantTutoringAttempts        TutoringAttempt[]                  @relation("TutoringAttemptAssistantMessage")
   educationalAnalyses              EducationalAnalysis[]              @relation("EducationalAnalysisStudentMessage")
   educationalAnalysisEvidenceLinks EducationalAnalysisEvidenceLink[]
   misconceptionAnalysisEvidence    EducationalAnalysisMisconception[] @relation("EducationalAnalysisMisconceptionEvidence")

@@ -136,6 +136,7 @@ export class UserImportRepository {
   approveImport(
     importId: string,
     actorUserId: string,
+    universityId: string,
     requestContext?: AuditRequestContext,
   ) {
     return this.prisma.$transaction(
@@ -216,6 +217,7 @@ export class UserImportRepository {
               role: row.role,
               status: UserStatus.ACTIVE,
               passwordHash: row.passwordHash,
+              universityId,
             },
           })
           await tx.userImportRow.update({

@@ -5,10 +5,14 @@ import { Test, type TestingModule } from '@nestjs/testing'
 import request from 'supertest'
 import type { App } from 'supertest/types'
 
+import { ConfigService } from '@nestjs/config'
+
 import { configureApp } from '../../src/app.setup'
 import { AppModule } from '../../src/app.module'
 import { PrismaConversationTurns } from '../../src/modules/conversations/prisma-conversation-turns'
 import { AuditService } from '../../src/modules/audit/audit.service'
+import { AllowancesPolicyRepository } from '../../src/modules/allowances/allowances-policy.repository'
+import { AllowancesService } from '../../src/modules/allowances/allowances.service'
 import { PrismaReviewCaseIntake } from '../../src/modules/reviews/intake/prisma-review-case-intake'
 import { PrismaReviewCaseRepository } from '../../src/modules/reviews/intake/review-case.repository'
 import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
@@ -265,6 +269,13 @@ describe('Authorized tutoring runtime (e2e)', () => {
     )
 
     const conversationAdapter = new PrismaConversationTurns(prisma)
+    const auditService = new AuditService(prisma)
+    const allowancesRepository = new AllowancesPolicyRepository(prisma)
+    const allowancesService = new AllowancesService(
+      allowancesRepository,
+      auditService,
+      new ConfigService(),
+    )
     turnRepository = new ControllableTutoringTurnRepository(
       new PrismaTutoringTurnRepository(
         prisma,
@@ -274,11 +285,13 @@ describe('Authorized tutoring runtime (e2e)', () => {
         new PrismaReviewCaseIntake(
           new PrismaReviewCaseRepository(
             prisma,
-            new AuditService(prisma),
+            auditService,
             new PrismaActiveCourseMembership(),
+            allowancesService,
           ),
         ),
-        new AuditService(prisma),
+        auditService,
+        allowancesService,
       ),
     )
     const moduleFixture: TestingModule = await Test.createTestingModule({

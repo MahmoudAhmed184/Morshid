@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { ForbiddenException, Injectable } from '@nestjs/common'
 
 import { CourseMembershipRole } from './interface/course-membership-role'
 import type { AuthenticatedUser } from '../identity/identity.types'
@@ -41,9 +41,12 @@ export class CourseAdministrationService {
 
   async listCourses(
     query: ListCourseAdministrationQuery = { limit: 25 },
+    actor?: AuthenticatedUser,
   ): Promise<CourseAdministrationListResponseDto> {
-    const page =
-      await this.coursesRepository.listCourseAdministrationPage(query)
+    const page = await this.coursesRepository.listCourseAdministrationPage({
+      ...query,
+      universityId: actor?.universityId ?? undefined,
+    })
 
     return {
       courses: page.courses.map(mapCourseAdministrationRecord),
@@ -71,17 +74,30 @@ export class CourseAdministrationService {
     actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<CourseAdministrationDetailResponseDto> {
+    if (actor.universityId === null) {
+      throw new ForbiddenException(
+        'Actor must belong to a university to create a course',
+      )
+    }
+
+    const normalizedCode = input.code.trim()
+    const normalizedTitle = input.title.trim()
+
     const existingCourse =
-      await this.coursesRepository.findCourseAdministrationByCode(input.code)
+      await this.coursesRepository.findCourseAdministrationByCode(
+        normalizedCode,
+        actor.universityId,
+      )
 
     if (existingCourse !== null) {
-      throw courseCodeAlreadyExistsException(input.code)
+      throw courseCodeAlreadyExistsException(normalizedCode)
     }
 
     try {
       const course = await this.coursesRepository.createCourse({
-        code: input.code,
-        title: input.title,
+        code: normalizedCode,
+        title: normalizedTitle,
+        universityId: actor.universityId,
         actorUserId: actor.id,
         requestContext,
       })
@@ -111,20 +127,31 @@ export class CourseAdministrationService {
       throw courseNotFoundException(courseId)
     }
 
-    if (input.code !== undefined && input.code !== existingCourse.code) {
+    const normalizedCode =
+      input.code !== undefined ? input.code.trim() : undefined
+    const normalizedTitle =
+      input.title !== undefined ? input.title.trim() : undefined
+
+    if (
+      normalizedCode !== undefined &&
+      normalizedCode.toLowerCase() !== existingCourse.code.toLowerCase()
+    ) {
       const courseWithCode =
-        await this.coursesRepository.findCourseAdministrationByCode(input.code)
+        await this.coursesRepository.findCourseAdministrationByCode(
+          normalizedCode,
+          existingCourse.universityId,
+        )
 
       if (courseWithCode !== null) {
-        throw courseCodeAlreadyExistsException(input.code)
+        throw courseCodeAlreadyExistsException(normalizedCode)
       }
     }
 
     try {
       const course = await this.coursesRepository.updateCourse({
         courseId,
-        code: input.code,
-        title: input.title,
+        code: normalizedCode,
+        title: normalizedTitle,
         actorUserId: actor.id,
         requestContext,
       })

@@ -287,11 +287,21 @@ class FirstMissingReadBarrierTopicStateRepository extends PrismaTopicStateReposi
 }
 
 async function createChatFixture(prisma: PrismaService): Promise<ChatFixture> {
+  const university = await prisma.university.upsert({
+    where: { code: 'TEST-TOPIC-STATE-UNIV' },
+    update: {},
+    create: {
+      name: 'Test Topic State University',
+      code: 'TEST-TOPIC-STATE-UNIV',
+      status: 'ACTIVE',
+    },
+  })
   const student = await prisma.user.create({
     data: {
       email: `issue163-${randomUUID()}@morshid.test`,
       displayName: 'Issue 163 student',
       role: 'STUDENT',
+      universityId: university.id,
       passwordHash: 'test-password-hash',
     },
   })
@@ -299,6 +309,7 @@ async function createChatFixture(prisma: PrismaService): Promise<ChatFixture> {
     data: {
       code: `I163-${randomUUID().slice(0, 24)}`,
       title: 'Issue 163 test course',
+      universityId: university.id,
       createdById: student.id,
     },
   })

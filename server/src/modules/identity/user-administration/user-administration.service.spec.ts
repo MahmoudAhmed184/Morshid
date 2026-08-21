@@ -13,6 +13,7 @@ import {
   USER_ADMINISTRATION_ERROR_CODES,
   ManagedUserRoleChangeHasMembershipsError,
   CannotDisableLastActiveAdminError,
+  CannotDisableUniversityOwnerError,
 } from './user-administration.errors'
 import {
   UserAdministrationRepository,
@@ -240,6 +241,7 @@ describe('UserAdministrationService', () => {
     displayName: 'Demo Admin',
     role: UserRole.ADMIN,
     status: UserStatus.ACTIVE,
+    universityId: 'univ-1',
   }
   const requestContext = {
     ip: '203.0.113.10',
@@ -297,6 +299,7 @@ describe('UserAdministrationService', () => {
             displayName: 'New User',
             role,
             passwordHash: 'hashed:123',
+            universityId: actor.universityId,
             actorUserId: actor.id,
             requestContext,
           },
@@ -752,6 +755,38 @@ describe('UserAdministrationService', () => {
     expect(response.user).not.toHaveProperty('passwordHash')
     expect(response.user).not.toHaveProperty('refreshTokens')
     expect(response.user).not.toHaveProperty('disabledById')
+  })
+
+  it('maps a repository university owner disable conflict to a stable 409 response', async () => {
+    const { repository, service } = buildService()
+
+    repository.addUser({
+      id: 'owner-admin',
+      email: 'owner@morshid.demo',
+      displayName: 'Owner Admin',
+      role: UserRole.ADMIN,
+      status: UserStatus.ACTIVE,
+      createdAt,
+      updatedAt,
+    })
+    repository.disableUser.mockImplementationOnce(() =>
+      Promise.reject(new CannotDisableUniversityOwnerError()),
+    )
+
+    const disableUser = service.disableUser(
+      'owner-admin',
+      actor,
+      requestContext,
+    )
+
+    await expect(disableUser).rejects.toBeInstanceOf(ConflictException)
+    await expect(disableUser).rejects.toMatchObject({
+      response: {
+        code: USER_ADMINISTRATION_ERROR_CODES.CANNOT_DISABLE_UNIVERSITY_OWNER,
+        message:
+          'Cannot disable the primary owner of a university. Transfer ownership first.',
+      },
+    })
   })
 
   it('returns an already disabled user idempotently without another repository disable', async () => {

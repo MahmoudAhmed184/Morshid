@@ -2,7 +2,10 @@ import { ConflictException, NotFoundException } from '@nestjs/common'
 
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { UserRole, UserStatus } from '../identity/identity.roles'
-import { COURSE_ADMINISTRATION_ERROR_CODES } from './course-administration.errors'
+import {
+  COURSE_ADMINISTRATION_ERROR_CODES,
+  CourseCodeAlreadyExistsError,
+} from './course-administration.errors'
 import { CourseAdministrationService } from './course-administration.service'
 import { CourseMembershipRole } from './interface/course-membership-role'
 import {
@@ -29,6 +32,7 @@ const actor: AuthenticatedUser = {
   displayName: 'Demo Admin',
   role: UserRole.ADMIN,
   status: UserStatus.ACTIVE,
+  universityId: 'univ-1',
 }
 
 const user = {
@@ -49,6 +53,7 @@ const membership: CourseMembershipRecord = {
 
 const course: CourseAdministrationRecord = {
   id: 'course-1',
+  universityId: 'univ-1',
   code: 'CS-1',
   title: 'Computer Science',
   createdById: actor.id,
@@ -67,7 +72,7 @@ class FakeCoursesRepository extends CoursesRepository {
   >(() => Promise.resolve(course))
   readonly findCourseAdministrationByCode = jest.fn<
     Promise<CourseAdministrationRecord | null>,
-    [string]
+    [string, string?]
   >(() => Promise.resolve(null))
   readonly createCourse = jest.fn((input: CreateCourseInput) =>
     Promise.resolve({
@@ -253,7 +258,46 @@ describe('CourseAdministrationService', () => {
     )
 
     await expect(request).rejects.toBeInstanceOf(ConflictException)
+    expect(repository.findCourseAdministrationByCode).toHaveBeenCalledWith(
+      course.code,
+      actor.universityId,
+    )
     expect(repository.createCourse).not.toHaveBeenCalled()
+  })
+
+  it('normalizes course code and title whitespace on create', async () => {
+    const { repository, service } = buildService()
+
+    await service.createCourse(
+      { code: '  cs-103  ', title: '  Introduction to CS  ' },
+      actor,
+    )
+
+    expect(repository.findCourseAdministrationByCode).toHaveBeenCalledWith(
+      'cs-103',
+      actor.universityId,
+    )
+    expect(repository.createCourse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'cs-103',
+        title: 'Introduction to CS',
+        universityId: actor.universityId,
+      }),
+    )
+  })
+
+  it('catches CourseCodeAlreadyExistsError from repository and throws ConflictException', async () => {
+    const { repository, service } = buildService()
+    repository.createCourse.mockRejectedValueOnce(
+      new CourseCodeAlreadyExistsError('CS-103'),
+    )
+
+    const request = service.createCourse(
+      { code: 'CS-103', title: 'Data Structures' },
+      actor,
+    )
+
+    await expect(request).rejects.toBeInstanceOf(ConflictException)
   })
 
   it('removes and updates only the active membership returned by Courses', async () => {

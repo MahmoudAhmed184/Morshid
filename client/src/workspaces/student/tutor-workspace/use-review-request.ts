@@ -6,6 +6,8 @@ import { chatSessionKeys } from '@/features/chat/sessions/chat-sessions.queries'
 import { markMessageReviewPending } from '@/features/chat/messages/chat-message-history'
 import type { MessageHistoryData } from '@/features/chat/messages/chat-message-history'
 import type { StudentFlagReason } from '@/features/reviews/interface/student-review.schema'
+import { allowancesKeys } from '@/features/allowances/interface'
+import type { StudentAllowance } from '@/features/allowances/interface'
 
 interface UseStudentReviewRequestInput {
   courseId: string
@@ -49,6 +51,27 @@ export function useStudentReviewRequest({
           response.reviewSummary.reviewCaseId,
         ),
       )
+      queryClient.setQueryData<StudentAllowance>(
+        allowancesKeys.reviews(courseId),
+        (cached) =>
+          cached
+            ? {
+                ...cached,
+                used: cached.used + 1,
+                remaining: Math.max(0, cached.remaining - 1),
+              }
+            : cached,
+      )
+      void queryClient.invalidateQueries({
+        queryKey: allowancesKeys.reviews(courseId),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: chatSessionKeys.summary({
+          studentId,
+          courseId,
+          sessionId,
+        }),
+      })
     },
   })
 }

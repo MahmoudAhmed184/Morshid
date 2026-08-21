@@ -46,6 +46,7 @@ import {
   ChatMessageHistoryResponseDto,
   ChatSessionListResponseDto,
   ChatSessionResponseDto,
+  ChatSessionSummaryResponseDto,
   CreateChatSessionRequestDto,
   RenameChatSessionRequestDto,
   createChatSessionRequestSchema,
@@ -175,6 +176,30 @@ export class ConversationsController {
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<ChatSessionResponseDto> {
     return this.conversationsService.getSession(
+      courseId,
+      sessionId,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Get(':sessionId/summary')
+  @SerializeOptions({
+    type: ChatSessionSummaryResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Get chat session summary' })
+  @courseIdParam()
+  @sessionIdParam()
+  @ApiOkResponse({ type: ChatSessionSummaryResponseDto })
+  @invalidUuidBadRequest()
+  @notFound()
+  getSessionSummary(
+    @Param('courseId', uuidParam()) courseId: string,
+    @Param('sessionId', uuidParam()) sessionId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<ChatSessionSummaryResponseDto> {
+    return this.conversationsService.getSessionSummary(
       courseId,
       sessionId,
       request.user,

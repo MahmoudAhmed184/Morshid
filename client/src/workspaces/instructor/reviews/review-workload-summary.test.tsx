@@ -34,7 +34,7 @@ const mockSummary: InstructorReviewWorkloadSummary = {
 describe('ReviewWorkloadSummary', () => {
   afterEach(cleanup)
 
-  it('renders workload metrics and breakdown tables', () => {
+  it('renders workload metrics without breakdown cards', () => {
     render(
       <ReviewWorkloadSummary
         summary={mockSummary}
@@ -57,13 +57,8 @@ describe('ReviewWorkloadSummary', () => {
     expect(screen.queryByText('Claimed by Me')).toBeNull()
     expect(screen.getByText('12m')).toBeVisible()
 
-    expect(screen.getByText('Workload by Student Flag Reason')).toBeVisible()
-    expect(screen.getByText('Seems incorrect')).toBeVisible()
-    expect(screen.getByText('Confusing or unclear')).toBeVisible()
-
-    expect(screen.getByText('Workload by Trigger Type')).toBeVisible()
-    expect(screen.getByText('Student request')).toBeVisible()
-    expect(screen.getByText('Citation missing')).toBeVisible()
+    expect(screen.queryByText('Workload by Student Flag Reason')).toBeNull()
+    expect(screen.queryByText('Workload by Trigger Type')).toBeNull()
   })
 
   it('renders zero state when totalActiveCount is zero', () => {
@@ -113,11 +108,9 @@ describe('ReviewWorkloadSummary', () => {
     expect(onRetry).toHaveBeenCalledOnce()
   })
 
-  it('invokes callback handlers when interactive metrics or breakdown rows are clicked', async () => {
+  it('invokes callback handlers when interactive metrics are clicked', async () => {
     const user = userEvent.setup()
     const onSelectStatus = vi.fn()
-    const onSelectStudentFlagReason = vi.fn()
-    const onSelectTrigger = vi.fn()
 
     render(
       <ReviewWorkloadSummary
@@ -125,8 +118,6 @@ describe('ReviewWorkloadSummary', () => {
         resolvedCount={7}
         rejectedCount={3}
         onSelectStatus={onSelectStatus}
-        onSelectStudentFlagReason={onSelectStudentFlagReason}
-        onSelectTrigger={onSelectTrigger}
       />,
     )
 
@@ -149,13 +140,5 @@ describe('ReviewWorkloadSummary', () => {
     })
     await user.click(rejectedButton)
     expect(onSelectStatus).toHaveBeenCalledWith('REJECTED')
-
-    // Click Seems incorrect reason row
-    await user.click(screen.getByText('Seems incorrect'))
-    expect(onSelectStudentFlagReason).toHaveBeenCalledWith('INCORRECT')
-
-    // Click Citation missing trigger row
-    await user.click(screen.getByText('Citation missing'))
-    expect(onSelectTrigger).toHaveBeenCalledWith('CITATION_MISSING')
   })
 })

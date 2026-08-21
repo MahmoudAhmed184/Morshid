@@ -6,6 +6,7 @@ import { Prisma } from '../../../generated/prisma/client'
 import { AuditService } from '../../audit/audit.public'
 import type { AuditRequestContext } from '../../audit/audit.public'
 import { ActiveCourseMembership } from '../../courses/interface/active-course-membership'
+import { AllowancesResolver } from '../../allowances/interface/allowances-resolver'
 import { PrismaService } from '../../../platform/database/prisma.service'
 import {
   asDatabaseTransaction,
@@ -33,7 +34,6 @@ import {
 } from '../interface/review-values'
 
 const IDEMPOTENCY_SCOPE = 'review.create.manual'
-const MANUAL_REVIEW_DAILY_LIMIT = 3
 const MAX_SNAPSHOT_CITATIONS = 20
 const MAX_SNAPSHOT_RETRIEVALS = 20
 
@@ -97,6 +97,7 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly activeCourseMembership: ActiveCourseMembership,
+    private readonly allowancesResolver: AllowancesResolver,
   ) {
     super()
   }
@@ -279,7 +280,14 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
           : trigger.sourceEventKey === input.sourceEventKey,
       )
       if (matchingTrigger === undefined && input.kind === 'manual') {
-        if (!(await hasManualReviewQuota(tx, input.actorUserId))) {
+        if (
+          !(await hasManualReviewQuota(
+            tx,
+            input.actorUserId,
+            target.session.courseId,
+            this.allowancesResolver,
+          ))
+        ) {
           return { kind: 'quota_exceeded' }
         }
       }
@@ -320,7 +328,14 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
     }
 
     if (input.kind === 'manual') {
-      if (!(await hasManualReviewQuota(tx, input.actorUserId))) {
+      if (
+        !(await hasManualReviewQuota(
+          tx,
+          input.actorUserId,
+          target.session.courseId,
+          this.allowancesResolver,
+        ))
+      ) {
         return { kind: 'quota_exceeded' }
       }
     }
@@ -710,27 +725,44 @@ function mapRecord(
 async function hasManualReviewQuota(
   tx: Prisma.TransactionClient,
   actorUserId: string,
+  courseId: string,
+  allowancesResolver: AllowancesResolver,
 ): Promise<boolean> {
+  const window = allowancesResolver.resolvePolicyDayWindow()
   await tx.$queryRaw`
     SELECT pg_advisory_xact_lock(
-      hashtextextended(${`${actorUserId}:manual-review-quota`}, 0)
+      hashtextextended(${`${actorUserId}:${courseId}:review-allowance:${window.start.toISOString()}`}, 0)
     ) IS NULL AS locked
   `
+  const limit = await allowancesResolver.resolveEffectiveReviewLimit(
+    courseId,
+    asDatabaseTransaction(tx),
+  )
+  if (limit <= 0) {
+    return false
+  }
+  const resetCutoff = await allowancesResolver.resolveLatestResetCutoff(
+    {
+      studentId: actorUserId,
+      courseId,
+      allowanceType: 'REVIEW',
+      policyDayStart: window.start,
+    },
+    asDatabaseTransaction(tx),
+  )
+  const fromDate =
+    resetCutoff && resetCutoff > window.start ? resetCutoff : window.start
   const [usage] = await tx.$queryRaw<{ count: bigint }[]>`
     SELECT COUNT(*)::bigint AS count
-    FROM "review_triggers"
-    WHERE "type" = 'STUDENT_REQUEST'
-      AND "actor_user_id" = ${actorUserId}::uuid
-      AND "created_at" >= (
-        date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
-        AT TIME ZONE 'UTC'
-      )
-      AND "created_at" < (
-        date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
-        AT TIME ZONE 'UTC'
-      ) + INTERVAL '1 day'
+    FROM "review_triggers" rt
+    JOIN "review_cases" rc ON rt."review_case_id" = rc."id"
+    WHERE rt."type" = 'STUDENT_REQUEST'
+      AND rt."actor_user_id" = ${actorUserId}::uuid
+      AND rc."course_id" = ${courseId}::uuid
+      AND rt."created_at" >= ${fromDate}
+      AND rt."created_at" < ${window.end}
   `
-  return usage.count < BigInt(MANUAL_REVIEW_DAILY_LIMIT)
+  return Number(usage.count) < limit
 }
 
 function sha256(value: string): string {

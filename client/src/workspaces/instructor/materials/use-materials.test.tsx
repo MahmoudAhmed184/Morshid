@@ -11,6 +11,7 @@ import {
   deleteCourseMaterial,
   getMaterialUploadConfiguration,
   listCourseMaterials,
+  retryCourseMaterialProcessing,
   uploadCourseMaterial,
 } from '@/features/materials/material-ingestion/material-ingestion.api'
 import type { MaterialsResponse } from '@/features/materials/material-ingestion/material.schema'
@@ -20,6 +21,7 @@ import {
   useCourseMaterials,
   useDeleteCourseMaterial,
   useMaterialUploadConfiguration,
+  useRetryCourseMaterialProcessing,
   useUploadCourseMaterial,
 } from './use-materials'
 
@@ -31,6 +33,9 @@ const getMaterialUploadConfigurationMock = vi.mocked(
 )
 const uploadCourseMaterialMock = vi.mocked(uploadCourseMaterial)
 const deleteCourseMaterialMock = vi.mocked(deleteCourseMaterial)
+const retryCourseMaterialProcessingMock = vi.mocked(
+  retryCourseMaterialProcessing,
+)
 
 const instructorId = 'd005dfdb-aabe-4f65-a2dc-61e75ba203a6'
 const courseId = 'f5bb713c-09b7-42d3-acf3-02f39a902e5a'
@@ -332,5 +337,53 @@ describe('Instructor material hooks', () => {
     expect(cached?.pages[0]?.materials).toHaveLength(0)
     expect(cached?.pages[0]?.total).toBe(0)
     expect(queryClient.getQueryState(selectedListKey)?.isInvalidated).toBe(true)
+  })
+
+  it('optimistically starts retry processing and invalidates its course list', async () => {
+    const failedMaterial = {
+      ...material,
+      status: 'FAILED' as const,
+      errorMessage: 'Extraction failed',
+    }
+    const retriedMaterial = {
+      ...failedMaterial,
+      status: 'PROCESSING' as const,
+      extractedTextLength: null,
+      chunkCount: null,
+      errorMessage: null,
+    }
+    let resolveRetry!: (value: { material: typeof retriedMaterial }) => void
+    retryCourseMaterialProcessingMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRetry = resolve
+      }),
+    )
+    const queryClient = createQueryClient()
+    const queryKey = materialKeys.list({ instructorId, courseId })
+    queryClient.setQueryData(queryKey, {
+      pages: [{ materials: [failedMaterial], total: 1 }],
+      pageParams: [undefined],
+    })
+
+    const { result } = renderHook(() => useRetryCourseMaterialProcessing(), {
+      wrapper: createWrapper(queryClient),
+    })
+    act(() => result.current.mutate({ courseId, materialId }))
+
+    await waitFor(() => {
+      const cached =
+        queryClient.getQueryData<
+          InfiniteData<MaterialsResponse, string | undefined>
+        >(queryKey)
+      expect(cached?.pages[0]?.materials[0]?.status).toBe('PROCESSING')
+    })
+
+    resolveRetry({ material: retriedMaterial })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(retryCourseMaterialProcessingMock).toHaveBeenCalledWith(
+      courseId,
+      materialId,
+    )
+    expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(true)
   })
 })

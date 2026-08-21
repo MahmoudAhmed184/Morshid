@@ -57,12 +57,27 @@ export type GeminiChatProjectSelection =
       readonly retryAfterMs: number
     }
 
+export interface GeminiChatProjectCooldownDetail {
+  readonly projectIndex: number
+  readonly cooldownRemainingMs: number
+  readonly cooldownUntilMs: number
+}
+
+export interface GeminiChatPoolSnapshot {
+  readonly totalProjects: number
+  readonly availableProjects: number
+  readonly cooledDownProjects: number
+  readonly cooldownDetails: readonly GeminiChatProjectCooldownDetail[]
+  readonly status: 'Ready' | 'Pressured' | 'Blocked' | 'Unknown'
+}
+
 export interface GeminiChatProjectPoolPort {
   readonly size: number
   select(
     excludedProjectIds: ReadonlySet<string>,
   ): Promise<GeminiChatProjectSelection>
   markRateLimited(projectId: string, providerDelayMs: number): Promise<number>
+  snapshot(): Promise<GeminiChatPoolSnapshot>
 }
 
 export class GeminiChatProjectPoolUnavailableError extends Error {
@@ -206,6 +221,29 @@ redis.call('PEXPIRE', KEYS[1], math.floor(request.ttlMs))
 return { 1, tostring(math.max(1, cooldown_until_ms - now_ms)) }
 `
 
+const GEMINI_CHAT_PROJECT_SNAPSHOT_LUA = `
+local ok, request = pcall(cjson.decode, ARGV[1])
+if not ok or type(request) ~= 'table' or type(request.members) ~= 'table' then
+  return { -1, 'invalid_request' }
+end
+
+local redis_time = redis.call('TIME')
+local now_ms = (tonumber(redis_time[1]) * 1000) + math.floor(tonumber(redis_time[2]) / 1000)
+local results = {}
+
+for index, member in ipairs(request.members) do
+  local raw_cooldown = redis.call('HGET', KEYS[1], 'cooldown:' .. member)
+  local cooldown_until_ms = 0
+  if raw_cooldown ~= false then
+    cooldown_until_ms = tonumber(raw_cooldown) or 0
+  end
+  local remaining_ms = math.max(0, cooldown_until_ms - now_ms)
+  table.insert(results, { index - 1, remaining_ms, cooldown_until_ms })
+end
+
+return { 1, cjson.encode(results) }
+`
+
 interface ProjectSnapshot extends GeminiChatProject {
   readonly stateId: string
 }
@@ -330,6 +368,83 @@ export class GeminiChatProjectPool implements GeminiChatProjectPoolPort {
       throw new GeminiChatProjectPoolUnavailableError()
     }
     return result.value
+  }
+
+  async snapshot(): Promise<GeminiChatPoolSnapshot> {
+    if (this.projects.length === 0) {
+      return Object.freeze({
+        totalProjects: 0,
+        availableProjects: 0,
+        cooledDownProjects: 0,
+        cooldownDetails: Object.freeze([]),
+        status: 'Unknown',
+      })
+    }
+
+    let raw: unknown
+    try {
+      raw = await this.redis.eval(GEMINI_CHAT_PROJECT_SNAPSHOT_LUA, {
+        keys: [this.stateKey],
+        arguments: [
+          JSON.stringify({
+            members: this.projects.map((project) => project.stateId),
+          }),
+        ],
+      })
+    } catch {
+      throw new GeminiChatProjectPoolUnavailableError()
+    }
+
+    if (!Array.isArray(raw) || raw[0] !== 1 || typeof raw[1] !== 'string') {
+      throw new GeminiChatProjectPoolUnavailableError()
+    }
+
+    let parsedJson: unknown
+    try {
+      parsedJson = JSON.parse(raw[1])
+    } catch {
+      throw new GeminiChatProjectPoolUnavailableError()
+    }
+
+    if (!Array.isArray(parsedJson)) {
+      throw new GeminiChatProjectPoolUnavailableError()
+    }
+
+    const parsed = parsedJson as [number, number, number][]
+
+    const cooldownDetails: GeminiChatProjectCooldownDetail[] = []
+    let availableCount = 0
+    let cooledDownCount = 0
+
+    for (const [projectIndex, remainingMs, untilMs] of parsed) {
+      if (remainingMs > 0) {
+        cooledDownCount++
+        cooldownDetails.push(
+          Object.freeze({
+            projectIndex,
+            cooldownRemainingMs: remainingMs,
+            cooldownUntilMs: untilMs,
+          }),
+        )
+      } else {
+        availableCount++
+      }
+    }
+
+    let status: 'Ready' | 'Pressured' | 'Blocked' | 'Unknown' = 'Ready'
+    if (availableCount === 0) {
+      status = 'Blocked'
+    } else if (cooledDownCount > 0) {
+      status = 'Pressured'
+    }
+
+    return Object.freeze({
+      totalProjects: this.projects.length,
+      availableProjects: availableCount,
+      cooledDownProjects: cooledDownCount,
+      cooldownDetails: Object.freeze(cooldownDetails),
+      status,
+    })
   }
 }
 

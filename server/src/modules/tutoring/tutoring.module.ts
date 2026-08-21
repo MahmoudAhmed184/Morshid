@@ -13,6 +13,9 @@ import { TutoringController } from './tutoring.controller'
 import { StudentTutoringPreferencesController } from './preferences/student-tutoring-preferences.controller'
 import { StudentTutoringPreferencesService } from './preferences/student-tutoring-preferences.service'
 
+import { AllowancesModule } from '../allowances/allowances.module'
+import { StudentTutoringAllowanceController } from './allowance/student-tutoring-allowance.controller'
+
 @Module({
   imports: [
     AuditModule,
@@ -22,6 +25,7 @@ import { StudentTutoringPreferencesService } from './preferences/student-tutorin
     ResponseGovernanceModule,
     ReviewsModule,
     SocraticWorkflowModule,
+    AllowancesModule,
   ],
   providers: [
     StudentTutoringPreferencesService,
@@ -31,7 +35,11 @@ import { StudentTutoringPreferencesService } from './preferences/student-tutorin
       useExisting: TutoringRuntimeApplication,
     },
   ],
-  controllers: [TutoringController, StudentTutoringPreferencesController],
+  controllers: [
+    TutoringController,
+    StudentTutoringPreferencesController,
+    StudentTutoringAllowanceController,
+  ],
   exports: [TutoringRuntime, StudentTutoringPreferencesService],
 })
 export class TutoringModule {}

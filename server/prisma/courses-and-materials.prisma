@@ -17,14 +17,16 @@ enum MaterialStatus {
 }
 
 model Course {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code        String   @unique(map: "courses_code_key") @db.VarChar(40)
-  title       String   @db.VarChar(160)
-  createdById String?  @map("created_by") @db.Uuid
-  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  universityId String    @map("university_id") @db.Uuid
+  code         String    @db.VarChar(40)
+  title        String    @db.VarChar(160)
+  createdById  String?   @map("created_by") @db.Uuid
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  university   University         @relation("UniversityCourses", fields: [universityId], references: [id], onDelete: Restrict)
   createdBy    User?              @relation("CourseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   memberships  CourseMembership[]
   materials    Material[]
@@ -33,7 +35,10 @@ model Course {
   auditLogs    AuditLog[]
   reviewCases  ReviewCase[]
   inboxItems   ReviewInboxItem[]
+  policyOverride CoursePolicyOverride?
+  allowanceResets AllowanceReset[]
 
+  @@index([universityId], map: "idx_courses_university")
   @@index([createdById], map: "idx_courses_created_by")
   @@index([archivedAt], map: "idx_courses_archived_at")
   @@map("courses")

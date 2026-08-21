@@ -119,6 +119,7 @@ describe('Materials persistence and local storage (e2e)', () => {
     courseId?: string
     title: string
     filename?: string
+    buffer?: Buffer
   }) {
     return request(app.getHttpServer())
       .post(
@@ -126,7 +127,7 @@ describe('Materials persistence and local storage (e2e)', () => {
       )
       .set('Authorization', `Bearer ${input.token}`)
       .field('title', input.title)
-      .attach('file', validPdf, {
+      .attach('file', input.buffer ?? validPdf, {
         filename: input.filename ?? 'python.pdf',
         contentType: 'application/pdf',
       })
@@ -196,7 +197,11 @@ describe('Materials persistence and local storage (e2e)', () => {
       .spyOn(scheduler, 'scheduleMaterialProcessing')
       .mockRejectedValueOnce(new Error('simulated durable scheduling failure'))
 
-    await uploadPdf({ token, title: 'Compensated real upload' }).expect(500)
+    await uploadPdf({
+      token,
+      title: 'Compensated real upload',
+      buffer: cleanTextPdf('Durable scheduling failure upload'),
+    }).expect(500)
 
     await expect(
       prisma.material.findFirst({

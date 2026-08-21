@@ -137,12 +137,24 @@ export default {
       to: { path: '^client/src/(?:routes|app)(?:/|$)' },
     },
     {
+      name: 'client-super-admin-not-to-other-workspaces',
+      comment:
+        'Super admin workspace code must not depend on another role workspace.',
+      severity: 'error',
+      from: { path: '^client/src/workspaces/super-admin(?:/|$)' },
+      to: {
+        path: '^client/src/workspaces/(?:admin|instructor|student)(?:/|$)',
+      },
+    },
+    {
       name: 'client-admin-not-to-other-workspaces',
       comment:
         'Admin workspace code must not depend on another role workspace.',
       severity: 'error',
       from: { path: '^client/src/workspaces/admin(?:/|$)' },
-      to: { path: '^client/src/workspaces/(?:instructor|student)(?:/|$)' },
+      to: {
+        path: '^client/src/workspaces/(?:instructor|student|super-admin)(?:/|$)',
+      },
     },
     {
       name: 'client-instructor-not-to-other-workspaces',
@@ -150,7 +162,9 @@ export default {
         'Instructor workspace code must not depend on another role workspace.',
       severity: 'error',
       from: { path: '^client/src/workspaces/instructor(?:/|$)' },
-      to: { path: '^client/src/workspaces/(?:admin|student)(?:/|$)' },
+      to: {
+        path: '^client/src/workspaces/(?:admin|student|super-admin)(?:/|$)',
+      },
     },
     {
       name: 'client-student-not-to-other-workspaces',
@@ -158,7 +172,9 @@ export default {
         'Student workspace code must not depend on another role workspace.',
       severity: 'error',
       from: { path: '^client/src/workspaces/student(?:/|$)' },
-      to: { path: '^client/src/workspaces/(?:admin|instructor)(?:/|$)' },
+      to: {
+        path: '^client/src/workspaces/(?:admin|instructor|super-admin)(?:/|$)',
+      },
     },
     {
       name: 'client-shared-workspace-not-to-role',
@@ -167,7 +183,7 @@ export default {
       severity: 'error',
       from: { path: '^client/src/workspaces/_shared(?:/|$)' },
       to: {
-        path: '^client/src/workspaces/(?:admin|instructor|student)(?:/|$)',
+        path: '^client/src/workspaces/(?:admin|instructor|student|super-admin)(?:/|$)',
       },
     },
     {
@@ -219,6 +235,19 @@ export default {
       },
       to: {
         path: '^server/src/modules/audit/(?!audit\\.module\\.ts$|audit\\.public\\.ts$)',
+      },
+    },
+    {
+      name: 'allowances-interface-only',
+      comment:
+        'Product modules may consume Allowances only through its module or named public interface.',
+      severity: 'error',
+      from: {
+        path: '^server/src/(?:app\\.module\\.ts|common/|modules/(?!allowances(?:/|$)))',
+        pathNot: testPath,
+      },
+      to: {
+        path: '^server/src/modules/allowances/(?!allowances\\.module\\.ts$|interface/)',
       },
     },
     {

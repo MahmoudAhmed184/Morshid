@@ -17,6 +17,7 @@ import type {
 import {
   chatSessionListResponseSchema,
   chatSessionResponseSchema,
+  chatSessionSummaryResponseSchema,
   createChatSessionRequestSchema,
   deleteChatSessionResponseSchema,
   listChatSessionsInputSchema,
@@ -36,6 +37,7 @@ export type {
 export type {
   ChatSession,
   ChatSessionListResponse,
+  ChatSessionSummary,
 } from '@/features/chat/sessions/chat-session.schema'
 
 interface ListChatSessionsParams {
@@ -190,6 +192,22 @@ export async function getChatSession({
   })
 
   return chatSessionResponseSchema.parse(response).session
+}
+
+export async function getChatSessionSummary({
+  courseId,
+  sessionId,
+  options = {},
+}: GetChatSessionParams) {
+  const response = await apiJson<unknown>(
+    `${sessionPath(courseId, sessionId)}/summary`,
+    {
+      ...options,
+      method: 'GET',
+    },
+  )
+
+  return chatSessionSummaryResponseSchema.parse(response).summary
 }
 
 export async function deleteChatSession({

@@ -8,6 +8,8 @@ import {
   loginApi,
   logoutApi,
   SIGN_IN_UNAVAILABLE_MESSAGE,
+  UNIVERSITY_INACTIVE_MESSAGE,
+  UNIVERSITY_SUSPENDED_MESSAGE,
   updateOwnProfile,
 } from './session.api'
 
@@ -103,6 +105,46 @@ describe('loginApi', () => {
     const assertion = expect(request).rejects.toMatchObject({
       code: 'ACCOUNT_DISABLED',
       message: DISABLED_ACCOUNT_MESSAGE,
+    })
+
+    await assertion
+  })
+
+  it('normalizes university-suspended responses to the client-safe suspended message', async () => {
+    const fetchMock = async () =>
+      Response.json(
+        {
+          code: 'UNIVERSITY_SUSPENDED',
+          message: 'University is suspended',
+        },
+        {
+          status: 403,
+        },
+      )
+    const request = loginApi('user@suspended-uni.edu', 'password', fetchMock)
+    const assertion = expect(request).rejects.toMatchObject({
+      code: 'UNIVERSITY_SUSPENDED',
+      message: UNIVERSITY_SUSPENDED_MESSAGE,
+    })
+
+    await assertion
+  })
+
+  it('normalizes university-inactive responses to the client-safe inactive message', async () => {
+    const fetchMock = async () =>
+      Response.json(
+        {
+          code: 'UNIVERSITY_INACTIVE',
+          message: 'University is inactive',
+        },
+        {
+          status: 403,
+        },
+      )
+    const request = loginApi('user@inactive-uni.edu', 'password', fetchMock)
+    const assertion = expect(request).rejects.toMatchObject({
+      code: 'UNIVERSITY_INACTIVE',
+      message: UNIVERSITY_INACTIVE_MESSAGE,
     })
 
     await assertion

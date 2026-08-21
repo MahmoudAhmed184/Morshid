@@ -64,6 +64,7 @@ export class MaterialsAuditService {
     try {
       await this.auditService.recordEvent({
         actorUserId: input.actor.id,
+        universityId: input.actor.universityId,
         action: input.action,
         target: {
           type: AUDIT_TARGET_TYPES.MATERIAL,

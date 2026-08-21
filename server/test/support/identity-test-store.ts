@@ -11,6 +11,7 @@ import type {
 import {
   createP0DemoPasswordHash,
   P0_DEMO_COURSE,
+  P0_DEMO_UNIVERSITY,
   P0_DEMO_USERS,
   P0_HIDDEN_ISOLATION_COURSE,
 } from '../../src/seeds/p0-demo.seed'
@@ -22,7 +23,9 @@ type StoredCourse = Course & {
   memberships?: CourseMembership[]
   materials?: Material[]
 }
-type StoredRefreshToken = RefreshToken & { user?: User }
+type StoredRefreshToken = RefreshToken & {
+  user?: User & { university?: { status: string } | null }
+}
 type StoredMaterial = Material
 
 interface FindUniqueArgs {
@@ -32,7 +35,8 @@ interface FindUniqueArgs {
     tokenHash?: string
   }
   include?: {
-    user?: boolean
+    user?:
+      boolean | { include?: { university?: { select?: { status?: boolean } } } }
     refreshTokens?: {
       where?: {
         familyId?: string
@@ -65,7 +69,12 @@ interface UpdateUserArgs {
 }
 
 interface CreateUserArgs {
-  data: Pick<User, 'email' | 'displayName' | 'role' | 'status' | 'passwordHash'>
+  data: Pick<
+    User,
+    'email' | 'displayName' | 'role' | 'status' | 'passwordHash'
+  > & {
+    universityId?: string | null
+  }
 }
 
 interface FindManyUserArgs {
@@ -218,6 +227,7 @@ interface FindManyCourseArgs {
 
 interface CreateAuditLogArgs {
   data: {
+    universityId?: string | null
     actorUserId?: string | null
     action: string
     targetType: string
@@ -232,6 +242,7 @@ interface CreateAuditLogArgs {
 interface FindUniqueAuditLogArgs {
   where: {
     id: string
+    universityId?: string
   }
 }
 
@@ -298,7 +309,8 @@ interface FindUniqueCourseArgs {
 interface FindFirstCourseArgs {
   where?: {
     id?: string
-    code?: string
+    universityId?: string
+    code?: string | { equals?: string; mode?: 'insensitive' }
     archivedAt?: Date | null
   }
   select?: {
@@ -331,14 +343,16 @@ interface FindFirstCourseArgs {
 }
 
 interface CreateCourseArgs {
-  data: Pick<Course, 'code' | 'title' | 'createdById'>
+  data: Pick<Course, 'code' | 'title' | 'createdById'> & {
+    universityId?: string
+  }
 }
 
 interface UpdateCourseArgs {
   where: {
     id: string
   }
-  data: Partial<Pick<Course, 'code' | 'title'>>
+  data: Partial<Pick<Course, 'code' | 'title' | 'archivedAt'>>
 }
 
 interface CountMaterialArgs {
@@ -368,6 +382,7 @@ interface FindFirstMaterialArgs {
     id?: string
     courseId?: string
     deletedAt?: null | Date
+    sha256Hash?: string
   }
 }
 
@@ -383,8 +398,10 @@ interface UpdateManyMaterialArgs {
     id?: string
     courseId?: string
     deletedAt?: Date | null
+    status?: Material['status']
+    processingAttemptId?: string | null
   }
-  data: Partial<Pick<Material, 'title'>>
+  data: Partial<Material>
 }
 
 interface CreateMaterialArgs {
@@ -406,8 +423,113 @@ interface DeleteMaterialArgs {
   }
 }
 
+interface FindUniqueUniversityArgs {
+  where: {
+    id?: string
+    code?: string
+    ownerId?: string
+  }
+  select?: {
+    id?: boolean
+    name?: boolean
+    code?: boolean
+    status?: boolean
+    ownerId?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    owner?: boolean | { select?: Prisma.UserSelect }
+    _count?: boolean | { select?: { courses?: boolean; users?: boolean } }
+  }
+}
+
+interface FindFirstUniversityArgs {
+  where?: {
+    id?: string
+    code?: string | { equals: string; mode?: 'insensitive' }
+    ownerId?: string
+    NOT?: { id?: string }
+  }
+  select?: FindUniqueUniversityArgs['select']
+}
+
+interface FindManyUniversityArgs {
+  where?: {
+    id?: string | { in?: string[] }
+    status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
+    search?: string
+    OR?: {
+      name?: { contains: string; mode?: 'insensitive' }
+      code?: { contains: string; mode?: 'insensitive' }
+      owner?: {
+        displayName?: { contains: string; mode?: 'insensitive' }
+        email?: { contains: string; mode?: 'insensitive' }
+      }
+    }[]
+  }
+  orderBy?: {
+    createdAt?: 'asc' | 'desc'
+    updatedAt?: 'asc' | 'desc'
+    name?: 'asc' | 'desc'
+    code?: 'asc' | 'desc'
+    status?: 'asc' | 'desc'
+    studentsCount?: 'asc' | 'desc'
+    id?: 'asc' | 'desc'
+  }[]
+  skip?: number
+  take?: number
+  select?: FindUniqueUniversityArgs['select']
+}
+
+interface CountUniversityArgs {
+  where?: FindManyUniversityArgs['where']
+}
+
+interface CreateUniversityArgs {
+  data: {
+    name: string
+    code: string
+    status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
+    ownerId?: string | null
+  }
+  select?: FindUniqueUniversityArgs['select']
+}
+
+interface UpdateUniversityArgs {
+  where: {
+    id: string
+  }
+  data: {
+    name?: string
+    code?: string
+    status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
+    ownerId?: string | null
+  }
+  select?: FindUniqueUniversityArgs['select']
+}
+
+interface GroupByUserArgs {
+  by: ('universityId' | 'role')[]
+  where?: {
+    universityId?: string | { in: string[] }
+    role?: { in: User['role'][] }
+  }
+  _count?: { _all?: boolean }
+}
+
 export class IdentityTestStore {
   readonly users = new Map<string, User>()
+  readonly universities = new Map<
+    string,
+    {
+      id: string
+      name: string
+      code: string
+      status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
+      ownerId: string | null
+      createdAt: Date
+      updatedAt: Date
+    }
+  >()
   readonly studentTutoringPreferences = new Map<
     string,
     {
@@ -430,6 +552,7 @@ export class IdentityTestStore {
   private nextMembershipSequence = 1
   private nextMaterialSequence = 1
   private nextCourseSequence = 1
+  private nextUniversitySequence = 1
   private failNextActiveRefreshTokenRevoke = false
 
   readonly prisma = {
@@ -448,6 +571,93 @@ export class IdentityTestStore {
       ),
       update: jest.fn((args: UpdateUserArgs) =>
         Promise.resolve(this.updateUser(args)),
+      ),
+      groupBy: jest.fn((args: GroupByUserArgs) =>
+        Promise.resolve(this.groupByUsers(args)),
+      ),
+    },
+    university: {
+      findUnique: jest.fn((args: FindUniqueUniversityArgs) =>
+        Promise.resolve(this.findUniversity(args)),
+      ),
+      findFirst: jest.fn((args?: FindFirstUniversityArgs) =>
+        Promise.resolve(this.findFirstUniversity(args)),
+      ),
+      findMany: jest.fn((args?: FindManyUniversityArgs) =>
+        Promise.resolve(this.findManyUniversities(args)),
+      ),
+      count: jest.fn((args?: CountUniversityArgs) =>
+        Promise.resolve(this.countUniversities(args)),
+      ),
+      create: jest.fn((args: CreateUniversityArgs) =>
+        Promise.resolve(this.createUniversity(args)),
+      ),
+      update: jest.fn((args: UpdateUniversityArgs) =>
+        Promise.resolve(this.updateUniversity(args)),
+      ),
+    },
+    universitySubscription: {
+      findUnique: jest.fn(() => Promise.resolve(null)),
+      findFirst: jest.fn(() => Promise.resolve(null)),
+      findMany: jest.fn(() => Promise.resolve([])),
+      create: jest.fn((args: { data: Record<string, unknown> }) =>
+        Promise.resolve({
+          id: '00000000-0000-4000-8000-000000000888',
+          ...args.data,
+        }),
+      ),
+      update: jest.fn(
+        (args: { where: { id: string }; data: Record<string, unknown> }) =>
+          Promise.resolve({
+            id: args.where.id,
+            ...args.data,
+          }),
+      ),
+    },
+    globalPricingConfig: {
+      findUnique: jest.fn(() =>
+        Promise.resolve({
+          id: 'default',
+          defaultPricePerSeat: 10,
+          currency: 'USD',
+        }),
+      ),
+      findFirst: jest.fn(() =>
+        Promise.resolve({
+          id: 'default',
+          defaultPricePerSeat: 10,
+          currency: 'USD',
+        }),
+      ),
+      upsert: jest.fn(() =>
+        Promise.resolve({
+          id: 'default',
+          defaultPricePerSeat: 10,
+          currency: 'USD',
+        }),
+      ),
+    },
+    subscriptionInvoice: {
+      findMany: jest.fn(() => Promise.resolve([])),
+      findFirst: jest.fn(() => Promise.resolve(null)),
+      create: jest.fn((args: { data: Record<string, unknown> }) =>
+        Promise.resolve({
+          id: '00000000-0000-4000-8000-000000000889',
+          ...args.data,
+        }),
+      ),
+    },
+    universityMonthlyUsage: {
+      findMany: jest.fn(() => Promise.resolve([])),
+      upsert: jest.fn(
+        (args: {
+          create: Record<string, unknown>
+          update: Record<string, unknown>
+        }) =>
+          Promise.resolve({
+            id: '00000000-0000-4000-8000-000000000890',
+            ...args.create,
+          }),
       ),
     },
     refreshToken: {
@@ -543,6 +753,108 @@ export class IdentityTestStore {
       findUnique: jest.fn((args: FindUniqueAuditLogArgs) =>
         Promise.resolve(this.findAuditLog(args)),
       ),
+      findFirst: jest.fn(
+        (args: {
+          where: { id: string; universityId?: string }
+          include?: { actor?: unknown }
+        }) => {
+          const log = this.auditLogs.get(args.where.id)
+          if (!log) return Promise.resolve(null)
+          if (
+            args.where.universityId !== undefined &&
+            log.universityId !== args.where.universityId
+          ) {
+            return Promise.resolve(null)
+          }
+          const actor =
+            log.actorUserId !== null
+              ? (this.users.get(log.actorUserId) ?? null)
+              : null
+          return Promise.resolve({
+            ...log,
+            actor:
+              actor !== null
+                ? {
+                    id: actor.id,
+                    email: actor.email,
+                    displayName: actor.displayName,
+                  }
+                : null,
+          })
+        },
+      ),
+      findMany: jest.fn(
+        (args?: {
+          where?: {
+            universityId?: string
+            action?: string
+            targetType?: string
+            courseId?: string
+            actorUserId?: string
+          }
+        }) => {
+          let logs = [...this.auditLogs.values()]
+          const where = args?.where
+          if (where !== undefined) {
+            if (where.universityId !== undefined) {
+              logs = logs.filter((l) => l.universityId === where.universityId)
+            }
+            if (where.action !== undefined) {
+              logs = logs.filter((l) => l.action === where.action)
+            }
+            if (where.targetType !== undefined) {
+              logs = logs.filter((l) => l.targetType === where.targetType)
+            }
+            if (where.courseId !== undefined) {
+              logs = logs.filter((l) => l.courseId === where.courseId)
+            }
+            if (where.actorUserId !== undefined) {
+              logs = logs.filter((l) => l.actorUserId === where.actorUserId)
+            }
+          }
+          return Promise.resolve(
+            logs.map((log) => ({
+              ...log,
+              actor:
+                log.actorUserId !== null
+                  ? (this.users.get(log.actorUserId) ?? null)
+                  : null,
+            })),
+          )
+        },
+      ),
+      count: jest.fn(
+        (args?: {
+          where?: {
+            universityId?: string
+            action?: string
+            targetType?: string
+            courseId?: string
+            actorUserId?: string
+          }
+        }) => {
+          let logs = [...this.auditLogs.values()]
+          const where = args?.where
+          if (where !== undefined) {
+            if (where.universityId !== undefined) {
+              logs = logs.filter((l) => l.universityId === where.universityId)
+            }
+            if (where.action !== undefined) {
+              logs = logs.filter((l) => l.action === where.action)
+            }
+            if (where.targetType !== undefined) {
+              logs = logs.filter((l) => l.targetType === where.targetType)
+            }
+            if (where.courseId !== undefined) {
+              logs = logs.filter((l) => l.courseId === where.courseId)
+            }
+            if (where.actorUserId !== undefined) {
+              logs = logs.filter((l) => l.actorUserId === where.actorUserId)
+            }
+          }
+          return Promise.resolve(logs.length)
+        },
+      ),
     },
     studentTutoringPreference: {
       findUnique: jest.fn(
@@ -588,6 +900,31 @@ export class IdentityTestStore {
     },
     $queryRaw: jest.fn((query: TemplateStringsArray, ...values: string[]) => {
       const sql = query.join(' ')
+
+      if (sql.includes('COUNT(DISTINCT u.id)')) {
+        const matchingCount = this.universities.size
+        return Promise.resolve([{ count: BigInt(matchingCount) }])
+      }
+
+      if (
+        sql.includes('COUNT(usr.id) FILTER') ||
+        sql.includes('student_count')
+      ) {
+        const list = [...this.universities.values()].map((u) => {
+          const studentCount = [...this.users.values()].filter(
+            (usr) => usr.universityId === u.id && usr.role === 'STUDENT',
+          ).length
+          return { id: u.id, student_count: studentCount }
+        })
+        const isAsc = sql.includes('ASC')
+        list.sort((a, b) =>
+          isAsc
+            ? a.student_count - b.student_count
+            : b.student_count - a.student_count,
+        )
+        return Promise.resolve(list)
+      }
+
       if (sql.includes('FROM course_memberships')) {
         const [courseId, userId] = values
         const membership = this.memberships.find(
@@ -599,10 +936,30 @@ export class IdentityTestStore {
         return Promise.resolve(membership ? [{ id: membership.id }] : [])
       }
 
+      if (sql.includes('FROM users') && sql.includes("role = 'ADMIN'")) {
+        const activeAdmins = [...this.users.values()]
+          .filter((u) => u.role === 'ADMIN' && u.status === 'ACTIVE')
+          .map((u) => ({ id: u.id }))
+        return Promise.resolve(activeAdmins)
+      }
+
       const [userId] = values
       const user = this.users.get(userId)
-      return Promise.resolve(user ? [{ ...user }] : [])
+      if (!user) {
+        return Promise.resolve([])
+      }
+      const university =
+        user.universityId !== null
+          ? (this.universities.get(user.universityId) ?? null)
+          : null
+      return Promise.resolve([
+        {
+          ...user,
+          universityStatus: university?.status ?? null,
+        },
+      ])
     }),
+    $executeRaw: jest.fn(() => Promise.resolve(0)),
     $transaction: jest.fn(
       async <T>(fn: (tx: IdentityTestStore['prisma']) => Promise<T>) =>
         fn(this.prisma),
@@ -636,16 +993,42 @@ export class IdentityTestStore {
     })
   }
 
+  setUniversityStatus(
+    universityId: string,
+    status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
+  ) {
+    const uni = this.universities.get(universityId)
+    if (!uni) {
+      throw new Error(`Missing test university ${universityId}`)
+    }
+    this.universities.set(universityId, {
+      ...uni,
+      status,
+      updatedAt: new Date(),
+    })
+  }
+
   simulateNextActiveRefreshTokenRevokeRace() {
     this.failNextActiveRefreshTokenRevoke = true
   }
 
   private seedP0DemoData() {
     const now = new Date('2026-07-06T00:00:00.000Z')
-    const adminId = '00000000-0000-4000-8000-000000000001'
-    const instructorId = '00000000-0000-4000-8000-000000000002'
+    const demoUniversityId = '00000000-0000-4000-8000-000000000000'
+    const adminId = '00000000-0000-4000-8000-000000000002'
+    const instructorId = '00000000-0000-4000-8000-000000000003'
     const pythonCourseId = '00000000-0000-4000-8000-000000000101'
     const hiddenCourseId = '00000000-0000-4000-8000-000000000102'
+
+    this.universities.set(demoUniversityId, {
+      id: demoUniversityId,
+      name: P0_DEMO_UNIVERSITY.name,
+      code: P0_DEMO_UNIVERSITY.code,
+      status: 'ACTIVE',
+      ownerId: adminId,
+      createdAt: now,
+      updatedAt: now,
+    })
 
     for (const [index, seedUser] of P0_DEMO_USERS.entries()) {
       const id = `00000000-0000-4000-8000-00000000000${(index + 1).toString()}`
@@ -655,6 +1038,7 @@ export class IdentityTestStore {
         displayName: seedUser.displayName,
         role: seedUser.role,
         status: 'ACTIVE',
+        universityId: seedUser.role === 'SUPER_ADMIN' ? null : demoUniversityId,
         passwordHash: createP0DemoPasswordHash(seedUser.passwordSalt),
         disabledAt: null,
         disabledById: null,
@@ -667,6 +1051,7 @@ export class IdentityTestStore {
 
     this.courses.set(pythonCourseId, {
       id: pythonCourseId,
+      universityId: demoUniversityId,
       code: P0_DEMO_COURSE.code,
       title: P0_DEMO_COURSE.title,
       createdById: instructorId,
@@ -676,6 +1061,7 @@ export class IdentityTestStore {
     })
     this.courses.set(hiddenCourseId, {
       id: hiddenCourseId,
+      universityId: demoUniversityId,
       code: P0_HIDDEN_ISOLATION_COURSE.code,
       title: P0_HIDDEN_ISOLATION_COURSE.title,
       createdById: null,
@@ -740,6 +1126,16 @@ export class IdentityTestStore {
       return null
     }
 
+    const university =
+      user.universityId !== null
+        ? (this.universities.get(user.universityId) ?? null)
+        : null
+
+    const userWithUniversity = {
+      ...user,
+      university: university ? { status: university.status } : null,
+    }
+
     if (args.include?.refreshTokens) {
       const filter = args.include.refreshTokens.where
       let tokens = [...this.refreshTokens.values()].filter(
@@ -759,12 +1155,12 @@ export class IdentityTestStore {
         tokens = tokens.slice(0, args.include.refreshTokens.take)
       }
       return {
-        ...user,
+        ...userWithUniversity,
         refreshTokens: tokens,
       }
     }
 
-    return user
+    return userWithUniversity
   }
 
   private findUsers(args: FindManyUserArgs | undefined) {
@@ -937,7 +1333,15 @@ export class IdentityTestStore {
     }
     this.users.set(user.id, updated)
 
-    return updated
+    const university =
+      updated.universityId !== null
+        ? (this.universities.get(updated.universityId) ?? null)
+        : null
+
+    return {
+      ...updated,
+      university: university ? { status: university.status } : null,
+    } as unknown as User
   }
 
   private createUser(args: CreateUserArgs): User {
@@ -950,6 +1354,11 @@ export class IdentityTestStore {
       displayName: args.data.displayName,
       role: args.data.role,
       status: args.data.status,
+      universityId:
+        args.data.universityId ??
+        (args.data.role === 'SUPER_ADMIN'
+          ? null
+          : '00000000-0000-4000-8000-000000000000'),
       passwordHash: args.data.passwordHash,
       disabledAt: null,
       disabledById: null,
@@ -1002,16 +1411,24 @@ export class IdentityTestStore {
       return null
     }
 
-    if (args.include?.user === true) {
+    if (args.include?.user !== undefined) {
       const user = this.users.get(refreshToken.userId)
 
       if (!user) {
         throw new Error(`Missing token user ${refreshToken.userId}`)
       }
 
+      const university =
+        user.universityId !== null
+          ? (this.universities.get(user.universityId) ?? null)
+          : null
+
       return {
         ...refreshToken,
-        user,
+        user: {
+          ...user,
+          university: university ? { status: university.status } : null,
+        },
       }
     }
 
@@ -1246,7 +1663,31 @@ export class IdentityTestStore {
     const where = args?.where
     const course = [...this.courses.values()].find((c) => {
       if (where?.id !== undefined && c.id !== where.id) return false
-      if (where?.code !== undefined && c.code !== where.code) return false
+      if (
+        where?.universityId !== undefined &&
+        c.universityId !== where.universityId
+      ) {
+        return false
+      }
+      if (where?.code !== undefined) {
+        if (typeof where.code === 'string') {
+          if (c.code !== where.code) return false
+        } else {
+          if (where.code.mode === 'insensitive') {
+            if (
+              c.code.trim().toLowerCase() !==
+              where.code.equals?.trim().toLowerCase()
+            ) {
+              return false
+            }
+          } else if (
+            where.code.equals !== undefined &&
+            c.code !== where.code.equals
+          ) {
+            return false
+          }
+        }
+      }
       if (where?.archivedAt !== undefined) {
         if (where.archivedAt === null && c.archivedAt !== null) return false
         if (
@@ -1335,9 +1776,15 @@ export class IdentityTestStore {
   }
 
   private createCourse(args: CreateCourseArgs): StoredCourse {
+    const targetUni =
+      args.data.universityId ?? '00000000-0000-4000-8000-000000000000'
+    const normalizedCode = args.data.code.trim().toLowerCase()
     if (
       [...this.courses.values()].some(
-        (course) => course.code === args.data.code,
+        (course) =>
+          course.universityId === targetUni &&
+          course.archivedAt === null &&
+          course.code.trim().toLowerCase() === normalizedCode,
       )
     ) {
       const error = new Error('Unique constraint failed') as Error & {
@@ -1354,6 +1801,7 @@ export class IdentityTestStore {
       id: `00000000-0000-4000-8000-0000000007${sequence
         .toString()
         .padStart(2, '0')}`,
+      universityId: targetUni,
       code: args.data.code,
       title: args.data.title,
       createdById: args.data.createdById,
@@ -1376,10 +1824,32 @@ export class IdentityTestStore {
       throw new Error(`Missing course ${args.where.id}`)
     }
 
+    if (args.data.code !== undefined) {
+      const normalizedCode = args.data.code.trim().toLowerCase()
+      if (
+        [...this.courses.values()].some(
+          (c) =>
+            c.id !== course.id &&
+            c.universityId === course.universityId &&
+            c.archivedAt === null &&
+            c.code.trim().toLowerCase() === normalizedCode,
+        )
+      ) {
+        const error = new Error('Unique constraint failed') as Error & {
+          code?: string
+        }
+        error.code = 'P2002'
+        throw error
+      }
+    }
+
     const updated = {
       ...course,
       ...(args.data.code === undefined ? {} : { code: args.data.code }),
       ...(args.data.title === undefined ? {} : { title: args.data.title }),
+      ...(args.data.archivedAt === undefined
+        ? {}
+        : { archivedAt: args.data.archivedAt }),
       updatedAt: new Date('2026-07-06T12:00:00.000Z'),
     }
     this.courses.set(course.id, updated)
@@ -1624,6 +2094,11 @@ export class IdentityTestStore {
       materials = materials.filter((m) => m.deletedAt === null)
     }
 
+    const sha256Hash = args?.where?.sha256Hash
+    if (sha256Hash !== undefined) {
+      materials = materials.filter((m) => m.sha256Hash === sha256Hash)
+    }
+
     return materials[0] ?? null
   }
 
@@ -1654,8 +2129,19 @@ export class IdentityTestStore {
         (args.where.deletedAt === null
           ? material.deletedAt === null
           : material.deletedAt?.getTime() === args.where.deletedAt.getTime())
+      const matchesStatus =
+        args.where.status === undefined || material.status === args.where.status
+      const matchesProcessingAttempt =
+        args.where.processingAttemptId === undefined ||
+        material.processingAttemptId === args.where.processingAttemptId
 
-      return matchesId && matchesCourse && matchesDeletedAt
+      return (
+        matchesId &&
+        matchesCourse &&
+        matchesDeletedAt &&
+        matchesStatus &&
+        matchesProcessingAttempt
+      )
     })
 
     for (const material of matches) {
@@ -1713,6 +2199,7 @@ export class IdentityTestStore {
 
     const auditLog: AuditLog = {
       id: `00000000-0000-4000-8000-00000000040${sequence.toString()}`,
+      universityId: args.data.universityId ?? null,
       actorUserId: args.data.actorUserId ?? null,
       action: args.data.action,
       targetType: args.data.targetType,
@@ -1731,5 +2218,358 @@ export class IdentityTestStore {
 
   private findAuditLog(args: FindUniqueAuditLogArgs): AuditLog | null {
     return this.auditLogs.get(args.where.id) ?? null
+  }
+
+  private formatUniversityOutput(
+    uni: {
+      id: string
+      name: string
+      code: string
+      status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
+      ownerId: string | null
+      createdAt: Date
+      updatedAt: Date
+    },
+    select?: FindUniqueUniversityArgs['select'],
+  ) {
+    const owner =
+      uni.ownerId !== null ? (this.users.get(uni.ownerId) ?? null) : null
+    const courseCount = [...this.courses.values()].filter(
+      (c) => c.universityId === uni.id && c.archivedAt === null,
+    ).length
+
+    const result: Record<string, unknown> = {
+      id: uni.id,
+      name: uni.name,
+      code: uni.code,
+      status: uni.status,
+      ownerId: uni.ownerId,
+      createdAt: uni.createdAt,
+      updatedAt: uni.updatedAt,
+      owner:
+        owner !== null
+          ? {
+              id: owner.id,
+              displayName: owner.displayName,
+              email: owner.email,
+              status: owner.status,
+            }
+          : null,
+      _count: {
+        courses: courseCount,
+      },
+    }
+
+    if (select !== undefined) {
+      const filtered: Record<string, unknown> = {}
+      if (select.id === true) filtered.id = result.id
+      if (select.name === true) filtered.name = result.name
+      if (select.code === true) filtered.code = result.code
+      if (select.status === true) filtered.status = result.status
+      if (select.ownerId === true) filtered.ownerId = result.ownerId
+      if (select.createdAt === true) filtered.createdAt = result.createdAt
+      if (select.updatedAt === true) filtered.updatedAt = result.updatedAt
+      if (select.owner !== undefined && select.owner !== false)
+        filtered.owner = result.owner
+      if (select._count !== undefined && select._count !== false)
+        filtered._count = result._count
+      return filtered
+    }
+
+    return result
+  }
+
+  private findUniversity(args: FindUniqueUniversityArgs) {
+    let uni: {
+      id: string
+      name: string
+      code: string
+      status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
+      ownerId: string | null
+      createdAt: Date
+      updatedAt: Date
+    } | null = null
+
+    if (args.where.id !== undefined) {
+      uni = this.universities.get(args.where.id) ?? null
+    } else if (args.where.code !== undefined) {
+      const code = args.where.code
+      uni =
+        [...this.universities.values()].find(
+          (u) => u.code.toLowerCase() === code.toLowerCase(),
+        ) ?? null
+    } else if (args.where.ownerId !== undefined) {
+      uni =
+        [...this.universities.values()].find(
+          (u) => u.ownerId === args.where.ownerId,
+        ) ?? null
+    }
+
+    if (!uni) return null
+    return this.formatUniversityOutput(uni, args.select)
+  }
+
+  private findFirstUniversity(args: FindFirstUniversityArgs | undefined) {
+    if (!args) {
+      const first = this.universities.values().next().value
+      return first ? this.formatUniversityOutput(first) : null
+    }
+
+    const where = args.where
+    const notId = where?.NOT?.id
+
+    const match = [...this.universities.values()].find((u) => {
+      if (notId !== undefined && u.id === notId) return false
+      if (where?.id !== undefined && u.id !== where.id) return false
+      if (where?.ownerId !== undefined && u.ownerId !== where.ownerId)
+        return false
+      if (where?.code !== undefined) {
+        const expectedCode =
+          typeof where.code === 'string' ? where.code : where.code.equals
+        if (u.code.toLowerCase() !== expectedCode.toLowerCase()) return false
+      }
+      return true
+    })
+
+    if (!match) return null
+    return this.formatUniversityOutput(match, args.select)
+  }
+
+  private matchesUniversityWhere(
+    uni: {
+      id: string
+      name: string
+      code: string
+      status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
+      ownerId: string | null
+      createdAt: Date
+      updatedAt: Date
+    },
+    where?: FindManyUniversityArgs['where'],
+  ): boolean {
+    if (where === undefined) return true
+    if (where.id !== undefined) {
+      if (typeof where.id === 'string') {
+        if (uni.id !== where.id) return false
+      } else if (Array.isArray(where.id.in) && !where.id.in.includes(uni.id)) {
+        return false
+      }
+    }
+    if (where.status !== undefined && uni.status !== where.status) return false
+    if (where.OR !== undefined && where.OR.length > 0) {
+      const owner =
+        uni.ownerId !== null ? this.users.get(uni.ownerId) : undefined
+      const matched = where.OR.some((clause) => {
+        if (clause.name?.contains !== undefined) {
+          if (
+            uni.name.toLowerCase().includes(clause.name.contains.toLowerCase())
+          ) {
+            return true
+          }
+        }
+        if (clause.code?.contains !== undefined) {
+          if (
+            uni.code.toLowerCase().includes(clause.code.contains.toLowerCase())
+          ) {
+            return true
+          }
+        }
+        if (clause.owner?.displayName?.contains !== undefined) {
+          if (
+            owner?.displayName
+              .toLowerCase()
+              .includes(clause.owner.displayName.contains.toLowerCase()) ===
+            true
+          ) {
+            return true
+          }
+        }
+        if (clause.owner?.email?.contains !== undefined) {
+          if (
+            owner?.email
+              .toLowerCase()
+              .includes(clause.owner.email.contains.toLowerCase()) === true
+          ) {
+            return true
+          }
+        }
+        return false
+      })
+      if (!matched) return false
+    }
+    return true
+  }
+
+  private findManyUniversities(args?: FindManyUniversityArgs) {
+    let list = [...this.universities.values()].filter((u) =>
+      this.matchesUniversityWhere(u, args?.where),
+    )
+
+    if (args?.orderBy && args.orderBy.length > 0) {
+      const order = args.orderBy[0]
+      const key = Object.keys(order)[0] as
+        | 'createdAt'
+        | 'updatedAt'
+        | 'name'
+        | 'code'
+        | 'status'
+        | 'studentsCount'
+        | 'id'
+      const dir = order[key] === 'asc' ? 1 : -1
+      list.sort((a, b) => {
+        if (key === 'studentsCount') {
+          const countA = [...this.users.values()].filter(
+            (usr) => usr.universityId === a.id && usr.role === 'STUDENT',
+          ).length
+          const countB = [...this.users.values()].filter(
+            (usr) => usr.universityId === b.id && usr.role === 'STUDENT',
+          ).length
+          if (countA < countB) return -1 * dir
+          if (countA > countB) return 1 * dir
+          return 0
+        }
+        const valA = a[key]
+        const valB = b[key]
+        if (valA < valB) return -1 * dir
+        if (valA > valB) return 1 * dir
+        return 0
+      })
+    }
+
+    if (args?.skip !== undefined) {
+      list = list.slice(args.skip)
+    }
+    if (args?.take !== undefined) {
+      list = list.slice(0, args.take)
+    }
+
+    return list.map((u) => this.formatUniversityOutput(u, args?.select))
+  }
+
+  private countUniversities(args?: CountUniversityArgs) {
+    const list = [...this.universities.values()].filter((u) =>
+      this.matchesUniversityWhere(u, args?.where),
+    )
+    return list.length
+  }
+
+  private createUniversity(args: CreateUniversityArgs) {
+    const code = args.data.code.toUpperCase()
+    if (
+      [...this.universities.values()].some((u) => u.code.toUpperCase() === code)
+    ) {
+      const error = new Error('Unique constraint failed') as Error & {
+        code?: string
+        meta?: { target?: string[] }
+      }
+      error.code = 'P2002'
+      error.meta = { target: ['code'] }
+      throw error
+    }
+
+    const sequence = this.nextUniversitySequence
+    this.nextUniversitySequence += 1
+    const id = `00000000-0000-4000-8000-0000000009${sequence
+      .toString()
+      .padStart(2, '0')}`
+    const now = new Date('2026-07-06T12:00:00.000Z')
+
+    const uni = {
+      id,
+      name: args.data.name,
+      code,
+      status: args.data.status ?? ('ACTIVE' as const),
+      ownerId: args.data.ownerId ?? null,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    this.universities.set(id, uni)
+    return this.formatUniversityOutput(uni, args.select)
+  }
+
+  private updateUniversity(args: UpdateUniversityArgs) {
+    const current = this.universities.get(args.where.id)
+    if (!current) {
+      throw new Error(`Missing university ${args.where.id}`)
+    }
+
+    if (args.data.code !== undefined) {
+      const code = args.data.code.toUpperCase()
+      const duplicate = [...this.universities.values()].find(
+        (u) => u.id !== current.id && u.code.toUpperCase() === code,
+      )
+      if (duplicate) {
+        const error = new Error('Unique constraint failed') as Error & {
+          code?: string
+          meta?: { target?: string[] }
+        }
+        error.code = 'P2002'
+        error.meta = { target: ['code'] }
+        throw error
+      }
+    }
+
+    const updated = {
+      ...current,
+      ...(args.data.name !== undefined ? { name: args.data.name } : {}),
+      ...(args.data.code !== undefined
+        ? { code: args.data.code.toUpperCase() }
+        : {}),
+      ...(args.data.status !== undefined ? { status: args.data.status } : {}),
+      ...(args.data.ownerId !== undefined
+        ? { ownerId: args.data.ownerId }
+        : {}),
+      updatedAt: new Date('2026-07-06T12:00:00.000Z'),
+    }
+
+    this.universities.set(current.id, updated)
+    return this.formatUniversityOutput(updated, args.select)
+  }
+
+  private groupByUsers(args: GroupByUserArgs) {
+    let filteredUsers = [...this.users.values()]
+
+    if (args.where?.universityId !== undefined) {
+      if (typeof args.where.universityId === 'string') {
+        const uid = args.where.universityId
+        filteredUsers = filteredUsers.filter((u) => u.universityId === uid)
+      } else {
+        const uids = new Set(args.where.universityId.in)
+        filteredUsers = filteredUsers.filter(
+          (u) => u.universityId !== null && uids.has(u.universityId),
+        )
+      }
+    }
+
+    if (args.where?.role?.in !== undefined) {
+      const roles = new Set(args.where.role.in)
+      filteredUsers = filteredUsers.filter((u) => roles.has(u.role))
+    }
+
+    const groups = new Map<
+      string,
+      { universityId: string | null; role: string; count: number }
+    >()
+
+    for (const u of filteredUsers) {
+      const key = `${u.universityId ?? 'null'}:${u.role}`
+      const existing = groups.get(key)
+      if (existing) {
+        existing.count += 1
+      } else {
+        groups.set(key, {
+          universityId: u.universityId,
+          role: u.role,
+          count: 1,
+        })
+      }
+    }
+
+    return [...groups.values()].map((g) => ({
+      universityId: g.universityId,
+      role: g.role,
+      _count: { _all: g.count },
+    }))
   }
 }

@@ -73,14 +73,13 @@ export function StudentCourseProvider({ children }: { children: ReactNode }) {
   )
 }
 
+const defaultCourseContextValue: StudentCourseContextValue = {
+  courses: [],
+  activeCourse: null,
+  unavailableCourseId: null,
+}
+
 export function useStudentCourseContext() {
   const context = useContext(StudentCourseContext)
-
-  if (!context) {
-    throw new Error(
-      'useStudentCourseContext must be used within StudentCourseProvider',
-    )
-  }
-
-  return context
+  return context ?? defaultCourseContextValue
 }

@@ -41,8 +41,11 @@ class InMemoryMaterialsRepository extends MaterialsRepository {
 
   // Stubs for abstract methods not exercised here
   createProcessingMaterial = jest.fn()
+  hasActiveMaterialWithHash = jest.fn()
   findCourseMaterial = jest.fn()
   findCourseMaterialStatus = jest.fn()
+  restartFailedMaterialProcessing = jest.fn()
+  failMaterialProcessingScheduling = jest.fn()
   claimMaterialProcessing = jest.fn()
   completeMaterialProcessing = jest.fn()
   failMaterialProcessing = jest.fn()

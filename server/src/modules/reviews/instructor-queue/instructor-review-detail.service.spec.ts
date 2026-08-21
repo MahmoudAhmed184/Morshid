@@ -15,6 +15,7 @@ describe('InstructorReviewDetailService', () => {
     displayName: 'Instructor',
     role: UserRole.INSTRUCTOR,
     status: UserStatus.ACTIVE,
+    universityId: 'univ-1',
   }
   const findCourseId = jest.fn()
   const findAuthorized = jest.fn()
