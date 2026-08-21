@@ -65,14 +65,16 @@ export function parseUserImport(
   })
 }
 
-export function downloadUserImportTemplate() {
+export function downloadUserImportTemplate(
+  role: CreateManagedUserInput['role'],
+) {
   const blob = new Blob([userImportTemplate], {
     type: 'text/csv;charset=utf-8',
   })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = 'morshid-user-import-template.csv'
+  link.download = `morshid-${role.toLowerCase()}-import-template.csv`
   link.click()
   URL.revokeObjectURL(url)
 }

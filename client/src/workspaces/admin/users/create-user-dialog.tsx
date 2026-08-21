@@ -84,7 +84,7 @@ export function CreateUserDialog({
         <UserPlusIcon />
         Create {userLabel}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <span className="mb-1 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <UserPlusIcon className="size-5" aria-hidden />
@@ -102,6 +102,7 @@ export function CreateUserDialog({
         <UserForm
           serverErrors={fieldErrors}
           lockedRole={role}
+          createLabel={userLabel}
           onSubmit={handleSubmit}
           onCancel={() => handleOpenChange(false)}
         />

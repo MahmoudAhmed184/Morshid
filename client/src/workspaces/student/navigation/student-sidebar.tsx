@@ -3,6 +3,7 @@ import { Plus, Search } from 'lucide-react'
 import { AuthenticatedSidebar } from '@/workspaces/_shared/authenticated-sidebar/authenticated-sidebar'
 import { Button } from '@/components/ui/button'
 import { useStudentChromeActions } from '@/workspaces/student/navigation/student-chrome-context'
+import { useStudentCourseContext } from '@/workspaces/student/navigation/student-course-context'
 import {
   StudentSidebarContent,
   useStudentNewChat,
@@ -11,6 +12,11 @@ import {
 function StudentCollapsedActions() {
   const { openSearchPalette } = useStudentChromeActions()
   const openNewChat = useStudentNewChat()
+  const { courses: assignedCourses } = useStudentCourseContext()
+
+  if (assignedCourses.length === 0) {
+    return null
+  }
 
   return (
     <>

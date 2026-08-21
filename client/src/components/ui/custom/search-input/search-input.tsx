@@ -35,12 +35,17 @@ export function SearchInput({
   }
 
   return (
-    <div className={cn('relative w-full sm:max-w-xs', className)}>
-      <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+    <div
+      className={cn(
+        'relative flex items-center w-full sm:max-w-xs self-start',
+        className,
+      )}
+    >
+      <SearchIcon className="pointer-events-none absolute left-2.5 size-4 text-muted-foreground z-10" />
       <Input
         value={value}
         placeholder={placeholder}
-        className="pr-8 pl-8"
+        className="pr-8 pl-8 h-9 text-xs"
         onChange={(event) => onValueChange(event.target.value)}
         {...props}
       />
@@ -49,11 +54,11 @@ export function SearchInput({
           type="button"
           variant="ghost"
           size="icon-xs"
-          className="absolute top-1/2 right-1 -translate-y-1/2"
+          className="absolute right-1 text-muted-foreground hover:text-foreground"
           onClick={clearSearch}
           aria-label="Clear search"
         >
-          <XIcon />
+          <XIcon className="size-3.5" />
         </Button>
       ) : null}
     </div>

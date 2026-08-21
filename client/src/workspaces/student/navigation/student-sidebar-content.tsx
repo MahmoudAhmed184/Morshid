@@ -286,35 +286,41 @@ export function StudentSidebarContent({
           courses={assignedCourses}
           selectedCourse={selectedCourse}
         />
-        <Button
-          ref={newChatButtonRef}
-          type="button"
-          className="w-full justify-center rounded-lg"
-          onClick={() => void handleNewChat()}
-        >
-          <Plus aria-hidden />
-          New chat
-        </Button>
+        {assignedCourses.length > 0 ? (
+          <>
+            <Button
+              ref={newChatButtonRef}
+              type="button"
+              className="w-full justify-center rounded-lg"
+              onClick={() => void handleNewChat()}
+            >
+              <Plus aria-hidden />
+              New chat
+            </Button>
 
-        <div className="relative px-1">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            strokeWidth={1.75}
-            aria-hidden
-          />
-          <Input
-            type="search"
-            role="searchbox"
-            aria-label="Search your chats"
-            placeholder="Search your chats..."
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="h-8 border-0 bg-transparent px-0 pl-9 shadow-none focus-visible:ring-0"
-          />
-        </div>
+            <div className="relative px-1">
+              <Search
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+              <Input
+                type="search"
+                role="searchbox"
+                aria-label="Search your chats"
+                placeholder="Search your chats..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="h-8 border-0 bg-transparent px-0 pl-9 shadow-none focus-visible:ring-0"
+              />
+            </div>
+          </>
+        ) : null}
       </div>
 
-      <div className="rule mx-3" aria-hidden />
+      {assignedCourses.length > 0 ? (
+        <div className="rule mx-3" aria-hidden />
+      ) : null}
 
       <div
         role="region"
@@ -376,7 +382,10 @@ export function StudentSidebarContent({
           </nav>
         ) : null}
 
-        {!isPending && !isError && groups.length === 0 ? (
+        {!isPending &&
+        !isError &&
+        groups.length === 0 &&
+        assignedCourses.length > 0 ? (
           <p className="footnote px-3 py-6 text-center">
             {selectedCourse
               ? normalizedQuery.length > 0

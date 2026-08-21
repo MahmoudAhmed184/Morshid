@@ -56,7 +56,7 @@ describe('BulkUserImportDialog', () => {
     ).toBeDisabled()
   })
 
-  it('handles CSV upload and resolves identifiers from CSV', async () => {
+  it('handles CSV upload and resolves email addresses from CSV', async () => {
     const user = userEvent.setup()
     const onApply = vi.fn()
     const onOpenChange = vi.fn()
@@ -104,14 +104,12 @@ describe('BulkUserImportDialog', () => {
     })
     fireEvent.change(fileInput, { target: { files: [file] } })
 
-    expect(await screen.findByText(/1 identifier parsed/i)).toBeInTheDocument()
-
-    // Resolve
-    await user.click(screen.getByRole('button', { name: /resolve students/i }))
-
-    // Preview
+    // CSV uploads resolve immediately and show the preview.
     expect(await screen.findByText('Student One')).toBeInTheDocument()
     expect(screen.getByText('Valid active students')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /resolve students/i }),
+    ).not.toBeInTheDocument()
 
     // Apply
     await user.click(
@@ -122,6 +120,44 @@ describe('BulkUserImportDialog', () => {
       expect.objectContaining({ id: '10000000-0000-4000-8000-000000000001' }),
     ])
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('shows malformed pasted identifiers as unmatched', async () => {
+    const user = userEvent.setup()
+    vi.mocked(resolveCourseMembers).mockResolvedValue({
+      resolved: [],
+      unmatched: [],
+      duplicates: [],
+    })
+
+    render(
+      <BulkUserImportDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        role="STUDENT"
+        selectedCourseIds={new Set([course.id])}
+        courses={[course]}
+        maxUserSelections={500}
+        currentSelectedCount={0}
+        onApply={vi.fn()}
+      />,
+    )
+
+    const invalidEmail = 'student-at-morshid.demo'
+    fireEvent.change(screen.getByPlaceholderText(/student1@morshid.demo/i), {
+      target: { value: invalidEmail },
+    })
+    await user.click(screen.getByRole('button', { name: /resolve students/i }))
+
+    expect(
+      await screen.findByText(/unmatched identifiers \(1\)/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText(invalidEmail)).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: `Remove ${invalidEmail}` }),
+    )
+    expect(screen.queryByText(invalidEmail)).not.toBeInTheDocument()
   })
 
   it('displays warning when matched users exceed selection limit', async () => {

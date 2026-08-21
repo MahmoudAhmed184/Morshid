@@ -105,21 +105,25 @@ export function ConfirmDialog({
   return (
     <AlertDialog open={isOpen} onOpenChange={setOpen}>
       {trigger ? <AlertDialogTrigger render={trigger} /> : null}
-      <AlertDialogContent className="max-w-[calc(100%-2rem)] rounded-2xl p-6 shadow-2xl sm:max-w-[460px] sm:p-7">
-        <AlertDialogHeader className="min-w-0 max-w-full gap-3 text-left">
+      <AlertDialogContent className="max-w-[calc(100%-2rem)] gap-5 rounded-2xl p-5 shadow-2xl sm:max-w-[420px] sm:p-6">
+        <AlertDialogHeader className="min-w-0 max-w-full gap-2 text-left">
           <div className="flex min-w-0 max-w-full items-start gap-3">
-            <TriangleAlertIcon
+            <span
               className={cn(
-                'size-6 shrink-0 stroke-[2] mt-0.5',
-                destructive ? 'text-[#c52222]' : 'text-primary',
+                'flex size-9 shrink-0 items-center justify-center rounded-full',
+                destructive
+                  ? 'bg-destructive/10 text-destructive'
+                  : 'bg-primary/10 text-primary',
               )}
-            />
-            <AlertDialogTitle className="min-w-0 text-xl font-bold tracking-tight text-foreground break-words [overflow-wrap:anywhere]">
+            >
+              <TriangleAlertIcon className="size-5 stroke-[2.25]" />
+            </span>
+            <AlertDialogTitle className="min-w-0 pt-1 text-lg font-semibold tracking-tight text-foreground break-words [overflow-wrap:anywhere]">
               {title}
             </AlertDialogTitle>
           </div>
           {description ? (
-            <AlertDialogDescription className="text-[0.95rem] leading-relaxed text-muted-foreground break-words [overflow-wrap:anywhere]">
+            <AlertDialogDescription className="text-sm leading-6 text-muted-foreground break-words [overflow-wrap:anywhere]">
               {description}
             </AlertDialogDescription>
           ) : null}
@@ -149,12 +153,10 @@ export function ConfirmDialog({
           </p>
         ) : null}
 
-        <div className="my-5 border-t border-border/70" />
-
-        <AlertDialogFooter className="flex flex-row flex-wrap items-center justify-end gap-3 pt-0">
+        <AlertDialogFooter className="flex flex-row flex-wrap items-center justify-end gap-2 pt-1">
           <AlertDialogCancel
             disabled={isConfirming}
-            className="h-10 rounded-xl border border-input bg-background px-5 text-sm font-medium text-foreground shadow-2xs hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/30"
+            className="h-9 rounded-lg border border-input bg-background px-4 text-sm font-medium text-foreground shadow-2xs hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/30"
           >
             {cancelLabel}
           </AlertDialogCancel>
@@ -162,7 +164,7 @@ export function ConfirmDialog({
             variant={destructive ? 'destructive' : 'default'}
             disabled={confirmIsDisabled}
             className={cn(
-              'h-10 rounded-xl px-5 text-sm font-medium shadow-2xs',
+              'h-9 rounded-lg px-4 text-sm font-medium shadow-2xs',
               destructive &&
                 'bg-[#c52222] text-white hover:bg-[#a81c1c] focus-visible:ring-destructive/30',
             )}

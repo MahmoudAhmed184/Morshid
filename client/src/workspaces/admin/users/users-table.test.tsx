@@ -25,10 +25,9 @@ const student: ManagedUser = {
 describe('UsersTable selection', () => {
   afterEach(cleanup)
 
-  it('supports selecting a row and all loaded rows', async () => {
+  it('supports selecting an individual row without a select-all control', async () => {
     const user = userEvent.setup()
     const onSelectionChange = vi.fn()
-    const onSelectAllChange = vi.fn()
 
     render(
       <UsersTable
@@ -37,7 +36,6 @@ describe('UsersTable selection', () => {
         isResettingPassword={false}
         isUpdatingStatus={false}
         onSelectionChange={onSelectionChange}
-        onSelectAllChange={onSelectAllChange}
         onResetPassword={vi.fn()}
         onStatusChange={vi.fn()}
       />,
@@ -46,9 +44,10 @@ describe('UsersTable selection', () => {
     await user.click(
       screen.getAllByRole('checkbox', { name: 'Select Demo Student' })[0],
     )
-    await user.click(screen.getByRole('checkbox', { name: 'Select all users' }))
 
     expect(onSelectionChange).toHaveBeenCalledWith(student.id, true)
-    expect(onSelectAllChange.mock.calls[0]?.[0]).toBe(true)
+    expect(
+      screen.queryByRole('checkbox', { name: 'Select all users' }),
+    ).not.toBeInTheDocument()
   })
 })

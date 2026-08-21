@@ -40,10 +40,12 @@ export const courseAdministrationSchema = z.object({
 
 export const courseAdministrationListResponseSchema = z.object({
   courses: z.array(courseAdministrationSchema),
+  totalCount: z.number().int().nonnegative().optional(),
   nextCursor: z.uuid().optional(),
 })
 export const courseMembersResponseSchema = z.object({
   members: z.array(courseMemberSchema),
+  totalCount: z.number().int().nonnegative().optional(),
   nextCursor: z.uuid().optional(),
 })
 export const courseMemberResponseSchema = z.object({

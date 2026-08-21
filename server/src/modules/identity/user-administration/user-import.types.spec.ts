@@ -23,7 +23,7 @@ describe('user import row update schema', () => {
       expect(result.error.issues).toContainEqual(
         expect.objectContaining({
           path: ['password'],
-          message: 'Password must be at least 15 characters',
+          message: 'Password must be at least 9 characters',
         }),
       )
     }

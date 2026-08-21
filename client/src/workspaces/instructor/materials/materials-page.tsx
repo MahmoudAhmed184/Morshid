@@ -105,8 +105,8 @@ export function MaterialsPage() {
       ) : null}
 
       <Card aria-busy={isLoading || undefined}>
-        <CardHeader className="border-b">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <CardHeader className="gap-4 border-b">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex shrink-0 items-center gap-2 text-sm">
               <FileTextIcon
                 className="size-4 text-muted-foreground"
@@ -114,82 +114,82 @@ export function MaterialsPage() {
               />
               Material repository
             </CardTitle>
-            <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:items-center lg:w-auto">
-              <SearchInput
-                value={search}
-                onValueChange={setSearch}
-                placeholder="Search by title or file..."
-                aria-label="Search materials"
-                className="w-full sm:w-48 lg:w-56"
-              />
-              <Select
-                value={statusFilter}
-                onValueChange={(value) => {
-                  if (value) {
-                    setStatusFilter(value)
+            {courses.length > 0 && uploadConfigurationQuery.data ? (
+              <MaterialUploadDialog
+                courses={courses}
+                defaultCourseId={activeCourseId}
+                configuration={uploadConfigurationQuery.data}
+                onUploadSuccess={(uploadedCourseId) => {
+                  if (uploadedCourseId !== activeCourseId) {
+                    setSelectedCourseId(uploadedCourseId)
+                    setActiveCourseId(uploadedCourseId)
                   }
+                }}
+              />
+            ) : courses.length > 0 ? (
+              <Button disabled className="w-full shrink-0 sm:w-auto">
+                {uploadConfigurationQuery.isError
+                  ? 'Upload unavailable'
+                  : 'Loading upload limits...'}
+              </Button>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+            <SearchInput
+              value={search}
+              onValueChange={setSearch}
+              placeholder="Search by title or file..."
+              aria-label="Search materials"
+              className="w-full sm:w-64"
+            />
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                if (value) {
+                  setStatusFilter(value)
+                }
+              }}
+            >
+              <SelectTrigger
+                className="w-full shrink-0 sm:w-36"
+                aria-label="Filter materials by status"
+              >
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="ALL">All statuses</SelectItem>
+                <SelectItem value="READY">Ready</SelectItem>
+                <SelectItem value="PROCESSING">Processing</SelectItem>
+                <SelectItem value="WARNING">Warning</SelectItem>
+                <SelectItem value="FAILED">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+            {courses.length > 0 ? (
+              <Select
+                value={activeCourseId}
+                items={courseSelectItems}
+                onValueChange={(value) => {
+                  setSelectedCourseId(value ?? undefined)
+                  setActiveCourseId(value ?? null)
+                  setSearch('')
+                  setStatusFilter('ALL')
                 }}
               >
                 <SelectTrigger
-                  className="w-full shrink-0 sm:w-32 lg:w-36"
-                  aria-label="Filter materials by status"
+                  className="w-full shrink-0 sm:w-64"
+                  aria-label="Select assigned course"
                 >
-                  <SelectValue placeholder="All statuses" />
+                  <SelectValue placeholder="Select a course" />
                 </SelectTrigger>
                 <SelectContent align="end">
-                  <SelectItem value="ALL">All statuses</SelectItem>
-                  <SelectItem value="READY">Ready</SelectItem>
-                  <SelectItem value="PROCESSING">Processing</SelectItem>
-                  <SelectItem value="WARNING">Warning</SelectItem>
-                  <SelectItem value="FAILED">Failed</SelectItem>
+                  {courseSelectItems.map((course) => (
+                    <SelectItem key={course.value} value={course.value}>
+                      {course.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              {courses.length > 0 ? (
-                <Select
-                  value={activeCourseId}
-                  items={courseSelectItems}
-                  onValueChange={(value) => {
-                    setSelectedCourseId(value ?? undefined)
-                    setActiveCourseId(value ?? null)
-                    setSearch('')
-                    setStatusFilter('ALL')
-                  }}
-                >
-                  <SelectTrigger
-                    className="w-full shrink-0 sm:w-56 lg:w-64"
-                    aria-label="Select assigned course"
-                  >
-                    <SelectValue placeholder="Select a course" />
-                  </SelectTrigger>
-                  <SelectContent align="end">
-                    {courseSelectItems.map((course) => (
-                      <SelectItem key={course.value} value={course.value}>
-                        {course.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : null}
-              {courses.length > 0 && uploadConfigurationQuery.data ? (
-                <MaterialUploadDialog
-                  courses={courses}
-                  defaultCourseId={activeCourseId}
-                  configuration={uploadConfigurationQuery.data}
-                  onUploadSuccess={(uploadedCourseId) => {
-                    if (uploadedCourseId !== activeCourseId) {
-                      setSelectedCourseId(uploadedCourseId)
-                      setActiveCourseId(uploadedCourseId)
-                    }
-                  }}
-                />
-              ) : courses.length > 0 ? (
-                <Button disabled className="w-full shrink-0 sm:w-auto">
-                  {uploadConfigurationQuery.isError
-                    ? 'Upload unavailable'
-                    : 'Loading upload limits...'}
-                </Button>
-              ) : null}
-            </div>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent>

@@ -22,4 +22,3 @@ model AuditLog {
   @@index([actorUserId, createdAt], map: "idx_audit_actor_created")
   @@map("audit_logs")
 }
-

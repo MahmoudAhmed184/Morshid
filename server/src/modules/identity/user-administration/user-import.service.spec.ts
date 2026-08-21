@@ -215,7 +215,7 @@ describe(UserImportService.name, () => {
     })
 
     expect(repository.updateRows.mock.calls[0][1][0].errors).toContain(
-      'Password: Password must be at least 15 characters',
+      'Password: Password must be at least 9 characters',
     )
     expect(repository.updateRows.mock.calls[0][1][0].errors).not.toContain(
       'Password: Enter a password that meets the password policy',

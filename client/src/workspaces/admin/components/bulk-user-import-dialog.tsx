@@ -7,6 +7,7 @@ import {
   Loader2Icon,
   UploadIcon,
   UsersIcon,
+  XIcon,
 } from 'lucide-react'
 import { useId, useRef, useState } from 'react'
 
@@ -33,8 +34,8 @@ import type {
 
 import {
   downloadBulkAssignmentTemplate,
-  parseCsvIdentifiers,
-  parsePastedIdentifiers,
+  parseCsvEmails,
+  parsePastedEmails,
 } from './bulk-assignment-parser'
 
 type BulkUserImportDialogProps = {
@@ -61,7 +62,7 @@ export function BulkUserImportDialog({
   const [activeTab, setActiveTab] = useState<'paste' | 'csv'>('paste')
   const [pastedText, setPastedText] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [parsedCsvIdentifiers, setParsedCsvIdentifiers] = useState<string[]>([])
+  const [parsedCsvEmails, setParsedCsvEmails] = useState<string[]>([])
   const [csvErrors, setCsvErrors] = useState<string[]>([])
   const [isResolving, setIsResolving] = useState(false)
   const [resolveError, setResolveError] = useState<string | null>(null)
@@ -77,7 +78,7 @@ export function BulkUserImportDialog({
   const resetState = () => {
     setPastedText('')
     setSelectedFile(null)
-    setParsedCsvIdentifiers([])
+    setParsedCsvEmails([])
     setCsvErrors([])
     setIsResolving(false)
     setResolveError(null)
@@ -98,30 +99,38 @@ export function BulkUserImportDialog({
 
     setSelectedFile(file)
     setResolveError(null)
-    const result = await parseCsvIdentifiers(file)
-    setParsedCsvIdentifiers(result.identifiers)
+    const result = await parseCsvEmails(file)
+    setParsedCsvEmails(result.emails)
     setCsvErrors(result.errors)
+    if (result.emails.length > 0) {
+      await resolveEmails(result.emails)
+    }
   }
 
-  const handleResolve = async () => {
-    const identifiers =
-      activeTab === 'paste'
-        ? parsePastedIdentifiers(pastedText)
-        : parsedCsvIdentifiers
+  async function resolveEmails(
+    emails: string[],
+    invalidIdentifiers: string[] = [],
+  ) {
+    const identifierCount = emails.length + invalidIdentifiers.length
 
-    if (identifiers.length === 0) {
+    if (identifierCount === 0) {
+      setResolveError('Please enter at least one email address.')
+      return
+    }
+
+    if (identifierCount > 1_000) {
       setResolveError(
-        activeTab === 'paste'
-          ? 'Please enter at least one identifier.'
-          : 'Please select a CSV file containing identifiers.',
+        'A single bulk assignment can resolve at most 1,000 email addresses.',
       )
       return
     }
 
-    if (identifiers.length > 1_000) {
-      setResolveError(
-        'A single bulk assignment can resolve at most 1,000 identifiers.',
-      )
+    if (emails.length === 0) {
+      setResolution({
+        resolved: [],
+        unmatched: invalidIdentifiers,
+        duplicates: [],
+      })
       return
     }
 
@@ -129,11 +138,14 @@ export function BulkUserImportDialog({
       setIsResolving(true)
       setResolveError(null)
       const result = await resolveCourseMembers({
-        identifiers,
+        identifiers: emails,
         role,
         courseIds: [...selectedCourseIds],
       })
-      setResolution(result)
+      setResolution({
+        ...result,
+        unmatched: [...result.unmatched, ...invalidIdentifiers],
+      })
     } catch (error) {
       setResolveError(
         error instanceof Error
@@ -145,18 +157,46 @@ export function BulkUserImportDialog({
     }
   }
 
+  const handleResolve = () => {
+    const emails = parsePastedEmails(pastedText)
+    const emailSet = new Set(emails)
+    const invalidIdentifiers = pastedText
+      .split(/[\r\n,;\t]+/)
+      .map((identifier) => identifier.trim())
+      .filter((identifier) => identifier && !emailSet.has(identifier))
+    void resolveEmails(emails, invalidIdentifiers)
+  }
+
   const handleApply = () => {
-    if (!resolution || resolution.resolved.length === 0) return
-    onApply(resolution.resolved)
+    const availableUsers =
+      resolution?.resolved.filter(
+        (user) => user.alreadyAssignedCourseIds.length === 0,
+      ) ?? []
+    if (availableUsers.length === 0) return
+    onApply(availableUsers)
     handleOpenChange(false)
+  }
+
+  const removeIdentifier = (identifier: string) => {
+    setResolution((current) => {
+      if (!current) return current
+      return {
+        resolved: current.resolved.filter((user) => user.email !== identifier),
+        unmatched: current.unmatched.filter((value) => value !== identifier),
+        duplicates: current.duplicates.filter((value) => value !== identifier),
+      }
+    })
   }
 
   const courseNamesById = new Map(courses.map((c) => [c.id, c.code]))
   const alreadyAssignedCount =
     resolution?.resolved.filter((u) => u.alreadyAssignedCourseIds.length > 0)
       .length ?? 0
-  const wouldExceedLimit =
-    (resolution?.resolved.length ?? 0) > maxUserSelections
+  const availableUsers =
+    resolution?.resolved.filter(
+      (user) => user.alreadyAssignedCourseIds.length === 0,
+    ) ?? []
+  const wouldExceedLimit = availableUsers.length > maxUserSelections
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -164,8 +204,8 @@ export function BulkUserImportDialog({
         <DialogHeader className="shrink-0 pr-10">
           <DialogTitle>Bulk select and import {userLabel}</DialogTitle>
           <DialogDescription>
-            Import {userLabel} by email or ID via pasted text or CSV file.
-            Identifiers will be verified before selection.
+            Import {userLabel} by email via pasted text or CSV file. Email
+            addresses will be verified before selection.
           </DialogDescription>
         </DialogHeader>
 
@@ -188,7 +228,7 @@ export function BulkUserImportDialog({
             >
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="paste" className="gap-2">
-                  <CopyIcon className="size-4" /> Paste identifiers
+                  <CopyIcon className="size-4" /> Paste email addresses
                 </TabsTrigger>
                 <TabsTrigger value="csv" className="gap-2">
                   <FileSpreadsheetIcon className="size-4" /> Upload CSV
@@ -203,8 +243,7 @@ export function BulkUserImportDialog({
                   htmlFor={pasteTextareaId}
                   className="text-xs text-muted-foreground"
                 >
-                  Enter email addresses or UUIDs separated by newlines, commas,
-                  or tabs:
+                  Enter email addresses separated by newlines, commas, or tabs:
                 </label>
                 <Textarea
                   id={pasteTextareaId}
@@ -213,7 +252,7 @@ export function BulkUserImportDialog({
                     setPastedText(e.target.value)
                     setResolveError(null)
                   }}
-                  placeholder={`${singularUserLabel}1@morshid.demo\n${singularUserLabel}2@morshid.demo\n10000000-0000-4000-8000-000000000001`}
+                  placeholder={`${singularUserLabel}1@morshid.demo\n${singularUserLabel}2@morshid.demo`}
                   className="min-h-[220px] flex-1 resize-none font-mono text-xs"
                 />
                 <p className="text-xs text-muted-foreground">
@@ -244,8 +283,7 @@ export function BulkUserImportDialog({
                   <UploadIcon className="mb-2 size-8 text-muted-foreground" />
                   <p className="text-sm font-medium">Select a CSV file</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    File must contain an &ldquo;email&rdquo;, &ldquo;id&rdquo;,
-                    or &ldquo;identifier&rdquo; column.
+                    File must contain an &ldquo;email&rdquo; column.
                   </p>
                   <label
                     htmlFor={csvFileInputId}
@@ -264,8 +302,8 @@ export function BulkUserImportDialog({
                   {selectedFile ? (
                     <div className="mt-3 text-xs text-foreground">
                       Selected: <strong>{selectedFile.name}</strong> (
-                      {parsedCsvIdentifiers.length} identifier
-                      {parsedCsvIdentifiers.length === 1 ? '' : 's'} parsed)
+                      {parsedCsvEmails.length} email address
+                      {parsedCsvEmails.length === 1 ? '' : 'es'} parsed)
                     </div>
                   ) : null}
                 </div>
@@ -308,7 +346,7 @@ export function BulkUserImportDialog({
                   {alreadyAssignedCount}
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                  Skipped on assign
+                  Not added to selection
                 </div>
               </div>
 
@@ -337,7 +375,7 @@ export function BulkUserImportDialog({
               <Alert variant="destructive">
                 <AlertCircleIcon className="size-4" />
                 <AlertDescription>
-                  The matched list contains {resolution.resolved.length} users,
+                  The available list contains {availableUsers.length} users,
                   which exceeds the selection limit of {maxUserSelections} for
                   the chosen courses. Please reduce the number of users or
                   courses.
@@ -391,6 +429,14 @@ export function BulkUserImportDialog({
                               Ready
                             </Badge>
                           )}
+                          <button
+                            type="button"
+                            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                            aria-label={`Remove ${user.email}`}
+                            onClick={() => removeIdentifier(user.email)}
+                          >
+                            <XIcon className="size-3.5" />
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -403,18 +449,25 @@ export function BulkUserImportDialog({
                       Unmatched Identifiers ({resolution.unmatched.length})
                     </h4>
                     <p className="mb-2 text-[11px] text-muted-foreground">
-                      These identifiers did not match any active{' '}
+                      These email addresses did not match any active{' '}
                       {singularUserLabel} in Morshid.
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {resolution.unmatched.map((ident, i) => (
-                        <Badge
+                        <span
                           key={i}
-                          variant="secondary"
-                          className="font-mono text-[11px] text-destructive"
+                          className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-1 font-mono text-[11px] text-destructive"
                         >
                           {ident}
-                        </Badge>
+                          <button
+                            type="button"
+                            className="rounded text-destructive/70 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                            aria-label={`Remove ${ident}`}
+                            onClick={() => removeIdentifier(ident)}
+                          >
+                            <XIcon className="size-3" />
+                          </button>
+                        </span>
                       ))}
                     </div>
                   </div>
@@ -427,13 +480,20 @@ export function BulkUserImportDialog({
                     </h4>
                     <div className="flex flex-wrap gap-1">
                       {resolution.duplicates.map((ident, i) => (
-                        <Badge
+                        <span
                           key={i}
-                          variant="secondary"
-                          className="font-mono text-[11px] text-muted-foreground"
+                          className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-1 font-mono text-[11px] text-muted-foreground"
                         >
                           {ident}
-                        </Badge>
+                          <button
+                            type="button"
+                            className="rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                            aria-label={`Remove ${ident}`}
+                            onClick={() => removeIdentifier(ident)}
+                          >
+                            <XIcon className="size-3" />
+                          </button>
+                        </span>
                       ))}
                     </div>
                   </div>
@@ -453,23 +513,20 @@ export function BulkUserImportDialog({
               >
                 Cancel
               </Button>
-              <Button
-                type="button"
-                disabled={
-                  isResolving ||
-                  (activeTab === 'paste'
-                    ? !pastedText.trim()
-                    : parsedCsvIdentifiers.length === 0)
-                }
-                onClick={() => void handleResolve()}
-              >
-                {isResolving ? (
-                  <Loader2Icon className="animate-spin size-4" />
-                ) : (
-                  <UsersIcon className="size-4" />
-                )}
-                {isResolving ? 'Resolving…' : `Resolve ${userLabel}`}
-              </Button>
+              {activeTab === 'paste' ? (
+                <Button
+                  type="button"
+                  disabled={isResolving || !pastedText.trim()}
+                  onClick={handleResolve}
+                >
+                  {isResolving ? (
+                    <Loader2Icon className="animate-spin size-4" />
+                  ) : (
+                    <UsersIcon className="size-4" />
+                  )}
+                  {isResolving ? 'Resolving…' : `Resolve ${userLabel}`}
+                </Button>
+              ) : null}
             </>
           ) : (
             <>
@@ -482,11 +539,11 @@ export function BulkUserImportDialog({
               </Button>
               <Button
                 type="button"
-                disabled={resolution.resolved.length === 0 || wouldExceedLimit}
+                disabled={availableUsers.length === 0 || wouldExceedLimit}
                 onClick={handleApply}
               >
                 <CheckCircle2Icon className="size-4" />
-                Add {resolution.resolved.length} {userLabel} to selection
+                Add {availableUsers.length} {userLabel} to selection
               </Button>
             </>
           )}

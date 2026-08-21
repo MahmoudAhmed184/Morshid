@@ -50,6 +50,7 @@ export class CourseAdministrationService {
 
     return {
       courses: page.courses.map(mapCourseAdministrationRecord),
+      ...(page.totalCount === undefined ? {} : { totalCount: page.totalCount }),
       ...(page.nextCursor !== undefined ? { nextCursor: page.nextCursor } : {}),
     }
   }
@@ -324,6 +325,7 @@ export class CourseAdministrationService {
 
     return {
       members: page.members.map(mapMembershipRecord),
+      ...(page.totalCount === undefined ? {} : { totalCount: page.totalCount }),
       ...(page.nextCursor !== undefined ? { nextCursor: page.nextCursor } : {}),
     }
   }

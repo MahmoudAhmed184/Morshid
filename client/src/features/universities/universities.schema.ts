@@ -83,7 +83,7 @@ export const createUniversityFormSchema = z.object({
     .transform((email) => email.toLowerCase()),
   ownerPassword: z
     .string()
-    .min(15, 'Password must be at least 15 characters')
+    .min(9, 'Password must be at least 9 characters')
     .max(128, 'Password must be at most 128 characters'),
 })
 
@@ -127,7 +127,7 @@ export const updateUniversityFormSchema = z
       .optional(),
     ownerPassword: z
       .string()
-      .min(15, 'Password must be at least 15 characters')
+      .min(9, 'Password must be at least 9 characters')
       .max(128, 'Password must be at most 128 characters')
       .optional()
       .or(z.literal('')),

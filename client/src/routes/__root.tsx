@@ -1,6 +1,7 @@
 import {
   HeadContent,
   Scripts,
+  ScrollRestoration,
   createRootRouteWithContext,
 } from '@tanstack/react-router'
 import { TanStackDevtools } from '@tanstack/react-devtools'
@@ -65,6 +66,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
+        <ScrollRestoration />
         {import.meta.env.DEV && (
           <TanStackDevtools
             config={{

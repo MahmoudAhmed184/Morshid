@@ -204,7 +204,7 @@ export class CourseAdministrationController {
     strategy: 'excludeAll',
   })
   @ApiOperation({
-    summary: 'Resolve user identifiers for bulk course assignment',
+    summary: 'Resolve user email addresses for bulk course assignment',
   })
   @ApiBody({ type: ResolveCourseMembersRequestDto })
   @ApiOkResponse({ type: ResolveCourseMembersResponseDto })
