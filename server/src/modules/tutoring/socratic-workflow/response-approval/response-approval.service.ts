@@ -11,6 +11,7 @@ import { citationIdForChunk } from '../generation/tutor-generation-context'
 import { TutorGenerationService } from '../generation/tutor-generation.service'
 import {
   TUTOR_GENERATION_FAILURE_CODE,
+  type TutorGuardEducationalContext,
   type TutorGenerationInput,
 } from '../generation/tutor-generation.types'
 import {
@@ -24,7 +25,12 @@ import {
   buildCandidateValidationContext,
   structuralRejectionFromGenerationFailure,
 } from './structural-response.validator'
-import { DeterministicGuardService } from './deterministic-guard.service'
+import {
+  DeterministicGuardService,
+  extractProblemStatementGivensAndTargets,
+  extractStudentSuppliedExpressions,
+  extractVerifiedStudentFinalAnswers,
+} from './deterministic-guard.service'
 import { SemanticGuardService } from './semantic-guard.service'
 import {
   SAFE_FALLBACK_REASON,
@@ -45,6 +51,7 @@ import {
 } from './response-audit.types'
 import type { OutputProtectionContext } from '../solution-protection/solution-protection.types'
 import { studentActionObligationFromDecision } from '../teaching-decision/student-action-obligation'
+import { buildTutorResponseRequirements } from '../generation/tutor-response-requirements'
 
 import {
   AutomaticSafetyRiskDetector,
@@ -113,22 +120,6 @@ export class ResponseApprovalService {
     const guardResultAudits: GuardResultAudit[] = []
     const studentActionObligation =
       studentActionObligationFromDecision(decision)
-    const context = buildCandidateValidationContext({
-      allowedCitationIds: new Set(
-        input.retrievalResult.map(citationIdForChunk),
-      ),
-      requireGrounding: decision.guardPolicy.requireGrounding,
-      enforceCitationSupport: decision.guardPolicy.enforceCitationSupport,
-      reflectionMode: decision.reflectionMode,
-      responseIntent: decision.strategy,
-      studentActionObligation,
-      guidanceLevel: decision.guidanceLevel,
-      revealPolicy: decision.revealPolicy,
-      maximumDisclosedSteps: decision.guardPolicy.maximumDisclosedSteps,
-      debuggingGuidance: input.debuggingGuidance,
-      debuggingGuidanceRequired:
-        decision.strategy === TeachingStrategy.DEBUGGING_GUIDANCE,
-    })
 
     let previousValidation: ValidationResult | null = null
     let candidateAttempts = 0
@@ -178,6 +169,7 @@ export class ResponseApprovalService {
           await input.lifecycle?.beginValidation()
           const structural = structuralRejectionFromGenerationFailure(
             generation.errorCode,
+            generation.validationDiagnostic,
           )
           validationResults.push(structural)
           guardResultAudits.push(
@@ -249,10 +241,62 @@ export class ResponseApprovalService {
         }
       }
 
+      const boundedStudentMessages = studentMessagesForActiveTopic(
+        generation.educationalContext,
+        input.topicId,
+      )
+      const initialStudentMessage =
+        boundedStudentMessages[0] ??
+        generation.educationalContext.currentStudentMessage.content
+
+      const { givenPremises, targetVariables } =
+        extractProblemStatementGivensAndTargets(initialStudentMessage)
+      const studentSuppliedExpressions = extractStudentSuppliedExpressions(
+        boundedStudentMessages,
+      )
+      const responseRequirements = buildTutorResponseRequirements({
+        analysis: generation.educationalContext.acceptedAnalysis,
+        analysisSource:
+          generation.educationalContext.acceptedAnalysis.analysisSource,
+        studentMessageId:
+          generation.educationalContext.currentStudentMessage.id,
+        guidanceLevel: decision.guidanceLevel,
+        protectTargetSolution: input.outputProtection.protectTargetSolution,
+      })
+      const verifiedStudentFinalAnswers =
+        responseRequirements.completionClaimAllowed &&
+        !studentActionObligation.required
+          ? extractVerifiedStudentFinalAnswers(
+              generation.educationalContext.currentStudentMessage.content,
+              targetVariables,
+            )
+          : new Set<string>()
+
+      const candidateValidationContext = buildCandidateValidationContext({
+        allowedCitationIds: new Set(
+          input.retrievalResult.map(citationIdForChunk),
+        ),
+        requireGrounding: decision.guardPolicy.requireGrounding,
+        enforceCitationSupport: decision.guardPolicy.enforceCitationSupport,
+        reflectionMode: decision.reflectionMode,
+        responseIntent: decision.strategy,
+        studentActionObligation,
+        guidanceLevel: decision.guidanceLevel,
+        revealPolicy: decision.revealPolicy,
+        maximumDisclosedSteps: decision.guardPolicy.maximumDisclosedSteps,
+        debuggingGuidance: input.debuggingGuidance,
+        debuggingGuidanceRequired:
+          decision.strategy === TeachingStrategy.DEBUGGING_GUIDANCE,
+        givenPremises,
+        targetVariables,
+        studentSuppliedExpressions,
+        verifiedStudentFinalAnswers,
+      })
+
       await input.lifecycle?.beginValidation()
       const structural = this.structuralValidator.validate(
         generation.candidate,
-        context,
+        candidateValidationContext,
       )
       validationResults.push(structural)
       guardResultAudits.push(guardResultAudit(attempt, structural, decision))
@@ -277,7 +321,7 @@ export class ResponseApprovalService {
 
       const deterministic = this.deterministicGuard.evaluate(
         generation.candidate,
-        context,
+        candidateValidationContext,
       )
       validationResults.push(deterministic)
       guardResultAudits.push(guardResultAudit(attempt, deterministic, decision))
@@ -307,7 +351,7 @@ export class ResponseApprovalService {
         candidateAttempt: attempt,
         candidate: generation.candidate,
         educationalContext: generation.educationalContext,
-        validationContext: context,
+        validationContext: candidateValidationContext,
         guardPolicy: decision.guardPolicy,
         allowedCitationSummaries: input.retrievalResult.map((chunk) => ({
           citationId: citationIdForChunk(chunk),
@@ -450,6 +494,26 @@ function approvalWithFallback(
       outputProtection,
     ),
   }
+}
+
+function studentMessagesForActiveTopic(
+  context: TutorGuardEducationalContext,
+  topicId: string,
+): string[] {
+  const messages = context.recentConversation
+    .filter(
+      (message) =>
+        message.role === 'STUDENT' &&
+        (message.topicId === null || message.topicId === topicId),
+    )
+    .map((message) => message.content)
+
+  const currentMessage = context.currentStudentMessage.content
+  if (messages.at(-1) !== currentMessage) {
+    messages.push(currentMessage)
+  }
+
+  return messages
 }
 
 function freezeAuditGraph(

@@ -2,6 +2,7 @@ import { MessageRequestKind, StudentState } from '../../tutoring-values'
 
 import type { EducationalAnalysisResult } from '../analysis/educational-analysis.types'
 import {
+  ANSWER_CORRECTNESS,
   EFFORT_QUALITY,
   type EducationalAnalysisSource,
 } from '../analysis/educational-analysis.types'
@@ -9,7 +10,7 @@ import { hasSupportedMisconceptionRecoveryEvidence } from '../analysis/supported
 import { isDirectConceptualAnalysis } from '../teaching-decision/direct-conceptual-policy'
 
 export const TUTOR_RESPONSE_REQUIREMENTS_VERSION =
-  'tutor-response-requirements.v5'
+  'tutor-response-requirements.v6'
 
 export type TutorGuidanceMode =
   'ORIENTATION' | 'FOCUSED_HINT' | 'GUIDED_DECOMPOSITION' | 'STRONG_GUIDANCE'
@@ -36,6 +37,8 @@ export interface TutorResponseRequirements {
   readonly smallStartingHintCount: 0 | 1
   readonly identifyLikelyMisconception: boolean
   readonly acknowledgeStudentSupportedCorrectWork: boolean
+  readonly correctnessClaimAllowed: boolean
+  readonly completionClaimAllowed: boolean
   readonly identifyNextReasoningStepWithoutSolving: boolean
   readonly analogousWorkedExampleOrBoundedStrongGuidance: boolean
   readonly protectExactOriginalSolution: boolean
@@ -49,6 +52,9 @@ export function buildTutorResponseRequirements(input: {
     | 'studentState'
     | 'effortEvidence'
     | 'learningEvidence'
+    | 'answerCorrectness'
+    | 'objectiveCompleted'
+    | 'misconceptionRecoveryVerified'
     | 'misconceptions'
   >
   readonly analysisSource: EducationalAnalysisSource
@@ -71,6 +77,11 @@ export function buildTutorResponseRequirements(input: {
     studentMessageId: input.studentMessageId,
     result: input.analysis,
   })
+  const correctnessClaimAllowed =
+    input.analysis.answerCorrectness === ANSWER_CORRECTNESS.CORRECT &&
+    input.analysis.learningEvidence.evidenceMessageIds.includes(
+      input.studentMessageId,
+    )
 
   return Object.freeze({
     version: TUTOR_RESPONSE_REQUIREMENTS_VERSION,
@@ -90,6 +101,9 @@ export function buildTutorResponseRequirements(input: {
         input.analysis.studentState === StudentState.PARTIAL_UNDERSTANDING &&
         guidanceLevel === 3 &&
         hasCurrentSupportedWork),
+    correctnessClaimAllowed,
+    completionClaimAllowed:
+      correctnessClaimAllowed && input.analysis.objectiveCompleted === true,
     identifyNextReasoningStepWithoutSolving: isAttempt && guidanceLevel === 3,
     analogousWorkedExampleOrBoundedStrongGuidance:
       isProtectedProblem && guidanceLevel === 4,

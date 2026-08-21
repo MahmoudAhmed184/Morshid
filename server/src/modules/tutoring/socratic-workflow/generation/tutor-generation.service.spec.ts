@@ -45,7 +45,7 @@ describe('TutorGenerationService', () => {
         message: 'What should change before the next loop iteration?',
         provider: 'deterministic',
         model: 'deterministic-tutor',
-        promptVersion: 'tutor-generation.mvp.v9',
+        promptVersion: 'tutor-generation.mvp.v12',
         tokenUsage: { input: 15, output: 9 },
         usedCitationIds: ['retrieval.rank.1'],
       })
@@ -81,6 +81,31 @@ describe('TutorGenerationService', () => {
     expect(result.success).toBe(true)
     expect(harness.model.requests).toHaveLength(1)
     expect(analyze).not.toHaveBeenCalled()
+  })
+
+  it('accepts a completed objective without a fake student action', async () => {
+    const harness = buildHarness()
+    harness.decision.record = {
+      ...(harness.decision.record ?? buildDecision()),
+      primaryTechnique: TeachingTechnique.VERIFICATION,
+      requireStudentAction: false,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+    }
+    harness.model.rawOutput = validCandidate({
+      message: 'Your reasoning correctly completes this objective.',
+      requiresStudentAction: false,
+      studentAction: null,
+    })
+
+    const result = await harness.service.generate(defaultInput())
+
+    expect(result).toMatchObject({
+      success: true,
+      candidate: {
+        requiresStudentAction: false,
+        studentAction: null,
+      },
+    })
   })
 
   it.each([
@@ -250,7 +275,9 @@ describe('TutorGenerationService', () => {
       const harness = buildHarness()
       harness.model.rawOutput = rawOutput
 
-      await expect(harness.service.generate(defaultInput())).resolves.toEqual({
+      await expect(
+        harness.service.generate(defaultInput()),
+      ).resolves.toMatchObject({
         success: false,
         errorCode,
         infrastructureRetryCount: 0,
@@ -258,6 +285,23 @@ describe('TutorGenerationService', () => {
       expect(harness.model.requests).toHaveLength(1)
     },
   )
+
+  it('reports the schema field for a malformed required studentAction', async () => {
+    const harness = buildHarness()
+    harness.model.rawOutput = validCandidate({ studentAction: null })
+
+    await expect(
+      harness.service.generate(defaultInput()),
+    ).resolves.toMatchObject({
+      success: false,
+      errorCode: 'TUTOR_INVALID_OUTPUT',
+      validationDiagnostic: {
+        contractStage: 'CANDIDATE_SCHEMA',
+        field: 'studentAction',
+        reason: 'SCHEMA_MISMATCH',
+      },
+    })
+  })
 
   it.each([
     [TUTOR_MODEL_ERROR_CODE.TIMEOUT, 'TUTOR_PROVIDER_TIMEOUT', 1, 2],
@@ -400,7 +444,7 @@ class FakeTutorModel implements TutorModelPort {
       rawOutput: this.rawOutput,
       provider: 'deterministic',
       model: 'deterministic-tutor',
-      promptVersion: 'tutor-generation.mvp.v9' as const,
+      promptVersion: 'tutor-generation.mvp.v12' as const,
       inputTokens: 15,
       outputTokens: 9,
     })

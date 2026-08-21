@@ -1,6 +1,7 @@
 import { MessageRequestKind, StudentState } from '../../tutoring-values'
 
 import {
+  ANSWER_CORRECTNESS,
   EDUCATIONAL_ANALYSIS_SOURCE,
   EFFORT_QUALITY,
   LEARNING_EVIDENCE_STRENGTH,
@@ -128,6 +129,8 @@ describe('Tutor response requirements', () => {
           strength: LEARNING_EVIDENCE_STRENGTH.STRONG,
           evidenceMessageIds: ['message-1'],
         },
+        answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+        misconceptionRecoveryVerified: true,
         misconceptions: [],
       },
       analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
@@ -138,7 +141,61 @@ describe('Tutor response requirements', () => {
 
     expect(requirements).toMatchObject({
       acknowledgeStudentSupportedCorrectWork: true,
+      correctnessClaimAllowed: true,
+      completionClaimAllowed: false,
       guidanceShape: { mode: 'ORIENTATION' },
+    })
+  })
+
+  it('forbids correctness and completion claims for a wrong current answer', () => {
+    const requirements = buildTutorResponseRequirements({
+      analysis: {
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.MISCONCEPTION,
+        effortEvidence: noEffort(),
+        learningEvidence: noLearning(),
+        answerCorrectness: ANSWER_CORRECTNESS.INCORRECT,
+        objectiveCompleted: false,
+        misconceptionRecoveryVerified: false,
+        misconceptions: [],
+      },
+      analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      studentMessageId: 'message-1',
+      guidanceLevel: 1,
+      protectTargetSolution: true,
+    })
+
+    expect(requirements).toMatchObject({
+      correctnessClaimAllowed: false,
+      completionClaimAllowed: false,
+    })
+  })
+
+  it('allows correctness but not completion for a correct intermediate step', () => {
+    const requirements = buildTutorResponseRequirements({
+      analysis: {
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        effortEvidence: noEffort(),
+        learningEvidence: {
+          present: true,
+          strength: LEARNING_EVIDENCE_STRENGTH.MODERATE,
+          evidenceMessageIds: ['message-1'],
+        },
+        answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+        objectiveCompleted: false,
+        misconceptionRecoveryVerified: false,
+        misconceptions: [],
+      },
+      analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      studentMessageId: 'message-1',
+      guidanceLevel: 2,
+      protectTargetSolution: true,
+    })
+
+    expect(requirements).toMatchObject({
+      correctnessClaimAllowed: true,
+      completionClaimAllowed: false,
     })
   })
 

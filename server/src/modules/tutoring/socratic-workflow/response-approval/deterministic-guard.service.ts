@@ -44,6 +44,7 @@ export class DeterministicGuardService {
     }
 
     if (
+      candidate.studentAction !== null &&
       candidate.studentAction.type !== context.studentActionObligation.technique
     ) {
       violations.push(
@@ -107,7 +108,13 @@ export class DeterministicGuardService {
     }
 
     if (context.revealPolicy === RevealPolicy.NO_FINAL_ANSWER) {
-      if (revealsFinalAnswer(normalized)) {
+      if (
+        revealsFinalAnswer(normalized, {
+          givenPremises: context.givenPremises,
+          targetVariables: context.targetVariables,
+          verifiedStudentFinalAnswers: context.verifiedStudentFinalAnswers,
+        })
+      ) {
         violations.push(
           violation(
             RESPONSE_VIOLATION_TYPE.FINAL_ANSWER_DISCLOSURE,
@@ -115,6 +122,23 @@ export class DeterministicGuardService {
             'message',
             'Candidate contains a high-confidence final-answer disclosure pattern.',
             'Remove final answers and ask for one next reasoning step.',
+          ),
+        )
+      }
+      if (
+        revealsDecisiveSubstitution(normalized, {
+          givenPremises: context.givenPremises,
+          targetVariables: context.targetVariables,
+          studentSuppliedExpressions: context.studentSuppliedExpressions,
+        })
+      ) {
+        violations.push(
+          violation(
+            RESPONSE_VIOLATION_TYPE.DIRECT_ANSWER_DISCLOSURE,
+            RESPONSE_VALIDATION_SEVERITY.HIGH,
+            'message',
+            'Candidate performs decisive substitution derivation before the student reasoned through the step.',
+            'Ask the student to perform the variable substitution or evaluate the expression.',
           ),
         )
       }
@@ -168,6 +192,7 @@ export class DeterministicGuardService {
     }
 
     if (
+      candidate.debuggingGuidance === null &&
       context.studentActionObligation.required &&
       !requestsMeaningfulStudentAction(candidate)
     ) {
@@ -203,13 +228,398 @@ export class DeterministicGuardService {
   }
 }
 
-export function revealsFinalAnswer(normalizedMessage: string): boolean {
-  return [
-    /\b(?:the\s+answer|final\s+answer|answer)\s*(?:is|:)\s*\S+/u,
-    /\b(?:the\s+result|final\s+result|result)\s*(?:is|:)\s*[-+]?\d/u,
-    /\b(?:therefore|thus|so)\b[^.!?\n]{0,60}\b(?:=|is)\s*[-+]?\d/u,
-    /\b[a-z]\s*=\s*[-+]?\d+(?:\.\d+)?\b/u,
-  ].some((pattern) => pattern.test(normalizedMessage))
+export interface ProblemProtectionContext {
+  readonly givenPremises?: ReadonlySet<string>
+  readonly targetVariables?: ReadonlySet<string>
+  readonly studentSuppliedExpressions?: ReadonlySet<string>
+  readonly verifiedStudentFinalAnswers?: ReadonlySet<string>
+}
+
+export function extractProblemStatementGivensAndTargets(
+  activeProblemText: string,
+): {
+  givenPremises: Set<string>
+  targetVariables: Set<string>
+} {
+  const normalized = normalizeDeterministicText(activeProblemText).toLowerCase()
+  const givenPremises = new Set<string>()
+  const targetVariables = new Set<string>()
+
+  const lines = normalized.split(/\r?\n/)
+  for (const line of lines) {
+    if (
+      /\b(?:i\s+think|i\s+guess|maybe|could\s+it\s+be|is\s+it|i\s+believe|my\s+guess|answer\s+is)\b/u.test(
+        line,
+      )
+    ) {
+      continue
+    }
+    const assignmentMatches = line.matchAll(
+      /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b(?!\s*[+\-*/%])/gu,
+    )
+    for (const match of assignmentMatches) {
+      const varName = match[1]
+      const value = match[2]
+      givenPremises.add(`${varName} = ${value}`)
+      givenPremises.add(`${varName}=${value}`)
+    }
+  }
+
+  const targetQueries = [
+    /\bwhat\s+is\s+(?:the\s+value\s+of\s+)?([a-z_][a-z0-9_]*)\b/gu,
+    /\bfind\s+(?:the\s+value\s+of\s+)?([a-z_][a-z0-9_]*)\b/gu,
+    /\bsolve\s+for\s+([a-z_][a-z0-9_]*)\b/gu,
+    /\bcalculate\s+(?:the\s+value\s+of\s+)?([a-z_][a-z0-9_]*)\b/gu,
+  ]
+  for (const queryRegex of targetQueries) {
+    const matches = normalized.matchAll(queryRegex)
+    for (const match of matches) {
+      if (match[1]) {
+        targetVariables.add(match[1])
+      }
+    }
+  }
+
+  const equationMatches = normalized.matchAll(
+    /\b([a-z_][a-z0-9_]*)\s*=\s*[^;\n\r]*?[a-z_]/gu,
+  )
+  for (const match of equationMatches) {
+    if (match[1]) {
+      targetVariables.add(match[1])
+    }
+  }
+
+  return { givenPremises, targetVariables }
+}
+
+export function extractStudentSuppliedExpressions(
+  studentMessages: readonly string[],
+): Set<string> {
+  const expressions = new Set<string>()
+
+  for (const message of studentMessages) {
+    const normalized = normalizeDeterministicText(message).toLowerCase()
+    const matches = normalized.matchAll(
+      /(?:\b[a-z_][a-z0-9_]*\b|[-+]?\d+(?:\.\d+)?)(?:\s*[+\-*/%]\s*(?:\b[a-z_][a-z0-9_]*\b|[-+]?\d+(?:\.\d+)?))+/gu,
+    )
+    for (const match of matches) {
+      expressions.add(normalizeMathExpression(match[0]))
+    }
+  }
+
+  return expressions
+}
+
+export function extractVerifiedStudentFinalAnswers(
+  currentStudentMessage: string,
+  targetVariables: ReadonlySet<string>,
+): Set<string> {
+  const normalized = normalizeDeterministicText(
+    currentStudentMessage,
+  ).toLowerCase()
+  const answers = new Set<string>()
+  const assignmentMatches = normalized.matchAll(
+    /\b([a-z_][a-z0-9_]*)\s*(?:=|\bis\b)\s*([-+]?\d+(?:\.\d+)?)\b(?!\s*[+\-*/%])/gu,
+  )
+
+  for (const match of assignmentMatches) {
+    const variable = match[1]
+    const value = match[2]
+    if (targetVariables.has(variable)) {
+      answers.add(finalAnswerKey(variable, value))
+    }
+  }
+
+  const answerMatches = normalized.matchAll(
+    /\b(?:the\s+answer|final\s+answer|answer)\s*(?:is|:)\s*([-+]?\d+(?:\.\d+)?)\b/gu,
+  )
+  for (const match of answerMatches) {
+    answers.add(finalAnswerKey('answer', match[1]))
+  }
+
+  return answers
+}
+
+export function revealsFinalAnswer(
+  normalizedMessage: string,
+  context?: ProblemProtectionContext,
+): boolean {
+  const statedAnswerValue = explicitAnswerValue(normalizedMessage)
+  if (
+    statedAnswerValue !== null &&
+    !isVerifiedStudentFinalValue(context, statedAnswerValue)
+  ) {
+    return true
+  }
+
+  const resultMatch =
+    /\b(?:the\s+result|final\s+result|result)\s*(?:is|:)\s*([-+]?\d+(?:\.\d+)?)\b/u.exec(
+      normalizedMessage,
+    )
+  if (
+    resultMatch !== null &&
+    !isVerifiedStudentFinalValue(context, resultMatch[1])
+  ) {
+    return true
+  }
+
+  const conclusionMatches = normalizedMessage.matchAll(
+    /\b(?:therefore|thus|hence|so)\b[^.!?\n]{0,60}(?:=|\bis\b)\s*[-+]?\d/gu,
+  )
+  for (const conclusionMatch of conclusionMatches) {
+    const matchedText = conclusionMatch[0]
+    const assignedVar =
+      /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b(?!\s*[+\-*/%])/u.exec(
+        matchedText,
+      )
+    if (assignedVar !== null) {
+      const varName = assignedVar[1]
+      const value = assignedVar[2]
+      if (
+        !isGivenPremise(context, varName, value) &&
+        !isVerifiedStudentFinalAssignment(context, varName, value)
+      ) {
+        return true
+      }
+    } else {
+      return true
+    }
+  }
+
+  const assignmentMatches = normalizedMessage.matchAll(
+    /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b(?!\s*[+\-*/%])/gu,
+  )
+  for (const match of assignmentMatches) {
+    const varName = match[1]
+    const value = match[2]
+    if (isGivenPremise(context, varName, value)) {
+      continue
+    }
+
+    if (isVerifiedStudentFinalAssignment(context, varName, value)) {
+      continue
+    }
+
+    if (isTargetVariable(context, varName)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+const answerAssessmentTerms = new Set([
+  'complete',
+  'correct',
+  'incorrect',
+  'incomplete',
+  'invalid',
+  'right',
+  'supported',
+  'unsupported',
+  'unverified',
+  'valid',
+  'verified',
+  'wrong',
+])
+
+function explicitAnswerValue(normalizedMessage: string): string | null {
+  const matches = normalizedMessage.matchAll(
+    /\b(?:the\s+answer|final\s+answer|answer)\s*(?:is|:)\s*([^\s,.;!?]+)/gu,
+  )
+
+  for (const match of matches) {
+    const value = match[1].replace(/^[`'"([{]+|[`'"\])}]+$/gu, '')
+    if (!answerAssessmentTerms.has(value)) {
+      return value
+    }
+  }
+
+  return null
+}
+
+function isGivenPremise(
+  context: ProblemProtectionContext | undefined,
+  varName: string,
+  value: string,
+): boolean {
+  const premises = context?.givenPremises
+  if (premises === undefined) {
+    return false
+  }
+  return (
+    premises.has(`${varName} = ${value}`) || premises.has(`${varName}=${value}`)
+  )
+}
+
+function isTargetVariable(
+  context: ProblemProtectionContext | undefined,
+  varName: string,
+): boolean {
+  const targets = context?.targetVariables
+  if (targets === undefined) {
+    return false
+  }
+  return targets.has(varName)
+}
+
+function isVerifiedStudentFinalAssignment(
+  context: ProblemProtectionContext | undefined,
+  variable: string,
+  value: string,
+): boolean {
+  return (
+    context?.verifiedStudentFinalAnswers?.has(
+      finalAnswerKey(variable, value),
+    ) ?? false
+  )
+}
+
+function isVerifiedStudentFinalValue(
+  context: ProblemProtectionContext | undefined,
+  value: string,
+): boolean {
+  const answers = context?.verifiedStudentFinalAnswers
+  if (answers === undefined) {
+    return false
+  }
+
+  if (answers.has(finalAnswerKey('answer', value))) {
+    return true
+  }
+
+  for (const target of context?.targetVariables ?? []) {
+    if (answers.has(finalAnswerKey(target, value))) {
+      return true
+    }
+  }
+
+  return false
+}
+
+export function revealsDecisiveSubstitution(
+  normalizedMessage: string,
+  context?: ProblemProtectionContext,
+): boolean {
+  if (
+    context?.givenPremises === undefined ||
+    context.givenPremises.size === 0
+  ) {
+    return false
+  }
+
+  for (const premise of context.givenPremises) {
+    const match = /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b/u.exec(
+      premise,
+    )
+    if (match === null) {
+      continue
+    }
+    const varName = match[1]
+    const value = match[2]
+
+    // Explicit substitution: "x + 1 becomes 5 + 1", "x + 1 is 5 + 1", "x + 1 = 5 + 1"
+    const substitutionPatternLeading = new RegExp(
+      `\\b${varName}\\s*([+\\-*/%])\\s*(\\d+)\\s*(?:becomes|is|=|gives|yields|results in|->|=>)\\s*${value}\\s*\\1\\s*\\2\\b`,
+      'iu',
+    )
+    const leadingMatch = substitutionPatternLeading.exec(normalizedMessage)
+    if (
+      leadingMatch !== null &&
+      !isStudentSuppliedExpression(
+        context,
+        `${value}${leadingMatch[1]}${leadingMatch[2]}`,
+      )
+    ) {
+      return true
+    }
+
+    // Commutative substitution: "1 + x becomes 1 + 5"
+    const substitutionPatternTrailing = new RegExp(
+      `\\b(\\d+)\\s*([+\\-*/%])\\s*${varName}\\s*(?:becomes|is|=|gives|yields|results in|->|=>)\\s*\\1\\s*\\2\\s*${value}\\b`,
+      'iu',
+    )
+    const trailingMatch = substitutionPatternTrailing.exec(normalizedMessage)
+    if (
+      trailingMatch !== null &&
+      !isStudentSuppliedExpression(
+        context,
+        `${trailingMatch[1]}${trailingMatch[2]}${value}`,
+      )
+    ) {
+      return true
+    }
+
+    // Target assignment with substituted expression: "y = 5 + 1" or "y = 1 + 5"
+    const targetSubstitutionPattern = new RegExp(
+      `\\b[a-z_][a-z0-9_]*\\s*=\\s*(?:${value}\\s*[+\\-*/%]\\s*\\d+|\\d+\\s*[+\\-*/%]\\s*${value})\\b`,
+      'iu',
+    )
+    const targetMatch = targetSubstitutionPattern.exec(normalizedMessage)
+    if (
+      targetMatch !== null &&
+      !isStudentSuppliedExpression(
+        context,
+        targetMatch[0].slice(targetMatch[0].indexOf('=') + 1),
+      )
+    ) {
+      return true
+    }
+
+    // Expressive derivation: "substituting x = 5 gives 5 + 1"
+    const descriptiveSubstitutionPattern = new RegExp(
+      `\\b(?:substituting|substitute|replacing|replace)\\s+${varName}\\s*(?:with|=|as|is)\\s*${value}\\s*(?:gives|yields|we get|to get|is|=|results in)\\s*(?:${value}\\s*[+\\-*/%]\\s*\\d+|\\d+\\s*[+\\-*/%]\\s*${value})\\b`,
+      'iu',
+    )
+    const descriptiveMatch =
+      descriptiveSubstitutionPattern.exec(normalizedMessage)
+    if (
+      descriptiveMatch !== null &&
+      !containsStudentSuppliedExpression(context, descriptiveMatch[0], value)
+    ) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function containsStudentSuppliedExpression(
+  context: ProblemProtectionContext | undefined,
+  text: string,
+  requiredValue: string,
+): boolean {
+  const matches = text.matchAll(
+    /(?:\b[a-z_][a-z0-9_]*\b|[-+]?\d+(?:\.\d+)?)(?:\s*[+\-*/%]\s*(?:\b[a-z_][a-z0-9_]*\b|[-+]?\d+(?:\.\d+)?))+/gu,
+  )
+  for (const match of matches) {
+    if (
+      match[0].includes(requiredValue) &&
+      isStudentSuppliedExpression(context, match[0])
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+function isStudentSuppliedExpression(
+  context: ProblemProtectionContext | undefined,
+  expression: string,
+): boolean {
+  return (
+    context?.studentSuppliedExpressions?.has(
+      normalizeMathExpression(expression),
+    ) ?? false
+  )
+}
+
+function normalizeMathExpression(expression: string): string {
+  return expression.replace(/\s+/gu, '')
+}
+
+function finalAnswerKey(variable: string, value: string): string {
+  return `${variable}=${value}`
 }
 
 export function revealsCompleteSolution(normalizedMessage: string): boolean {
@@ -262,7 +672,7 @@ export function countDisclosedSteps(message: string): number {
 function requestsMeaningfulStudentAction(
   candidate: CandidateResponse,
 ): boolean {
-  if (!candidate.requiresStudentAction) {
+  if (!candidate.requiresStudentAction || candidate.studentAction === null) {
     return false
   }
 

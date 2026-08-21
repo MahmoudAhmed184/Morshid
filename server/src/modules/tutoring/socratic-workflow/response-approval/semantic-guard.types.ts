@@ -11,7 +11,7 @@ import type {
 } from './response-validation.types'
 
 export const SEMANTIC_GUARD_PORT = Symbol('SemanticGuardPort')
-export const SEMANTIC_GUARD_PROMPT_VERSION = 'semantic-guard.mvp.v9'
+export const SEMANTIC_GUARD_PROMPT_VERSION = 'semantic-guard.mvp.v12'
 
 export const SEMANTIC_GUARD_ERROR_CODE = {
   TIMEOUT: 'SEMANTIC_GUARD_TIMEOUT',
@@ -20,7 +20,7 @@ export const SEMANTIC_GUARD_ERROR_CODE = {
   PROVIDER_UNAVAILABLE: 'SEMANTIC_GUARD_UNAVAILABLE',
   MALFORMED_OUTPUT: 'SEMANTIC_GUARD_MALFORMED_OUTPUT',
   UNSUPPORTED_RESPONSE: 'SEMANTIC_GUARD_MALFORMED_OUTPUT',
-  CANCELLED: 'SEMANTIC_GUARD_UNAVAILABLE',
+  CANCELLED: 'SEMANTIC_GUARD_CANCELLED',
   CONFIGURATION_INVALID: 'SEMANTIC_GUARD_UNAVAILABLE',
 } as const
 
@@ -53,6 +53,18 @@ export class SemanticGuardModelError extends Error {
     this.headers = metadata.headers
     this.finishReason = metadata.finishReason
   }
+}
+
+export function isSemanticGuardModelError(
+  value: unknown,
+): value is SemanticGuardModelError {
+  return (
+    value instanceof SemanticGuardModelError ||
+    (typeof value === 'object' &&
+      value !== null &&
+      Reflect.get(value, 'name') === 'SemanticGuardModelError' &&
+      typeof Reflect.get(value, 'code') === 'string')
+  )
 }
 
 export interface SemanticGuardRequest {

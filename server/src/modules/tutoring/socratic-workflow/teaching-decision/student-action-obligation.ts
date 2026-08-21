@@ -30,6 +30,7 @@ export function studentActionObligationFromDecision(
     generationInstruction: generationInstruction(
       decision.studentActionPurpose,
       decision.primaryTechnique,
+      decision.requireStudentAction,
     ),
   })
 }
@@ -37,7 +38,12 @@ export function studentActionObligationFromDecision(
 function generationInstruction(
   purpose: StudentActionPurpose,
   technique: TeachingTechnique,
+  required = true,
 ): string {
+  if (!required) {
+    return 'Confirm correctness and provide concise conceptual consolidation. Do not require an additional student action or question when current evidence already verifies the objective.'
+  }
+
   switch (purpose) {
     case StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION:
       return 'Ask the student to share what they tried as the single meaningful action. A small starting hint may support that action, but must not add another student task.'

@@ -62,6 +62,90 @@ describe('AnalysisFallbackBuilder', () => {
       recommendedTechnique: TeachingTechnique.TRACE_EXECUTION,
     })
   })
+
+  describe('structured context continuity and switch detection', () => {
+    it.each([
+      ["I still don't know", 'struggle statement'],
+      ['explain that again', 'clarification referencing ongoing explanation'],
+      ['what is the next step?', 'task progression inquiry'],
+      ['what does this line do?', 'deictic line reference'],
+      ['why is it 5?', 'deictic value inquiry'],
+      ['how do i continue?', 'progression question'],
+      ['what about the loop?', 'contextual follow-up'],
+    ])('maintains problem continuation for "%s" (%s)', (messageContent) => {
+      const context = analysisContext({
+        topicType: TopicType.PROBLEM,
+        problemMetadataId: 'problem-1',
+        content: messageContent,
+      })
+
+      const fallback = new AnalysisFallbackBuilder().build(context)
+      expect(fallback.requestKind).toBe(MessageRequestKind.PROBLEM_LIKE)
+      expect(fallback.topicRelation).toBe(
+        TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      )
+    })
+
+    it.each([
+      ['What is a Python variable?'],
+      ['What is recursion?'],
+      ['Explain polymorphism'],
+      ['What is the concept of closures?'],
+      ['difference between list and tuple'],
+    ])(
+      'identifies explicit standalone concept request "%s" during active problem as topic switch',
+      (content) => {
+        const context = analysisContext({
+          topicType: TopicType.PROBLEM,
+          problemMetadataId: 'problem-1',
+          content,
+        })
+
+        const fallback = new AnalysisFallbackBuilder().build(context)
+        expect(fallback.requestKind).toBe(MessageRequestKind.CONCEPTUAL)
+        expect(fallback.topicRelation).toBe(
+          TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
+        )
+      },
+    )
+
+    it('identifies concept inquiries under concept topic as continuation', () => {
+      const context = analysisContext({
+        topicType: TopicType.CONCEPT,
+        conceptMetadataId: 'concept-1',
+        content: 'What is a Python variable?',
+      })
+
+      const fallback = new AnalysisFallbackBuilder().build(context)
+      expect(fallback.requestKind).toBe(MessageRequestKind.CONCEPTUAL)
+      expect(fallback.topicRelation).toBe(
+        TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      )
+    })
+
+    it('maintains continuation when responding to previous tutor question in active problem', () => {
+      const base = analysisContext({
+        topicType: TopicType.PROBLEM,
+        problemMetadataId: 'problem-1',
+        content: 'total = 0',
+      })
+      const context = {
+        ...base,
+        previousTutorQuestion: {
+          source: 'topic_state' as const,
+          content: 'What should we initialize total to?',
+          messageId: 'tutor-msg-1',
+          sequence: 2,
+        },
+      }
+
+      const fallback = new AnalysisFallbackBuilder().build(context)
+      expect(fallback.requestKind).toBe(MessageRequestKind.PROBLEM_LIKE)
+      expect(fallback.topicRelation).toBe(
+        TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      )
+    })
+  })
 })
 
 function analysisContext(
@@ -69,6 +153,10 @@ function analysisContext(
     requestKind?: MessageRequestKind | null
     previousStrategy?: TeachingStrategy | null
     previousTechnique?: TeachingTechnique | null
+    topicType?: TopicType
+    problemMetadataId?: string | null
+    conceptMetadataId?: string | null
+    content?: string
   } = {},
 ): AnalysisContextPackage {
   return {
@@ -80,7 +168,7 @@ function analysisContext(
       topicId: 'topic-1',
       authorUserId: 'student-1',
       responseToMessageId: null,
-      content: 'Can you help me understand this?',
+      content: input.content ?? 'Can you help me understand this?',
       status: MessageStatus.COMPLETED,
       requestKind: input.requestKind ?? null,
       guidanceLabel: null,
@@ -92,10 +180,10 @@ function analysisContext(
       id: 'topic-1',
       sessionId: 'session-1',
       courseId: 'course-1',
-      problemId: null,
-      conceptId: null,
+      problemId: input.problemMetadataId ?? null,
+      conceptId: input.conceptMetadataId ?? null,
       title: 'Loops',
-      topicType: TopicType.CONCEPT,
+      topicType: input.topicType ?? TopicType.UNCLASSIFIED,
       status: TopicStatus.ACTIVE,
       solutionProtectionStatus: 'UNKNOWN',
       solutionProtectionSource: null,
@@ -122,8 +210,14 @@ function analysisContext(
             revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
             updatedAt: new Date('2026-08-05T00:00:00.000Z'),
           },
-    problemMetadata: null,
-    conceptMetadata: null,
+    problemMetadata:
+      input.problemMetadataId !== undefined && input.problemMetadataId !== null
+        ? { id: input.problemMetadataId }
+        : null,
+    conceptMetadata:
+      input.conceptMetadataId !== undefined && input.conceptMetadataId !== null
+        ? { id: input.conceptMetadataId }
+        : null,
     courseMetadata: null,
     conversationLanguage: 'en',
     tokenBudget: {

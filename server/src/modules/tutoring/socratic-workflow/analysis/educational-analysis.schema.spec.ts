@@ -17,6 +17,7 @@ import {
   EDUCATIONAL_ANALYSIS_LIMITS,
   SUPPORTED_EDUCATIONAL_ANALYSIS_REQUEST_KINDS,
   SUPPORTED_EDUCATIONAL_ANALYSIS_STUDENT_STATES,
+  SUPPORTED_ANSWER_CORRECTNESS,
   SUPPORTED_EFFORT_QUALITIES,
   SUPPORTED_EFFORT_TYPES,
   SUPPORTED_LEARNING_EVIDENCE_STRENGTHS,
@@ -25,6 +26,7 @@ import {
   SUPPORTED_TOPIC_RELATIONS,
 } from './educational-analysis.schema'
 import {
+  ANSWER_CORRECTNESS,
   EDUCATIONAL_ANALYSIS_SCHEMA_VERSION,
   EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY,
   EFFORT_QUALITY,
@@ -60,7 +62,7 @@ describe('educational analysis schema validation', () => {
   })
 
   it('keeps schema version as backend-owned metadata outside model proposals', () => {
-    expect(EDUCATIONAL_ANALYSIS_SCHEMA_VERSION).toBe('educational-analysis.v1')
+    expect(EDUCATIONAL_ANALYSIS_SCHEMA_VERSION).toBe('educational-analysis.v2')
 
     const issues = expectInvalid({
       ...validEducationalAnalysisResult(),
@@ -145,6 +147,54 @@ describe('educational analysis schema validation', () => {
       })
     },
   )
+
+  it.each(SUPPORTED_ANSWER_CORRECTNESS)(
+    'accepts answer correctness %s',
+    (answerCorrectness) => {
+      expectValid({ answerCorrectness })
+    },
+  )
+
+  it('requires explicit current-message proof before accepting objective completion', () => {
+    const issues = expectInvalid({
+      ...validEducationalAnalysisResult(),
+      requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+      studentState: StudentState.NEAR_SOLUTION,
+      answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+      objectiveCompleted: true,
+      learningEvidence: {
+        present: true,
+        strength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+        evidenceMessageIds: ['previous-student-attempt'],
+      },
+      misconceptions: [],
+    })
+
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'learningEvidence.evidenceMessageIds',
+        }),
+      ]),
+    )
+  })
+
+  it('rejects completion or recovery attached to an incorrect answer', () => {
+    for (const field of [
+      'objectiveCompleted',
+      'misconceptionRecoveryVerified',
+    ] as const) {
+      const issues = expectInvalid({
+        ...validEducationalAnalysisResult(),
+        answerCorrectness: ANSWER_CORRECTNESS.INCORRECT,
+        [field]: true,
+      })
+
+      expect(issues).toEqual(
+        expect.arrayContaining([expect.objectContaining({ path: field })]),
+      )
+    }
+  })
 
   it.each([
     [
@@ -632,6 +682,9 @@ function validEducationalAnalysisResult(): EducationalAnalysisResult {
       strength: LEARNING_EVIDENCE_STRENGTH.NONE,
       evidenceMessageIds: [],
     },
+    answerCorrectness: ANSWER_CORRECTNESS.INCORRECT,
+    objectiveCompleted: false,
+    misconceptionRecoveryVerified: false,
     misconceptions: [
       {
         code: 'NON_SHRINKING_SEARCH_INTERVAL',

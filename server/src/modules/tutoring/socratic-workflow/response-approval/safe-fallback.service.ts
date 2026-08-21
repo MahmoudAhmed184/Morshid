@@ -18,7 +18,7 @@ import {
   type StudentActionObligation,
 } from '../teaching-decision/student-action-obligation'
 
-export const SAFE_FALLBACK_PROMPT_VERSION = 'safe-fallback.mvp.v2'
+export const SAFE_FALLBACK_PROMPT_VERSION = 'safe-fallback.mvp.v3'
 
 export const SAFE_FALLBACK_REASON = {
   VALIDATION_EXHAUSTED: 'VALIDATION_EXHAUSTED',
@@ -37,16 +37,19 @@ export class SafeFallbackService {
   ): ApprovedResponse {
     const studentActionObligation =
       studentActionObligationFromDecision(decision)
+    const fallbackObligation = conservativeFallbackObligation(
+      studentActionObligation,
+    )
     const level = normalizeExplanationDetailLevel(detailLevel)
 
     return Object.freeze({
-      message: fallbackMessage(studentActionObligation, level),
+      message: fallbackMessage(fallbackObligation, level),
       responseIntent: decision.strategy,
       usedCitationIds: Object.freeze([]),
-      requiresStudentAction: studentActionObligation.required,
+      requiresStudentAction: fallbackObligation.required,
       studentAction: Object.freeze({
-        type: studentActionObligation.technique,
-        description: fallbackActionDescription(studentActionObligation),
+        type: fallbackObligation.technique,
+        description: fallbackActionDescription(fallbackObligation),
       }),
       reflectionIncluded: false,
       source: APPROVED_RESPONSE_SOURCE.SAFE_FALLBACK,
@@ -72,6 +75,38 @@ function fallbackMessage(
   level: ExplanationDetailLevel = ExplanationDetailLevel.STANDARD,
 ): string {
   const technique = obligation.technique
+  const purpose = obligation.purpose
+
+  if (technique === TeachingTechnique.VERIFICATION) {
+    if (level === ExplanationDetailLevel.CONCISE) {
+      return 'Before relying on this step, what rule or calculation would you use to check it?'
+    }
+    if (level === ExplanationDetailLevel.DETAILED) {
+      return 'Let us verify the last step before relying on it. Which rule applies here, and what calculation or trace would check the result?'
+    }
+    return 'Let us verify the last step before relying on it. What calculation or rule would you use to check the result?'
+  }
+
+  if (purpose === StudentActionPurpose.CONCEPTUAL_UNDERSTANDING) {
+    if (level === ExplanationDetailLevel.CONCISE) {
+      return 'Let us focus on the core concept. How would you describe what this concept does?'
+    }
+    if (level === ExplanationDetailLevel.DETAILED) {
+      return 'Let us break down the underlying concept together. In your own words, what is the main purpose of this concept and how does it work?'
+    }
+    return 'Let us explore the core concept. How would you explain what this concept does in your own words?'
+  }
+
+  if (purpose === StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION) {
+    if (level === ExplanationDetailLevel.CONCISE) {
+      return 'Let us check your reasoning. What is the first value or operation you considered?'
+    }
+    if (level === ExplanationDetailLevel.DETAILED) {
+      return 'Let us look closely at your reasoning step by step. What was the first value or operation you considered, and why?'
+    }
+    return 'Let us check your reasoning. What was the first step you considered?'
+  }
+
   if (technique === TeachingTechnique.TRACE_EXECUTION) {
     if (level === ExplanationDetailLevel.CONCISE) {
       return 'Let us narrow it to one trace step. What value changes first?'
@@ -93,12 +128,12 @@ function fallbackMessage(
   }
 
   if (level === ExplanationDetailLevel.CONCISE) {
-    return 'Let us narrow it down to one step. What was your last confident step?'
+    return 'Let us break this down. What is the starting value or condition to check first?'
   }
   if (level === ExplanationDetailLevel.DETAILED) {
-    return 'Let us narrow this down step by step. Show the last step you were confident about, and what you expected to happen next.'
+    return 'Let us break this problem down into smaller steps. What is the starting value or condition you should look at first?'
   }
-  return 'Let us narrow it down to one step. Show the last step you were confident about and what you expected next.'
+  return 'Let us break this down into one step. What is the first value or condition to check?'
 }
 
 function fallbackActionDescription(
@@ -112,6 +147,21 @@ function fallbackActionDescription(
     case StudentActionPurpose.PRIMARY_TECHNIQUE:
       return `Ask one meaningful ${obligation.technique} reasoning question.`
   }
+}
+
+function conservativeFallbackObligation(
+  obligation: StudentActionObligation,
+): StudentActionObligation {
+  if (obligation.required) {
+    return obligation
+  }
+
+  return Object.freeze({
+    ...obligation,
+    required: true,
+    generationInstruction:
+      'Ask for one lightweight verification because fallback cannot establish correctness or completion.',
+  })
 }
 
 export function approvedResponseFromCandidate(input: {

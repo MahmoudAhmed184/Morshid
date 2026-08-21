@@ -59,7 +59,10 @@ import {
   type TutorModelRequest,
   type TutorModelResponse,
 } from '../../src/modules/tutoring/socratic-workflow/generation/tutor-generation.types'
-import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.types'
+import {
+  SEMANTIC_GUARD_PORT,
+  SEMANTIC_GUARD_PROMPT_VERSION,
+} from '../../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.types'
 import {
   P0_DEMO_PASSWORD,
   seedP0DemoData,
@@ -118,6 +121,7 @@ function storyCandidateResponse(
     readonly message: string
     readonly responseIntent: TeachingStrategy
     readonly studentActionType: TeachingTechnique
+    readonly requiresStudentAction?: boolean
   },
 ): TutorModelResponse {
   const match = /"allowedCitationIds":\[(?<ids>(?:"[^"]*"(?:,)?)*)\]/u.exec(
@@ -130,17 +134,30 @@ function storyCandidateResponse(
           (value): value is string => typeof value === 'string',
         )
 
+  const requiresStudentActionMatch =
+    /"requiresStudentAction":\s*(?<req>true|false)/u.exec(
+      request.messages[1].content,
+    )
+  const requiresStudentAction =
+    input.requiresStudentAction ??
+    (requiresStudentActionMatch?.groups?.req === undefined
+      ? true
+      : requiresStudentActionMatch.groups.req === 'true')
+
   return Object.freeze({
     rawOutput: Object.freeze({
       message: input.message,
       debuggingGuidance: null,
       responseIntent: input.responseIntent,
       usedCitationIds: citationIds,
-      requiresStudentAction: true,
-      studentAction: {
-        type: input.studentActionType,
-        description: 'Ask for the one reasoning action stated in the message.',
-      },
+      requiresStudentAction,
+      studentAction: requiresStudentAction
+        ? {
+            type: input.studentActionType,
+            description:
+              'Ask for the one reasoning action stated in the message.',
+          }
+        : null,
       reflectionIncluded: false,
       selfReportedCompliance: {
         finalAnswerRevealed: false,
@@ -450,7 +467,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       approvalSource: 'VALIDATED_CANDIDATE',
       approvedCandidateAttempt: 1,
       safeFallbackReason: null,
-      validationPolicyVersion: 'response-validation.mvp.v1',
+      validationPolicyVersion: 'response-validation.mvp.v4',
     })
     await expect(
       prisma.tutoringCandidateAttempt.count({
@@ -518,7 +535,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(turn.assistantMessage.citations).toHaveLength(1)
 
     const promptVersion = Reflect.get(turn.assistantMessage, 'promptVersion')
-    expect(promptVersion).toBe('tutor-generation.mvp.v9')
+    expect(promptVersion).toBe('tutor-generation.mvp.v12')
 
     const reloadResponse = await request(requireApp().getHttpServer())
       .get(messagesPath(session.id))
@@ -625,7 +642,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       revealPolicy: 'PARTIAL_RESULT_ALLOWED',
       requireStudentAction: true,
       studentActionPurpose: StudentActionPurpose.CONCEPTUAL_UNDERSTANDING,
-      policyVersion: 'socratic-policy.mvp.v5',
+      policyVersion: 'socratic-policy.mvp.v6',
     })
     expect(teachingDecision.guardPolicy).toMatchObject({
       preventDirectAnswer: false,
@@ -634,7 +651,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(persisted.candidateAttempts[0]).toMatchObject({
       candidateAttempt: 1,
       generationOutcome: 'GENERATED',
-      promptVersion: 'tutor-generation.mvp.v9',
+      promptVersion: 'tutor-generation.mvp.v12',
     })
     expect(
       persisted.candidateAttempts[0].guardResults.map((result) => ({
@@ -780,6 +797,350 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       { validationStage: 'DETERMINISTIC', approved: true },
       { validationStage: 'SEMANTIC', approved: true },
     ])
+  })
+
+  it('correctly approves a real CODE_DIAGNOSIS accumulator attempt without fallback or solution reveal', async () => {
+    await createEvidenceMaterial({
+      title: 'Python accumulator pattern',
+      content:
+        'An accumulator maintains running state across iterations. Initialize it before the loop and accumulate within the loop.',
+    })
+    const session = await createSession()
+    analysisModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, {
+          requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+          studentState: StudentState.DEBUGGING_ISSUE,
+          recommendedStrategy: TeachingStrategy.DEBUGGING_GUIDANCE,
+          recommendedTechnique: TeachingTechnique.TRACE_EXECUTION,
+          meaningfulEffort: true,
+          misconception: {
+            code: 'ASSIGNMENT_INSTEAD_OF_ACCUMULATION',
+            description: 'Assignment used instead of accumulation inside loop.',
+          },
+        }),
+      )
+
+    tutorModel.behavior = (modelRequest) => {
+      const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
+      return Promise.resolve({
+        rawOutput: {
+          message: null,
+          debuggingGuidance: {
+            diagnosis:
+              'The variable `total` is overwritten on each loop iteration instead of accumulating.',
+            relevantLocation: 'line 4: `total = number`',
+            conceptExplanation:
+              'In the accumulator pattern, each iteration updates the running sum with the current element.',
+            inspectionActions: [
+              'Observe the value of `total` after each iteration of the loop.',
+            ],
+          },
+          responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+          usedCitationIds: citationIds.slice(0, 1),
+          requiresStudentAction: true,
+          studentAction: null,
+          reflectionIncluded: false,
+          selfReportedCompliance: {
+            finalAnswerRevealed: false,
+            completeSolutionRevealed: false,
+          },
+        },
+        provider: 'real-accumulator-tutor',
+        model: 'real-accumulator-model',
+        promptVersion: modelRequest.promptVersion,
+        inputTokens: 100,
+        outputTokens: 50,
+      })
+    }
+
+    semanticGuard.behavior = () =>
+      Promise.resolve(approvedSemanticGuardResponse())
+
+    const studentCodeMessage = [
+      'numbers = [10, 20, 30]',
+      'total = 0',
+      'for number in numbers:',
+      '    total = number',
+      'average = total / len(numbers)',
+      'print(average)',
+      'I expected the result to be 20, but I get 10. What is wrong with my code?',
+    ].join('\n')
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({
+        content: studentCodeMessage,
+        clientMessageId: randomUUID(),
+      })
+      .expect(201)
+    const turn = response.body as TutoringTurnResponseDto
+
+    expect(tutorModel.callCount).toBe(1)
+    expect(semanticGuard.callCount).toBe(1)
+    expect(turn.studentMessage.requestKind).toBe(
+      MessageRequestKind.CODE_DIAGNOSIS,
+    )
+    expect(turn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+      guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+      hintLevel: 1,
+    })
+    expect(turn.assistantMessage.content).toContain(
+      'Observe the value of `total` after each iteration',
+    )
+    expect(turn.assistantMessage.content).not.toContain('total += number')
+    expect(turn.assistantMessage.content).not.toContain(
+      'Let us narrow it to one trace step',
+    )
+
+    const attemptId = turn.assistantMessage.attemptId
+    if (attemptId === null) {
+      throw new Error('Expected attemptId')
+    }
+    const persisted = await prisma.tutoringAttempt.findUniqueOrThrow({
+      where: { id: attemptId },
+      include: {
+        educationalAnalyses: true,
+        teachingDecision: true,
+        candidateAttempts: {
+          include: {
+            guardResults: { orderBy: { validationStage: 'asc' } },
+          },
+        },
+      },
+    })
+
+    expect(persisted).toMatchObject({
+      requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+      approvalSource: 'VALIDATED_CANDIDATE',
+      approvedCandidateAttempt: 1,
+      safeFallbackUsed: false,
+      safeFallbackReason: null,
+    })
+    expect(persisted.teachingDecision).toMatchObject({
+      strategy: TeachingStrategy.DEBUGGING_GUIDANCE,
+      primaryTechnique: TeachingTechnique.TRACE_EXECUTION,
+      guidanceLevel: 1,
+      revealPolicy: 'NO_FINAL_ANSWER',
+    })
+    expect(
+      persisted.candidateAttempts[0].guardResults.map((result) => ({
+        validationStage: result.validationStage,
+        approved: result.approved,
+      })),
+    ).toEqual([
+      { validationStage: 'STRUCTURAL', approved: true },
+      { validationStage: 'DETERMINISTIC', approved: true },
+      { validationStage: 'SEMANTIC', approved: true },
+    ])
+
+    expect(semanticGuard.getCalls()).toHaveLength(1)
+    const guardRequest = semanticGuard.getCalls()[0]
+    expect(guardRequest.promptVersion).toBe(SEMANTIC_GUARD_PROMPT_VERSION)
+    const guardSystemPrompt = guardRequest.messages[0].content
+    const guardUserPayloadText = guardRequest.messages[1].content
+    const guardPayload = JSON.parse(guardUserPayloadText) as {
+      trustedPolicy: {
+        responseIntent: string
+        debuggingGuidanceRequired: boolean
+      }
+      candidate: {
+        responseIntent: string
+        debuggingGuidance: {
+          diagnosis: string
+          relevantLocation: string
+        }
+      }
+    }
+    expect(guardSystemPrompt).toContain(
+      'When responseIntent is DEBUGGING_GUIDANCE',
+    )
+    expect(guardPayload.trustedPolicy.responseIntent).toBe(
+      TeachingStrategy.DEBUGGING_GUIDANCE,
+    )
+    expect(guardPayload.trustedPolicy.debuggingGuidanceRequired).toBe(true)
+    expect(guardPayload.candidate.debuggingGuidance.diagnosis).toContain(
+      'overwritten on each loop iteration',
+    )
+    expect(guardUserPayloadText).toContain('AUTHORIZED DIAGNOSTIC DISCLOSURE')
+    expect(guardUserPayloadText).toContain('PROHIBITED SOLUTION DISCLOSURE')
+  })
+
+  it('rejects candidate with code leakage (total += number), regenerates with diagnosis-preserving feedback, and succeeds on compliant retry', async () => {
+    await createEvidenceMaterial({
+      title: 'Python accumulator pattern reference',
+      content:
+        'An accumulator variable maintains a running total across loop iterations.',
+    })
+    const session = await createSession()
+    analysisModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, {
+          requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+          studentState: StudentState.DEBUGGING_ISSUE,
+          recommendedStrategy: TeachingStrategy.DEBUGGING_GUIDANCE,
+          recommendedTechnique: TeachingTechnique.TRACE_EXECUTION,
+          meaningfulEffort: true,
+          misconception: {
+            code: 'ASSIGNMENT_INSTEAD_OF_ACCUMULATION',
+            description: 'Assignment used instead of accumulation inside loop.',
+          },
+        }),
+      )
+
+    let attemptIndex = 0
+    tutorModel.behavior = (modelRequest) => {
+      attemptIndex += 1
+      const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
+
+      if (attemptIndex === 1) {
+        // First candidate attempts to reveal replacement code
+        return Promise.resolve({
+          rawOutput: {
+            message: null,
+            debuggingGuidance: {
+              diagnosis:
+                'The variable `total` is overwritten on each loop iteration instead of accumulating.',
+              relevantLocation: 'line 4: `total = number`',
+              conceptExplanation:
+                'Use `total += number` to preserve the running total across iterations.',
+              inspectionActions: [
+                'Observe the value of `total` after each iteration of the loop.',
+              ],
+            },
+            responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+            usedCitationIds: citationIds.slice(0, 1),
+            requiresStudentAction: true,
+            studentAction: null,
+            reflectionIncluded: false,
+            selfReportedCompliance: {
+              finalAnswerRevealed: false,
+              completeSolutionRevealed: false,
+            },
+          },
+          provider: 'accumulator-tutor',
+          model: 'accumulator-model',
+          promptVersion: modelRequest.promptVersion,
+          inputTokens: 100,
+          outputTokens: 50,
+        })
+      }
+
+      // Second candidate conforms without code replacement
+      return Promise.resolve({
+        rawOutput: {
+          message: null,
+          debuggingGuidance: {
+            diagnosis:
+              'The variable `total` is overwritten on each loop iteration instead of accumulating.',
+            relevantLocation: 'line 4: `total = number`',
+            conceptExplanation:
+              'An accumulator preserves the running total across iterations by combining the current element with the previous sum.',
+            inspectionActions: [
+              'Observe the value of `total` after each iteration of the loop.',
+            ],
+          },
+          responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+          usedCitationIds: citationIds.slice(0, 1),
+          requiresStudentAction: true,
+          studentAction: null,
+          reflectionIncluded: false,
+          selfReportedCompliance: {
+            finalAnswerRevealed: false,
+            completeSolutionRevealed: false,
+          },
+        },
+        provider: 'accumulator-tutor',
+        model: 'accumulator-model',
+        promptVersion: modelRequest.promptVersion,
+        inputTokens: 100,
+        outputTokens: 50,
+      })
+    }
+
+    let guardEvalIndex = 0
+    semanticGuard.behavior = () => {
+      guardEvalIndex += 1
+      if (guardEvalIndex === 1) {
+        return Promise.resolve({
+          rawOutput: {
+            approved: false,
+            violations: [
+              {
+                type: 'CODE_LEAKAGE',
+                severity: 'HIGH',
+                field: 'candidate.debuggingGuidance.conceptExplanation',
+                evidence: 'Discloses replacement syntax total += number.',
+                regenerationInstruction:
+                  'Keep the diagnosis and relevant location, but remove the exact replacement code; explain the concept without writing the corrected code statement.',
+              },
+            ],
+          },
+          provider: 'semantic-guard',
+          model: 'semantic-guard-model',
+          promptVersion: SEMANTIC_GUARD_PROMPT_VERSION,
+        })
+      }
+      return Promise.resolve(approvedSemanticGuardResponse())
+    }
+
+    const studentCodeMessage = [
+      'numbers = [10, 20, 30]',
+      'total = 0',
+      'for number in numbers:',
+      '    total = number',
+      'average = total / len(numbers)',
+      'print(average)',
+      'Why is the result 10 instead of 20?',
+    ].join('\n')
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({
+        content: studentCodeMessage,
+        clientMessageId: randomUUID(),
+      })
+      .expect(201)
+    const turn = response.body as TutoringTurnResponseDto
+
+    expect(tutorModel.callCount).toBe(2)
+    expect(semanticGuard.callCount).toBe(2)
+    expect(turn.assistantMessage.content).toContain(
+      'Observe the value of `total` after each iteration',
+    )
+    expect(turn.assistantMessage.content).not.toContain('total += number')
+
+    const attemptId = turn.assistantMessage.attemptId
+    if (attemptId === null) {
+      throw new Error('Expected attemptId')
+    }
+    const persisted = await prisma.tutoringAttempt.findUniqueOrThrow({
+      where: { id: attemptId },
+      include: {
+        candidateAttempts: {
+          include: {
+            guardResults: { orderBy: { validationStage: 'asc' } },
+          },
+          orderBy: { candidateAttempt: 'asc' },
+        },
+      },
+    })
+
+    expect(persisted.approvalSource).toBe('VALIDATED_CANDIDATE')
+    expect(persisted.approvedCandidateAttempt).toBe(2)
+    expect(persisted.safeFallbackUsed).toBe(false)
+    expect(persisted.candidateAttempts).toHaveLength(2)
+    expect(persisted.candidateAttempts[0].guardResults).toHaveLength(3)
+    expect(persisted.candidateAttempts[0].guardResults[2].approved).toBe(false)
+    expect(persisted.candidateAttempts[1].guardResults).toHaveLength(3)
+    expect(
+      persisted.candidateAttempts[1].guardResults.every(
+        (result) => result.approved,
+      ),
+    ).toBe(true)
   })
 
   it('fulfills the Story 124 no-attempt → weak attempt → partial attempt → repeatedly stuck journey', async () => {
@@ -960,6 +1321,9 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
         recommendedTechnique: TeachingTechnique.VERIFICATION,
         meaningfulEffort: true,
         learningEvidenceStrength: 'STRONG' as const,
+        answerCorrectness: 'CORRECT' as const,
+        objectiveCompleted: true,
+        misconceptionRecoveryVerified: true,
         recommendedGuidanceLevel: 1,
       },
     ] as const
@@ -992,10 +1356,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
         studentActionType: TeachingTechnique.COUNTEREXAMPLE,
       },
       {
-        message:
-          'Yes—that distinction is correct [retrieval.rank.1]. To verify it in a new case, what would a loop print after reaching `continue` at 2 and `break` at 4, and why?',
+        message: 'Yes, that distinction is correct [retrieval.rank.1].',
         responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
         studentActionType: TeachingTechnique.VERIFICATION,
+        requiresStudentAction: false,
       },
     ] as const
     let candidateIndex = 0
@@ -1055,9 +1419,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       })
       expect(turn.assistantMessage.citations).toHaveLength(1)
     }
-    expect(turns[3].assistantMessage.content).toMatch(/^Yes—/u)
-    expect(turns[3].assistantMessage.content).toMatch(/verify/iu)
-    expect(turns[3].assistantMessage.content).toMatch(/\?$/u)
+    expect(turns[3].assistantMessage.content).toMatch(
+      /^Yes, that distinction is correct/iu,
+    )
+    expect(turns[3].assistantMessage.content).not.toContain('?')
 
     const attempts = await prisma.tutoringAttempt.findMany({
       where: { sessionId: session.id },
@@ -1112,6 +1477,9 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       studentState: StudentState.NEAR_SOLUTION,
       learningEvidencePresent: true,
       learningEvidenceStrength: 'STRONG',
+      answerCorrectness: 'CORRECT',
+      objectiveCompleted: true,
+      misconceptionRecoveryVerified: true,
       recommendedTechnique: TeachingTechnique.VERIFICATION,
     })
     expect(analyses[3].evidenceLinks).toEqual(
@@ -1142,8 +1510,8 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       TeachingTechnique.VERIFICATION,
     ])
     expect(
-      decisions.every(({ requireStudentAction }) => requireStudentAction),
-    ).toBe(true)
+      decisions.map(({ requireStudentAction }) => requireStudentAction),
+    ).toEqual([true, true, true, false])
 
     for (const attempt of attempts) {
       expect(attempt).toMatchObject({
@@ -1179,6 +1547,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       activeStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
       primaryTechnique: TeachingTechnique.VERIFICATION,
       guidanceLevel: 1,
+      lastTutorQuestion: null,
     })
     await expect(
       prisma.topic.findFirstOrThrow({
@@ -1273,7 +1642,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(semanticGuard.callCount).toBe(beforeReplay.semanticGuardCalls)
   })
 
-  it('reproduces the find_max journey and persists the meaningful misconception turn at Level 2', async () => {
+  it('reproduces the find_max journey with struggle escalation to Level 2 and meaningful misconception at Level 3', async () => {
     await createEvidenceMaterial({
       title: 'Python list indexing and comparison',
       content:
@@ -1418,7 +1787,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     )
     expect(
       turns.map(({ assistantMessage }) => assistantMessage.hintLevel),
-    ).toEqual([1, 1, 1, 2])
+    ).toEqual([1, 2, 2, 3])
 
     const finalTurn = turns[3]
     const finalStudentMessage = finalTurn.studentMessage
@@ -1446,7 +1815,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       ]),
     )
     await expect(guidanceLevelsForSession(prisma, session.id)).resolves.toEqual(
-      [1, 1, 1, 2],
+      [1, 2, 2, 3],
     )
     const protectedAttempts = await prisma.tutoringAttempt.findMany({
       where: { sessionId: session.id },
@@ -1656,7 +2025,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       approvalSource: 'VALIDATED_CANDIDATE',
       approvedCandidateAttempt: 2,
       safeFallbackReason: null,
-      validationPolicyVersion: 'response-validation.mvp.v1',
+      validationPolicyVersion: 'response-validation.mvp.v4',
     })
     expect(persistedTurn.candidateAttempts).toHaveLength(2)
     expect(persistedTurn.candidateAttempts[0].guardResults).toHaveLength(2)
@@ -2003,7 +2372,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       approvalSource: 'SAFE_FALLBACK',
       approvedCandidateAttempt: null,
       safeFallbackReason: 'GUARD_UNAVAILABLE',
-      validationPolicyVersion: 'response-validation.mvp.v1',
+      validationPolicyVersion: 'response-validation.mvp.v4',
     })
     await expect(
       prisma.tutoringCandidateAttempt.count({

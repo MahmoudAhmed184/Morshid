@@ -17,6 +17,7 @@ import {
   type SemanticGuardRequest,
 } from './semantic-guard.types'
 import type { CandidateResponse } from '../generation/tutor-generation.types'
+import { ANSWER_CORRECTNESS } from '../analysis/educational-analysis.types'
 
 describe('SemanticGuardService', () => {
   it('uses only the independent SemanticGuardPort and attaches backend metadata', async () => {
@@ -59,6 +60,99 @@ describe('SemanticGuardService', () => {
       approved: false,
       recommendedAction: RESPONSE_VALIDATION_ACTION.REGENERATE,
     })
+  })
+
+  it('instructs the guard to reject unsupported correctness and completion claims', async () => {
+    const guard = new FakeSemanticGuardPort({ approved: true, violations: [] })
+
+    await new SemanticGuardService(guard).evaluate(input())
+
+    const payload = JSON.parse(
+      guard.requests[0]?.messages[1].content ?? '{}',
+    ) as {
+      trustedPolicy: {
+        functionalResponseRequirements: {
+          correctnessClaimAllowed: boolean
+          completionClaimAllowed: boolean
+        }
+      }
+      adjudicationRules: string[]
+    }
+    expect(payload.trustedPolicy.functionalResponseRequirements).toMatchObject({
+      correctnessClaimAllowed: false,
+      completionClaimAllowed: false,
+    })
+    expect(payload.adjudicationRules.join(' ')).toContain(
+      'reject any claim that the student answer, reasoning, result, or step is correct or verified',
+    )
+    expect(payload.adjudicationRules.join(' ')).toContain(
+      'reject any claim that the objective, solution, or step is complete',
+    )
+    expect(payload.adjudicationRules.join(' ')).toContain(
+      'allow a concise confirmation that repeats only the final result and justification already supplied by the student',
+    )
+  })
+
+  it('separates student-owned intermediate work from new tutor disclosure', async () => {
+    const guard = new FakeSemanticGuardPort({ approved: true, violations: [] })
+    const base = input()
+
+    await new SemanticGuardService(guard).evaluate({
+      ...base,
+      validationContext: {
+        ...base.validationContext,
+        studentSuppliedExpressions: new Set(['5+1']),
+        verifiedStudentFinalAnswers: new Set<string>(),
+      },
+      educationalContext: {
+        ...base.educationalContext,
+        currentStudentMessage: {
+          id: 'message-1',
+          content: 'x = 5\ny = 5 + 1\nwhat is the value of y?',
+        },
+      },
+      candidate: candidate({
+        message: 'What does 5 + 1 evaluate to?',
+      }),
+    })
+
+    const payload = JSON.parse(
+      guard.requests[0]?.messages[1].content ?? '{}',
+    ) as {
+      trustedPolicy: {
+        studentOwnedWork: {
+          intermediateExpressions: string[]
+          verifiedFinalAnswers: string[]
+        }
+      }
+      adjudicationRules: string[]
+      semanticCalibrationExamples: {
+        candidateMeaning: string
+        verdict: string
+      }[]
+    }
+
+    expect(payload.trustedPolicy.studentOwnedWork).toEqual({
+      intermediateExpressions: ['5+1'],
+      verifiedFinalAnswers: [],
+    })
+    expect(payload.adjudicationRules.join(' ')).toContain(
+      'That reuse is not a new decisive substitution or DIRECT_ANSWER_DISCLOSURE',
+    )
+    expect(
+      payload.semanticCalibrationExamples.some(
+        (example) =>
+          example.candidateMeaning.includes('What does 5 + 1 evaluate to?') &&
+          example.verdict === 'APPROVE when all other checks pass',
+      ),
+    ).toBe(true)
+    expect(
+      payload.semanticCalibrationExamples.some(
+        (example) =>
+          example.candidateMeaning.includes('The answer is 6.') &&
+          example.verdict.includes('REJECT'),
+      ),
+    ).toBe(true)
   })
 
   it('uses the focused TeachingDecision obligation without adding a prior-attempt requirement', async () => {
@@ -145,6 +239,8 @@ describe('SemanticGuardService', () => {
             strength: 'STRONG',
             evidenceMessageIds: ['message-1'],
           },
+          answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+          misconceptionRecoveryVerified: true,
           misconceptions: [],
         },
       },
@@ -463,7 +559,239 @@ describe('SemanticGuardService', () => {
       RESPONSE_VALIDATION_ACTION.USE_SAFE_FALLBACK,
     )
   })
+
+  describe('bounded infrastructure retry behavior', () => {
+    it('recovers on bounded retry when the first attempt fails with malformed/truncated output', async () => {
+      const port = new SequenceFakeSemanticGuardPort([
+        new SemanticGuardModelError(
+          SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+          { finishReason: 'length' },
+        ),
+        { approved: true, violations: [] },
+      ])
+
+      const result = await new SemanticGuardService(port).evaluate(input())
+
+      expect(result.kind).toBe('validated')
+      expect(result.result.approved).toBe(true)
+      expect(port.requests).toHaveLength(2)
+    })
+
+    it('fails closed to safe fallback when malformed output repeats beyond maxRetries', async () => {
+      const port = new SequenceFakeSemanticGuardPort([
+        new SemanticGuardModelError(
+          SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+          { finishReason: 'length' },
+        ),
+        new SemanticGuardModelError(
+          SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+          { finishReason: 'length' },
+        ),
+      ])
+
+      const result = await new SemanticGuardService(port).evaluate(input())
+
+      expect(result.kind).toBe('infrastructure_failure')
+      if (result.kind === 'infrastructure_failure') {
+        expect(result.errorCode).toBe(
+          SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+        )
+      }
+      expect(port.requests).toHaveLength(2)
+      expect(result.result.approved).toBe(false)
+      expect(result.result.recommendedAction).toBe(
+        RESPONSE_VALIDATION_ACTION.USE_SAFE_FALLBACK,
+      )
+    })
+
+    it('does not retry non-retryable errors such as CANCELLED', async () => {
+      const port = new SequenceFakeSemanticGuardPort([
+        new SemanticGuardModelError(SEMANTIC_GUARD_ERROR_CODE.CANCELLED),
+      ])
+
+      const result = await new SemanticGuardService(port).evaluate(input())
+
+      expect(result.kind).toBe('infrastructure_failure')
+      expect(port.requests).toHaveLength(1)
+    })
+  })
+
+  describe('DEBUGGING_GUIDANCE calibration', () => {
+    it('builds request payload with intent-aware DEBUGGING_GUIDANCE adjudication rules and authorized diagnostic disclosure', async () => {
+      const guard = new FakeSemanticGuardPort({
+        approved: true,
+        violations: [],
+      })
+      const dbgInput = debuggingInput()
+
+      const result = await new SemanticGuardService(guard).evaluate(dbgInput)
+
+      expect(result.kind).toBe('validated')
+      expect(result.result.approved).toBe(true)
+      expect(guard.requests).toHaveLength(1)
+
+      const systemPrompt = guard.requests[0]?.messages[0].content ?? ''
+      const userPrompt = guard.requests[0]?.messages[1].content ?? ''
+      const payload = JSON.parse(userPrompt) as {
+        trustedPolicy: {
+          responseIntent: string
+          debuggingGuidanceRequired: boolean
+          debuggingGuidance: unknown
+        }
+        candidate: {
+          debuggingGuidance: unknown
+          responseIntent: string
+        }
+      }
+
+      expect(systemPrompt).toContain(
+        'When responseIntent is DEBUGGING_GUIDANCE, identifying the diagnosed defect category/likely defect and relevant location in the structured debugging guidance',
+      )
+      expect(payload.trustedPolicy.responseIntent).toBe(
+        TeachingStrategy.DEBUGGING_GUIDANCE,
+      )
+      expect(payload.trustedPolicy.debuggingGuidanceRequired).toBe(true)
+      expect(payload.trustedPolicy.debuggingGuidance).toBeDefined()
+      expect(payload.candidate.responseIntent).toBe(
+        TeachingStrategy.DEBUGGING_GUIDANCE,
+      )
+      expect(payload.candidate.debuggingGuidance).toBeDefined()
+      expect(userPrompt).toContain(
+        'AUTHORIZED DIAGNOSTIC DISCLOSURE: The candidate MAY state the diagnosed defect category / likely defect',
+      )
+      expect(userPrompt).toContain(
+        'PROHIBITED SOLUTION DISCLOSURE: When Reveal Policy is NO_FINAL_ANSWER',
+      )
+      expect(userPrompt).toContain(
+        'REGENERATION FEEDBACK FOR DEBUGGING_GUIDANCE',
+      )
+    })
+
+    it('evaluates and approves compliant debugging guidance candidate with diagnosis and trace action', async () => {
+      const guard = new FakeSemanticGuardPort({
+        approved: true,
+        violations: [],
+      })
+      const dbgInput = debuggingInput({
+        message: [
+          'Likely defect',
+          'The value of total is overwritten on each iteration.',
+          '',
+          'Relevant location',
+          'Focus on total inside the loop at line 4.',
+          '',
+          'Concept',
+          'An accumulator must preserve the previous running value while incorporating the current element. [retrieval.rank.1]',
+          '',
+          'Next inspection step',
+          'Trace the value of total across iterations.',
+        ].join('\n'),
+      })
+
+      const result = await new SemanticGuardService(guard).evaluate(dbgInput)
+
+      expect(result.kind).toBe('validated')
+      expect(result.result.approved).toBe(true)
+      expect(result.result.violations).toHaveLength(0)
+    })
+
+    it('processes rejection when candidate leaks exact corrected code (total += number) and preserves diagnosis in feedback', async () => {
+      const guard = new FakeSemanticGuardPort({
+        approved: false,
+        violations: [
+          {
+            type: 'CODE_LEAKAGE',
+            severity: 'HIGH',
+            field: 'candidate.message',
+            evidence:
+              'The candidate discloses exact replacement syntax: total += number.',
+            regenerationInstruction:
+              'Keep the diagnosis and relevant location, but remove the exact replacement code; explain the concept without writing the corrected code statement.',
+          },
+        ],
+      })
+      const dbgInput = debuggingInput({
+        message: [
+          'Likely defect',
+          'The value of total is overwritten on each iteration.',
+          '',
+          'Relevant location',
+          'Focus on total inside the loop at line 4.',
+          '',
+          'Concept',
+          'Use total += number to maintain running sum.',
+          '',
+          'Next inspection step',
+          'Trace the value of total across iterations.',
+        ].join('\n'),
+      })
+
+      const result = await new SemanticGuardService(guard).evaluate(dbgInput)
+
+      expect(result.kind).toBe('validated')
+      expect(result.result.approved).toBe(false)
+      expect(result.result.violations).toHaveLength(1)
+      expect(result.result.violations[0]?.type).toBe('CODE_LEAKAGE')
+      expect(result.result.violations[0]?.regenerationInstruction).toContain(
+        'Keep the diagnosis and relevant location, but remove the exact replacement code',
+      )
+    })
+
+    it('preserves strict direct-answer non-disclosure rules for non-debugging strategies', async () => {
+      const guard = new FakeSemanticGuardPort({
+        approved: false,
+        violations: [
+          {
+            type: 'DIRECT_ANSWER_DISCLOSURE',
+            severity: 'HIGH',
+            field: 'candidate.message',
+            evidence: 'Candidate states the misconception correction directly.',
+            regenerationInstruction:
+              'Ask a focused question preserving the inference for the student.',
+          },
+        ],
+      })
+      const socraticInput = input({
+        candidate: candidate({
+          message:
+            'In Python, assignment binds names rather than mutating containers.',
+          responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+        }),
+      })
+
+      const result = await new SemanticGuardService(guard).evaluate(
+        socraticInput,
+      )
+
+      expect(result.kind).toBe('validated')
+      expect(result.result.approved).toBe(false)
+      expect(result.result.violations[0]?.type).toBe('DIRECT_ANSWER_DISCLOSURE')
+    })
+  })
 })
+
+class SequenceFakeSemanticGuardPort implements SemanticGuardPort {
+  readonly requests: SemanticGuardRequest[] = []
+  private index = 0
+
+  constructor(private readonly sequence: readonly unknown[]) {}
+
+  evaluate(request: SemanticGuardRequest): Promise<SemanticGuardModelResponse> {
+    this.requests.push(request)
+    const current =
+      this.sequence[this.index] ?? this.sequence[this.sequence.length - 1]
+    this.index += 1
+    if (current instanceof Error) {
+      return Promise.reject(current)
+    }
+    return Promise.resolve({
+      rawOutput: current,
+      provider: 'deterministic',
+      model: 'semantic-guard-test',
+      promptVersion: SEMANTIC_GUARD_PROMPT_VERSION,
+    })
+  }
+}
 
 class FakeSemanticGuardPort implements SemanticGuardPort {
   readonly requests: SemanticGuardRequest[] = []
@@ -516,6 +844,9 @@ function input(
           strength: 'NONE',
           evidenceMessageIds: [],
         },
+        answerCorrectness: ANSWER_CORRECTNESS.INCORRECT,
+        objectiveCompleted: false,
+        misconceptionRecoveryVerified: false,
         misconceptions: [
           {
             code: 'REVERSE_ITERATION',
@@ -602,7 +933,7 @@ function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v9',
+    promptVersion: 'tutor-generation.mvp.v12',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }
@@ -671,5 +1002,100 @@ function studentActionObligation(
     technique,
     maximumMeaningfulActions: 1 as const,
     generationInstruction: 'Request exactly one meaningful student action.',
+  }
+}
+
+function debuggingInput(
+  candidatePatch: Partial<CandidateResponse> = {},
+): SemanticGuardEvaluationInput {
+  const base = input()
+  return {
+    ...base,
+    candidate: candidate({
+      message: [
+        'Likely defect',
+        'The variable total is overwritten on each iteration instead of accumulating.',
+        '',
+        'Relevant location',
+        'line 4',
+        '',
+        'Concept',
+        'An accumulator preserves the previous running value while incorporating each element. [retrieval.rank.1]',
+        '',
+        'Next inspection step',
+        'Trace the value of total across each loop iteration.',
+      ].join('\n'),
+      debuggingGuidance: {
+        diagnosis:
+          'The variable total is overwritten on each iteration instead of accumulating.',
+        relevantLocation: 'line 4',
+        conceptExplanation:
+          'An accumulator preserves the previous running value while incorporating each element.',
+        inspectionActions: [
+          'Trace the value of total across each loop iteration.',
+        ],
+      },
+      responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+      studentAction: {
+        type: TeachingTechnique.TRACE_EXECUTION,
+        description: 'Trace the value of total across each loop iteration.',
+      },
+      ...candidatePatch,
+    }),
+    educationalContext: {
+      ...base.educationalContext,
+      currentStudentMessage: {
+        id: 'message-1',
+        content:
+          'numbers = [10, 20, 30]\ntotal = 0\nfor number in numbers:\n    total = number\naverage = total / len(numbers)\nprint(average)\nWhy is the average 10 instead of 20?',
+      },
+      acceptedAnalysis: {
+        ...base.educationalContext.acceptedAnalysis,
+        requestKind: 'CODE_DIAGNOSIS',
+        studentState: 'DEBUGGING_ISSUE',
+        misconceptions: [
+          {
+            code: 'ASSIGNMENT_INSTEAD_OF_ACCUMULATION',
+            description:
+              'The student assigns total = number inside the loop instead of accumulating.',
+            confidence: 0.95,
+            evidenceMessageId: 'message-1',
+          },
+        ],
+        confidence: 0.95,
+        analysisSource: 'model',
+      },
+      currentTeachingDecision: {
+        ...base.educationalContext.currentTeachingDecision,
+        guidanceLevel: 1,
+        revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+        studentActionObligation: studentActionObligation(
+          StudentActionPurpose.PRIMARY_TECHNIQUE,
+          TeachingTechnique.TRACE_EXECUTION,
+        ),
+      },
+      recentConversation: [],
+    },
+    validationContext: {
+      ...base.validationContext,
+      responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+      debuggingGuidanceRequired: true,
+      debuggingGuidance: {
+        likelyIssue:
+          'The variable total is overwritten on each iteration instead of accumulating.',
+        relevantLocation: 'line 4',
+        concept: 'accumulator pattern',
+        nextInspectionStep:
+          'Observe the value of total after each iteration of the loop.',
+        evidenceQuery: 'accumulator pattern loops python',
+        rewriteRequested: false,
+      },
+      studentActionObligation: studentActionObligation(
+        StudentActionPurpose.PRIMARY_TECHNIQUE,
+        TeachingTechnique.TRACE_EXECUTION,
+      ),
+      guidanceLevel: 1,
+      revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+    },
   }
 }

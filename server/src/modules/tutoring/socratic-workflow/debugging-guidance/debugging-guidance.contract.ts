@@ -10,6 +10,24 @@ export const DEBUGGING_GUIDANCE_PROMPT_VERSION = 'debugging-guidance-prompt-v1'
 export const DEBUGGING_GUIDANCE_MAX_LINES = 100
 export const DEBUGGING_GUIDANCE_POLICY_VERSION = 'debugging-guidance-policy-v1'
 
+export const DEBUGGING_ADMISSION_REASONS = [
+  'ELIGIBLE_ANALYSIS_CODE_DIAGNOSIS',
+  'ELIGIBLE_EXPLICIT_DEBUGGING_INTENT',
+  'ELIGIBLE_EXECUTION_FAILURE',
+  'ELIGIBLE_UNEXPECTED_BEHAVIOR',
+  'NOT_ELIGIBLE_NO_DEBUGGING_EVIDENCE',
+  'NOT_ELIGIBLE_CODE_PRESENT_ONLY',
+] as const
+
+export type DebuggingAdmissionReason =
+  (typeof DEBUGGING_ADMISSION_REASONS)[number]
+
+export interface DebuggingAdmissionDecision {
+  readonly eligible: boolean
+  readonly reason: DebuggingAdmissionReason
+  readonly rewriteRequested: boolean
+}
+
 export const DEBUGGING_GUIDANCE_CATEGORIES = [
   'SYNTAX',
   'NAME_LOOKUP',

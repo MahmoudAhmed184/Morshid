@@ -31,6 +31,54 @@ describe('candidate response validation', () => {
     }
   })
 
+  it('accepts a completed response without a student action', () => {
+    const result = validateCandidateResponse(
+      validCandidate({
+        message: 'Your reasoning correctly completes this objective.',
+        requiresStudentAction: false,
+        studentAction: null,
+      }),
+      noActionPolicy(),
+      metadata(),
+    )
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.requiresStudentAction).toBe(false)
+      expect(result.data.studentAction).toBeNull()
+    }
+  })
+
+  it.each([
+    [true, null],
+    [
+      false,
+      {
+        type: TeachingTechnique.VERIFICATION,
+        description: 'Confirm the result again.',
+      },
+    ],
+  ])(
+    'rejects an inconsistent studentAction contract when requiresStudentAction is %s',
+    (requiresStudentAction, studentAction) => {
+      const result = validateCandidateResponse(
+        validCandidate({ requiresStudentAction, studentAction }),
+        requiresStudentAction ? policy() : noActionPolicy(),
+        metadata(),
+      )
+
+      expect(result).toMatchObject({
+        success: false,
+        errorCode: 'TUTOR_INVALID_OUTPUT',
+        diagnostic: {
+          contractStage: 'CANDIDATE_SCHEMA',
+          field: 'studentAction',
+          reason: 'SCHEMA_MISMATCH',
+        },
+      })
+    },
+  )
+
   it('rejects duplicate citation IDs', () => {
     const result = validateCandidateResponse(
       validCandidate({
@@ -40,7 +88,7 @@ describe('candidate response validation', () => {
       metadata(),
     )
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
     })
@@ -127,7 +175,9 @@ describe('candidate response validation', () => {
       'TUTOR_INVALID_OUTPUT',
     ],
   ])('rejects %s', (_name, candidate, errorCode) => {
-    expect(validateCandidateResponse(candidate, policy(), metadata())).toEqual({
+    expect(
+      validateCandidateResponse(candidate, policy(), metadata()),
+    ).toMatchObject({
       success: false,
       errorCode,
     })
@@ -140,7 +190,7 @@ describe('candidate response validation', () => {
         policy(),
         metadata(),
       ),
-    ).toEqual({
+    ).toMatchObject({
       success: false,
       errorCode: 'TUTOR_INVALID_CITATION',
     })
@@ -153,7 +203,7 @@ describe('candidate response validation', () => {
         policy(),
         metadata(),
       ),
-    ).toEqual({
+    ).toMatchObject({
       success: false,
       errorCode: 'TUTOR_INVALID_CITATION',
     })
@@ -228,7 +278,7 @@ describe('candidate response validation', () => {
         debuggingPolicy(),
         metadata(),
       ),
-    ).toEqual({
+    ).toMatchObject({
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
     })
@@ -260,7 +310,7 @@ describe('candidate response validation', () => {
           debuggingPolicy(),
           metadata(),
         ),
-      ).toEqual({
+      ).toMatchObject({
         success: false,
         errorCode: 'TUTOR_INVALID_OUTPUT',
       })
@@ -282,7 +332,7 @@ describe('candidate response validation', () => {
         debuggingPolicy(),
         metadata(),
       ),
-    ).toEqual({
+    ).toMatchObject({
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
     })
@@ -295,7 +345,7 @@ describe('candidate response validation', () => {
         policy(),
         metadata(),
       ),
-    ).toEqual({
+    ).toMatchObject({
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
     })
@@ -337,6 +387,20 @@ function policy(): CandidateResponsePolicyContext {
         'Ask the student to share what they tried as the single meaningful action.',
     },
     reflectionMode: ReflectionMode.NONE,
+  }
+}
+
+function noActionPolicy(): CandidateResponsePolicyContext {
+  return {
+    ...policy(),
+    studentActionObligation: {
+      ...policy().studentActionObligation,
+      required: false,
+      purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+      technique: TeachingTechnique.VERIFICATION,
+      generationInstruction:
+        'Confirm correctness without requiring another student action.',
+    },
   }
 }
 

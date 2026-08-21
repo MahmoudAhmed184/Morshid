@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../../../platform/database/prisma.service'
 import type { AnalysisModelResponse } from './analysis-model.port'
 import {
+  ANSWER_CORRECTNESS,
   EDUCATIONAL_ANALYSIS_SOURCE,
   EDUCATIONAL_ANALYSIS_SCHEMA_VERSION,
   type EducationalAnalysisFallbackReason,
@@ -172,6 +173,11 @@ export class PrismaEducationalAnalysisRepository extends EducationalAnalysisRepo
             effortIsRepeated: input.result.effortEvidence.isRepeated,
             learningEvidencePresent: input.result.learningEvidence.present,
             learningEvidenceStrength: input.result.learningEvidence.strength,
+            answerCorrectness:
+              input.result.answerCorrectness ?? ANSWER_CORRECTNESS.UNASSESSED,
+            objectiveCompleted: input.result.objectiveCompleted ?? false,
+            misconceptionRecoveryVerified:
+              input.result.misconceptionRecoveryVerified ?? false,
             topicRelation: input.result.topicRelation,
             recommendedStrategy: input.result.recommendedStrategy,
             recommendedTechnique: input.result.recommendedTechnique,
@@ -285,6 +291,9 @@ function mapEducationalAnalysis(
           EducationalAnalysisEvidenceKind.LEARNING,
         ),
       },
+      answerCorrectness: record.answerCorrectness,
+      objectiveCompleted: record.objectiveCompleted,
+      misconceptionRecoveryVerified: record.misconceptionRecoveryVerified,
       misconceptions: record.misconceptions.map((misconception) => ({
         code: misconception.code,
         description: misconception.description,

@@ -7,6 +7,7 @@ import {
   TUTOR_STUDENT_ACTION_TYPES,
   type CandidateResponse,
   type CandidateResponsePolicyContext,
+  type CandidateResponseValidationDiagnostic,
 } from './tutor-generation.types'
 import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 import { renderDebuggingGuidanceMessage } from '../debugging-guidance/debugging-guidance.output-validator'
@@ -55,15 +56,6 @@ const commonContentFields = {
     .strict(),
 } as const
 
-const generalCandidateResponseContentSchema = z
-  .object({
-    ...commonContentFields,
-    message: boundedNonBlankString(TUTOR_CANDIDATE_LIMITS.maxMessageCodePoints),
-    debuggingGuidance: z.null(),
-    studentAction: studentActionSchema,
-  })
-  .strict()
-
 const debuggingGuidanceResponseSchema = z
   .object({
     diagnosis: boundedString(1_000).optional(),
@@ -79,19 +71,49 @@ const debuggingGuidanceResponseSchema = z
   })
   .strict()
 
-const debuggingCandidateResponseContentSchema = z
+export const CandidateResponseContentSchema = z
   .object({
     ...commonContentFields,
-    message: z.null(),
-    debuggingGuidance: debuggingGuidanceResponseSchema,
-    studentAction: z.null(),
+    message: boundedNonBlankString(
+      TUTOR_CANDIDATE_LIMITS.maxMessageCodePoints,
+    ).nullable(),
+    debuggingGuidance: debuggingGuidanceResponseSchema.nullable(),
+    studentAction: studentActionSchema.nullable(),
   })
   .strict()
+  .superRefine((value, context) => {
+    if (value.debuggingGuidance !== null) {
+      if (value.message !== null) {
+        addContractIssue(context, 'message', 'Debugging message must be null')
+      }
+      if (value.studentAction !== null) {
+        addContractIssue(
+          context,
+          'studentAction',
+          'Debugging studentAction must be null and backend-derived',
+        )
+      }
+      return
+    }
 
-export const CandidateResponseContentSchema = z.union([
-  generalCandidateResponseContentSchema,
-  debuggingCandidateResponseContentSchema,
-])
+    if (value.message === null) {
+      addContractIssue(context, 'message', 'General message is required')
+    }
+    if (value.requiresStudentAction && value.studentAction === null) {
+      addContractIssue(
+        context,
+        'studentAction',
+        'studentAction is required when requiresStudentAction is true',
+      )
+    }
+    if (!value.requiresStudentAction && value.studentAction !== null) {
+      addContractIssue(
+        context,
+        'studentAction',
+        'studentAction must be null when requiresStudentAction is false',
+      )
+    }
+  })
 
 export type CandidateResponseContent = z.infer<
   typeof CandidateResponseContentSchema
@@ -108,6 +130,7 @@ export type CandidateResponseValidationResult =
         | 'TUTOR_MALFORMED_OUTPUT'
         | 'TUTOR_INVALID_OUTPUT'
         | 'TUTOR_INVALID_CITATION'
+      readonly diagnostic: CandidateResponseValidationDiagnostic
     }
 
 export function parseCandidateResponseContent(
@@ -139,25 +162,44 @@ export function validateCandidateResponse(
   metadata: Pick<CandidateResponse, 'provider' | 'model' | 'tokenUsage'>,
 ): CandidateResponseValidationResult {
   if (hasBackendOwnedMetadata(rawOutput) || hasApprovalLikeField(rawOutput)) {
+    const backendField = backendOwnedMetadataField(rawOutput)
+    const approvalField = approvalLikeField(rawOutput)
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
+      diagnostic: {
+        contractStage: 'CANDIDATE_POLICY',
+        field: backendField ?? approvalField,
+        reason:
+          backendField === null ? 'APPROVAL_FIELD' : 'BACKEND_OWNED_FIELD',
+      },
     }
   }
 
-  const content = parseCandidateResponseContent(rawOutput)
-  if (content === null) {
+  const parsedRawOutput = parseRawOutput(rawOutput)
+  if (parsedRawOutput === null) {
     return {
       success: false,
-      errorCode: malformedOrInvalid(rawOutput),
+      errorCode: 'TUTOR_MALFORMED_OUTPUT',
+      diagnostic: schemaDiagnostic(null),
     }
   }
+  const parsed = CandidateResponseContentSchema.safeParse(parsedRawOutput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      errorCode: malformedOrInvalid(parsedRawOutput),
+      diagnostic: schemaDiagnostic(parsed.error.issues[0]?.path ?? []),
+    }
+  }
+  const content = parsed.data
 
   const usedCitationIds = Array.from(new Set(content.usedCitationIds))
   if (usedCitationIds.length !== content.usedCitationIds.length) {
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
+      diagnostic: policyDiagnostic('usedCitationIds', 'DUPLICATE_CITATION'),
     }
   }
   if (
@@ -166,6 +208,7 @@ export function validateCandidateResponse(
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_CITATION',
+      diagnostic: policyDiagnostic('usedCitationIds', 'INVALID_CITATION'),
     }
   }
   if (
@@ -177,6 +220,7 @@ export function validateCandidateResponse(
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_CITATION',
+      diagnostic: policyDiagnostic('usedCitationIds', 'MISSING_CITATION'),
     }
   }
   if (
@@ -185,12 +229,20 @@ export function validateCandidateResponse(
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
+      diagnostic: policyDiagnostic(
+        'requiresStudentAction',
+        'STUDENT_ACTION_OBLIGATION_MISMATCH',
+      ),
     }
   }
   if (content.reflectionIncluded !== (policy.reflectionMode !== 'NONE')) {
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
+      diagnostic: policyDiagnostic(
+        'reflectionIncluded',
+        'REFLECTION_MODE_MISMATCH',
+      ),
     }
   }
 
@@ -199,6 +251,10 @@ export function validateCandidateResponse(
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
+      diagnostic: policyDiagnostic(
+        'debuggingGuidance',
+        'DEBUGGING_CONTRACT_MISMATCH',
+      ),
     }
   }
 
@@ -213,13 +269,17 @@ export function validateCandidateResponse(
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
+      diagnostic: policyDiagnostic(
+        'debuggingGuidance.inspectionActions',
+        'DEBUGGING_CONTRACT_MISMATCH',
+      ),
     }
   }
 
   let message: string
   let studentAction: CandidateResponse['studentAction']
   if (content.debuggingGuidance === null) {
-    message = content.message
+    message = content.message ?? ''
     studentAction = content.studentAction
   } else {
     const action = content.debuggingGuidance.inspectionActions[0] ?? ''
@@ -278,6 +338,52 @@ function boundedString(maximumCodePoints: number) {
     })
 }
 
+function addContractIssue(
+  context: z.RefinementCtx,
+  field: string,
+  message: string,
+): void {
+  context.addIssue({
+    code: 'custom',
+    path: [field],
+    message,
+  })
+}
+
+function parseRawOutput(rawOutput: unknown): unknown {
+  if (typeof rawOutput !== 'string') {
+    return rawOutput
+  }
+
+  try {
+    return JSON.parse(rawOutput)
+  } catch {
+    return null
+  }
+}
+
+function schemaDiagnostic(
+  path: readonly PropertyKey[] | null,
+): CandidateResponseValidationDiagnostic {
+  return {
+    contractStage: 'CANDIDATE_SCHEMA',
+    field:
+      path === null || path.length === 0 ? null : path.map(String).join('.'),
+    reason: 'SCHEMA_MISMATCH',
+  }
+}
+
+function policyDiagnostic(
+  field: string,
+  reason: CandidateResponseValidationDiagnostic['reason'],
+): CandidateResponseValidationDiagnostic {
+  return {
+    contractStage: 'CANDIDATE_POLICY',
+    field,
+    reason,
+  }
+}
+
 function hasAtMostCodePoints(value: string, maximum: number): boolean {
   return Array.from(value).length <= maximum
 }
@@ -291,6 +397,17 @@ function hasBackendOwnedMetadata(value: unknown): boolean {
   )
 }
 
+function backendOwnedMetadataField(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return null
+  }
+  return (
+    BACKEND_OWNED_METADATA_KEYS.find((key) =>
+      Object.prototype.hasOwnProperty.call(value, key),
+    ) ?? null
+  )
+}
+
 function hasApprovalLikeField(value: unknown): boolean {
   if (!isRecord(value)) {
     return false
@@ -301,6 +418,19 @@ function hasApprovalLikeField(value: unknown): boolean {
       typeof key === 'string' &&
       ['approved', 'isApproved', 'guardPassed', 'studentVisible'].includes(key),
   )
+}
+
+function approvalLikeField(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const field = Reflect.ownKeys(value).find(
+    (key) =>
+      typeof key === 'string' &&
+      ['approved', 'isApproved', 'guardPassed', 'studentVisible'].includes(key),
+  )
+  return typeof field === 'string' ? field : null
 }
 
 function malformedOrInvalid(

@@ -123,6 +123,15 @@ enum StudentState {
   @@map("student_state")
 }
 
+enum AnswerCorrectness {
+  UNASSESSED
+  INCORRECT
+  PARTIALLY_CORRECT
+  CORRECT
+
+  @@map("answer_correctness")
+}
+
 enum TeachingStrategy {
   GUIDED_EXPLANATION
   SOCRATIC_QUESTIONING
@@ -403,6 +412,9 @@ model EducationalAnalysis {
   effortIsRepeated                   Boolean            @map("effort_is_repeated")
   learningEvidencePresent            Boolean            @map("learning_evidence_present")
   learningEvidenceStrength           String             @map("learning_evidence_strength") @db.VarChar(20)
+  answerCorrectness                  AnswerCorrectness  @default(UNASSESSED) @map("answer_correctness")
+  objectiveCompleted                 Boolean            @default(false) @map("objective_completed")
+  misconceptionRecoveryVerified      Boolean            @default(false) @map("misconception_recovery_verified")
   topicRelation                      String             @map("topic_relation") @db.VarChar(40)
   recommendedStrategy                TeachingStrategy   @map("recommended_strategy")
   recommendedTechnique               TeachingTechnique  @map("recommended_technique")

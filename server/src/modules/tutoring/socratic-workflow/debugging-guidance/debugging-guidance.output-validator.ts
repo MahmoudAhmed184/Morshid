@@ -101,8 +101,9 @@ export function validateDebuggingGuidanceOutput(
   }
   const action = guidance.inspectionActions[0]
   if (
+    candidate.studentAction === null ||
     normalizeContractText(candidate.studentAction.description) !==
-    normalizeContractText(action)
+      normalizeContractText(action)
   ) {
     return rejected(
       DEBUGGING_GUIDANCE_VALIDATION_FAILURE.STRUCTURED_STUDENT_ACTION_MISMATCH,
@@ -195,7 +196,7 @@ function validateInspectionAction(
   if (action === '') {
     return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_STUDENT_ACTION
   }
-  if (countActionVerbs(action) > 1) {
+  if (hasMultipleActions(action)) {
     return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MULTIPLE_STUDENT_ACTIONS
   }
   if (!isMeaningfulInspectionAction(action)) {
@@ -205,18 +206,29 @@ function validateInspectionAction(
 }
 
 function isMeaningfulInspectionAction(action: string): boolean {
-  return (
-    Array.from(action).length >= 12 &&
-    (/[?]/u.test(action) || countActionVerbs(action) === 1)
-  )
+  const trimmed = action.trim()
+  return Array.from(trimmed).length >= 12 && /\p{L}{3,}/u.test(trimmed)
 }
 
-function countActionVerbs(action: string): number {
-  return (
-    action.match(
-      /\b(?:inspect|trace|check|compare|record|write|identify|predict|explain|show|test|run|calculate|compute|evaluate|describe|tell|try)\b/giu,
-    ) ?? []
-  ).length
+function hasMultipleActions(action: string): boolean {
+  if (
+    /(?:^|\n|\s)(?:1[.)]|step\s*1[:.]?)\s+\S.*?(?:\n|\s)(?:2[.)]|step\s*2[:.]?)\s+\S/iu.test(
+      action,
+    )
+  ) {
+    return true
+  }
+  if (/(?:^|\n)\s*[-*•]\s+\S.*?\n\s*[-*•]\s+\S/u.test(action)) {
+    return true
+  }
+  if (
+    /\b(?:and|then|[.;])\s+(?:rewrite|modify|fix|correct the code|change the code)\b/iu.test(
+      action,
+    )
+  ) {
+    return true
+  }
+  return false
 }
 
 function containsCompleteProgram(content: string): boolean {

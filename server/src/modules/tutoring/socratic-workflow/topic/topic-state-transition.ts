@@ -5,6 +5,7 @@ import {
 } from '../../tutoring-values'
 import type { MessageRequestKind } from '../../tutoring-values'
 import {
+  ANSWER_CORRECTNESS,
   EFFORT_QUALITY,
   LEARNING_EVIDENCE_STRENGTH,
   type EducationalAnalysisResult,
@@ -35,7 +36,6 @@ export function buildCompletedTopicStateTransition(input: {
 }): TopicStateTransition {
   const { analysis, decision, topicState } = input
   const result = analysis.result
-  const learningStrength = result.learningEvidence.strength
 
   const transition: TopicStateTransition = {
     expectedVersion: topicState.version,
@@ -54,12 +54,13 @@ export function buildCompletedTopicStateTransition(input: {
       learningStatus: learningStatusFor(topicState, result),
       resolutionEvidenceStrength: resolutionEvidenceStrengthFor(
         topicState,
-        learningStrength,
+        result,
       ),
       summary: summaryFor(result),
-      lastTutorQuestion: boundedText(
-        input.approvedResponse.studentAction.description,
-      ),
+      lastTutorQuestion:
+        input.approvedResponse.studentAction === null
+          ? null
+          : boundedText(input.approvedResponse.studentAction.description),
       lastStudentAction: boundedText(studentActionSummary(result)),
       resolved: topicState.resolved,
     },
@@ -159,6 +160,10 @@ function learningStatusFor(
   topicState: TopicStateSnapshot,
   result: EducationalAnalysisResult,
 ): LearningStatus {
+  if (result.answerCorrectness === ANSWER_CORRECTNESS.INCORRECT) {
+    return LearningStatus.IN_PROGRESS
+  }
+
   if (result.learningEvidence.present) {
     switch (result.learningEvidence.strength) {
       case LEARNING_EVIDENCE_STRENGTH.STRONG:
@@ -179,9 +184,13 @@ function learningStatusFor(
 
 function resolutionEvidenceStrengthFor(
   topicState: TopicStateSnapshot,
-  currentStrength: EducationalAnalysisResult['learningEvidence']['strength'],
+  result: EducationalAnalysisResult,
 ): ResolutionEvidenceStrength {
-  const current = toResolutionEvidenceStrength(currentStrength)
+  if (result.answerCorrectness === ANSWER_CORRECTNESS.INCORRECT) {
+    return ResolutionEvidenceStrength.NONE
+  }
+
+  const current = toResolutionEvidenceStrength(result.learningEvidence.strength)
   return evidenceStrengthRank(current) >=
     evidenceStrengthRank(topicState.resolutionEvidenceStrength)
     ? current
@@ -222,6 +231,10 @@ function summaryFor(result: EducationalAnalysisResult): string {
     return boundedText(
       `Misconception ${misconception.code}: ${misconception.description}`,
     )
+  }
+
+  if (result.answerCorrectness === ANSWER_CORRECTNESS.INCORRECT) {
+    return 'Current answer assessment: incorrect.'
   }
 
   if (result.learningEvidence.present) {

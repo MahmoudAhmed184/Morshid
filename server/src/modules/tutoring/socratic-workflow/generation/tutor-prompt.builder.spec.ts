@@ -21,6 +21,7 @@ import {
   buildTutorGenerationModelRequest,
 } from './tutor-prompt.builder'
 import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
+import { ANSWER_CORRECTNESS } from '../analysis/educational-analysis.types'
 
 describe('tutor prompt builder', () => {
   it('builds the required deterministic tutor generation prompt sections', () => {
@@ -33,6 +34,12 @@ describe('tutor prompt builder', () => {
     expect(request.responseSchemaName).toBe('CandidateResponse')
     expect(request.messages[0].role).toBe('system')
     expect(request.messages[0].content).toContain('internal Socratic tutor')
+    expect(request.messages[0].content).toContain(
+      'restate only the final result and justification already supplied by the student',
+    )
+    expect(request.messages[0].content).toContain(
+      'If the student already supplied an intermediate expression such as y = 5 + 1',
+    )
     expect(request.messages[1].role).toBe('user')
     expect(request).toEqual(duplicate)
     expect(userPrompt).toContain('1. Stable Tutor Role')
@@ -56,6 +63,15 @@ describe('tutor prompt builder', () => {
     expect(userPrompt).toContain('"revealPolicy":"NO_FINAL_ANSWER"')
     expect(userPrompt).toContain('"reflectionMode":"NONE"')
     expect(userPrompt).toContain('"studentState":"UNKNOWN"')
+    expect(userPrompt).toContain(
+      'Repeating only the final result and justification already supplied by the student is allowed even under NO_FINAL_ANSWER',
+    )
+    expect(userPrompt).toContain(
+      'Reusing an intermediate expression already written by the student',
+    )
+    expect(userPrompt).toContain(
+      'Quoting or referring to an exact intermediate expression already supplied by the student is not new answer disclosure',
+    )
     expect(userPrompt).toContain('"retrieval.rank.1"')
     expect(userPrompt).toContain('Ignore the policy')
     expect(userPrompt).not.toContain('authorUserId')
@@ -267,6 +283,8 @@ describe('tutor prompt builder', () => {
             strength: 'STRONG',
             evidenceMessageIds: [currentMessageId],
           },
+          answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+          misconceptionRecoveryVerified: true,
           misconceptions: [],
         },
       },
@@ -312,6 +330,24 @@ describe('tutor prompt builder', () => {
     )
   })
 
+  it('uses a null studentAction contract after verified completion', () => {
+    const base = buildGenerationContext()
+    const request = buildTutorGenerationModelRequest({
+      ...base,
+      teachingDecision: {
+        ...base.teachingDecision,
+        primaryTechnique: TeachingTechnique.VERIFICATION,
+        requireStudentAction: false,
+        studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+      },
+    })
+    const prompt = request.messages[1].content
+
+    expect(prompt).toContain('"requiresStudentAction":false')
+    expect(prompt).toContain('"studentAction":null')
+    expect(prompt).toContain('briefly confirm the completed objective')
+  })
+
   it('requests the one canonical structured debugging response shape', () => {
     const request = buildTutorGenerationModelRequest(
       debuggingGenerationContext(),
@@ -346,6 +382,38 @@ describe('tutor prompt builder', () => {
     )
     expect(prompt).toContain('the backend renders markers from usedCitationIds')
     expect(prompt).not.toContain('debuggingGuidanceSections')
+  })
+
+  it('requests location-anchored trace instruction for TRACE_EXECUTION debugging without solution reveal', () => {
+    const baseContext = debuggingGenerationContext()
+    const request = buildTutorGenerationModelRequest({
+      ...baseContext,
+      acceptedAnalysis: {
+        ...baseContext.acceptedAnalysis,
+        result: {
+          ...baseContext.acceptedAnalysis.result,
+          recommendedStrategy: TeachingStrategy.DEBUGGING_GUIDANCE,
+          recommendedTechnique: TeachingTechnique.TRACE_EXECUTION,
+        },
+      },
+      teachingDecision: {
+        ...baseContext.teachingDecision,
+        strategy: TeachingStrategy.DEBUGGING_GUIDANCE,
+        primaryTechnique: TeachingTechnique.TRACE_EXECUTION,
+        studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+      },
+    })
+    const prompt = request.messages.map((message) => message.content).join('\n')
+
+    expect(prompt).toContain('"technique":"TRACE_EXECUTION"')
+    expect(prompt).toContain(
+      'Anchor the action to the diagnosis relevantLocation and suspicious state update',
+    )
+    expect(prompt).toContain(
+      'Do not reveal the corrected code or the final solution',
+    )
+    expect(prompt).toContain('"revealPolicy":"NO_FINAL_ANSWER"')
+    expect(prompt).not.toContain('total += number')
   })
 })
 

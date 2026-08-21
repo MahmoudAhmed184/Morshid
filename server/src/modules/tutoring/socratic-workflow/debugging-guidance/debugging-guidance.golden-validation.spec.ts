@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import {
   MessageGuidanceLabel,
   MessageRequestKind,
+  StudentState,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../tutoring-values'
@@ -65,9 +66,32 @@ function findFixture(
   return fixture
 }
 
+function fixtureInput(fixture: DebuggingGuidanceFixture): string {
+  const code = materializeDebuggingGuidanceFixtureInput(fixture)
+  if (fixture.input.kind === 'GENERATED_LINES') {
+    return `${fixture.prompt} ${code}`
+  }
+  return `${fixture.prompt}\n${code}`
+}
+
 function evaluateFixture(fixture: DebuggingGuidanceFixture): GoldenResult {
-  const input = materializeDebuggingGuidanceFixtureInput(fixture)
-  const selection = selectTutorStrategy(input)
+  const code = materializeDebuggingGuidanceFixtureInput(fixture)
+  const input =
+    fixture.input.kind === 'GENERATED_LINES'
+      ? code
+      : `${fixture.prompt}\n${code}`
+  const analysis =
+    fixture.expectedClassification === 'CODE_DIAGNOSIS' ||
+    fixture.expectedBoundary === 'TOO_MANY_LINES'
+      ? {
+          requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+          studentState: StudentState.DEBUGGING_ISSUE,
+        }
+      : null
+  const selection = selectTutorStrategy({
+    studentMessage: input,
+    analysis,
+  })
   // Diagnosis ownership moved to DebuggingDiagnosisService; matcher-level
   // evaluation uses prepareDebuggingGuidance directly.
   const guidance = prepareDebuggingGuidance(input)
@@ -341,7 +365,7 @@ describe('Debugging guidance golden validation', () => {
         dataset.fixtures,
         'code-diagnosis-loop-indentation-001',
       )
-      const input = materializeDebuggingGuidanceFixtureInput(fixture)
+      const input = fixtureInput(fixture)
       const guidance = prepareDebuggingGuidance(input)
 
       expect(guidance).not.toBeNull()
@@ -410,7 +434,7 @@ describe('Debugging guidance golden validation', () => {
       'code-diagnosis-c-001',
     ])('routes %s through one structured diagnosis', (fixtureId) => {
       const fixture = findFixture(dataset.fixtures, fixtureId)
-      const input = materializeDebuggingGuidanceFixtureInput(fixture)
+      const input = fixtureInput(fixture)
       const selection = selectTutorStrategy(input)
       const guidance = prepareDebuggingGuidance(input)
       const result = evaluateFixture(fixture)
@@ -431,8 +455,14 @@ describe('Debugging guidance golden validation', () => {
         dataset.fixtures,
         'code-diagnosis-lines-over-001',
       )
-      const input = materializeDebuggingGuidanceFixtureInput(fixture)
-      const selection = selectTutorStrategy(input)
+      const input = fixtureInput(fixture)
+      const selection = selectTutorStrategy({
+        studentMessage: input,
+        analysis: {
+          requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+          studentState: StudentState.DEBUGGING_ISSUE,
+        },
+      })
       const guidance = prepareDebuggingGuidance(input)
       const result = evaluateFixture(fixture)
       results.push(result)
@@ -452,7 +482,7 @@ describe('Debugging guidance golden validation', () => {
         dataset.fixtures,
         'code-diagnosis-full-correction-request-001',
       )
-      const input = materializeDebuggingGuidanceFixtureInput(fixture)
+      const input = fixtureInput(fixture)
       const selection = selectTutorStrategy(input)
       const guidance = prepareDebuggingGuidance(input)
       const result = evaluateFixture(fixture)
@@ -502,7 +532,7 @@ describe('Debugging guidance golden validation', () => {
   describe('no-full-code in diagnosis', () => {
     it('ensures diagnosis text contains no corrected code', () => {
       const fixture = findFixture(dataset.fixtures, 'gd-p0-v1-058')
-      const input = materializeDebuggingGuidanceFixtureInput(fixture)
+      const input = fixtureInput(fixture)
       const guidance = prepareDebuggingGuidance(input)
 
       expect(guidance).not.toBeNull()
@@ -549,7 +579,7 @@ describe('Debugging guidance golden validation', () => {
   describe('refresh persistence', () => {
     it('produces stable matcher output for the same input', () => {
       const fixture = findFixture(dataset.fixtures, 'gd-p0-v1-058')
-      const input = materializeDebuggingGuidanceFixtureInput(fixture)
+      const input = fixtureInput(fixture)
 
       const first = prepareDebuggingGuidance(input)
       const second = prepareDebuggingGuidance(input)
@@ -564,7 +594,7 @@ describe('Debugging guidance golden validation', () => {
         dataset.fixtures,
         'code-diagnosis-javascript-001',
       )
-      const input = materializeDebuggingGuidanceFixtureInput(fixture)
+      const input = fixtureInput(fixture)
 
       const first = prepareDebuggingGuidance(input)
       const second = prepareDebuggingGuidance(input)
@@ -581,7 +611,7 @@ describe('Debugging guidance golden validation', () => {
       // Here we additionally confirm the strategy itself returns pure data
       // without side effects.
       for (const fixture of dataset.fixtures) {
-        const input = materializeDebuggingGuidanceFixtureInput(fixture)
+        const input = fixtureInput(fixture)
         const selection = selectTutorStrategy(input)
 
         // The selection is a frozen data object with no callable side effects
@@ -599,7 +629,7 @@ describe('Debugging guidance golden validation', () => {
   describe('gd-p0-v1-058 end-to-end', () => {
     it('satisfies every locked SCN-005 expectation', () => {
       const fixture = findFixture(dataset.fixtures, 'gd-p0-v1-058')
-      const input = materializeDebuggingGuidanceFixtureInput(fixture)
+      const input = fixtureInput(fixture)
       const selection = selectTutorStrategy(input)
       const guidance = prepareDebuggingGuidance(input)
 
@@ -759,7 +789,7 @@ function debuggingCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v9',
+    promptVersion: 'tutor-generation.mvp.v12',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

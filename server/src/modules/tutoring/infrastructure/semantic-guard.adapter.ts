@@ -162,43 +162,80 @@ export class OpenAICompatibleSemanticGuardAdapter implements SemanticGuardPort {
       throw new SemanticGuardModelError(SEMANTIC_GUARD_ERROR_CODE.CANCELLED)
     }
 
-    try {
-      const parsed = await this.transport.complete({
-        endpoint: this.endpoint,
-        authorization: this.authorization,
-        model: this.modelName,
-        messages: request.messages,
-        temperature: 0,
-        topP: 1,
-        maxCompletionTokens: this.maxCompletionTokens,
-        timeoutMs: this.timeoutMs,
-        maxResponseBytes: MAX_GUARD_RESPONSE_BYTES,
-        signal: request.signal,
-      })
+    let completionTokens = this.maxCompletionTokens
+    const maxRetries = 1
 
-      return validateSemanticGuardResponse({
-        rawOutput: parseStructuredOutput(parsed.content, parsed.finishReason),
-        provider: OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
-        model: parsed.model ?? this.modelName,
-        promptVersion: request.promptVersion,
-        ...(parsed.inputTokens === undefined
-          ? {}
-          : { inputTokens: parsed.inputTokens }),
-        ...(parsed.outputTokens === undefined
-          ? {}
-          : { outputTokens: parsed.outputTokens }),
-      })
-    } catch (error) {
-      const normalized = mapStructuredChatError(error)
-      this.logger.warn({
-        event: 'semantic_guard_provider_failed',
-        errorClass: normalized.name,
-        errorCode: normalized.code,
-        status: normalized.status ?? null,
-        finishReason: normalized.finishReason ?? null,
-      })
-      throw normalized
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      if (
+        request.signal !== undefined &&
+        readAbortSignalAborted(request.signal)
+      ) {
+        throw new SemanticGuardModelError(SEMANTIC_GUARD_ERROR_CODE.CANCELLED)
+      }
+
+      try {
+        const parsed = await this.transport.complete({
+          endpoint: this.endpoint,
+          authorization: this.authorization,
+          model: this.modelName,
+          messages: request.messages,
+          temperature: 0,
+          topP: 1,
+          maxCompletionTokens: completionTokens,
+          timeoutMs: this.timeoutMs,
+          maxResponseBytes: MAX_GUARD_RESPONSE_BYTES,
+          signal: request.signal,
+        })
+
+        const rawOutput = parseStructuredOutput(
+          parsed.content,
+          parsed.finishReason,
+        )
+
+        return validateSemanticGuardResponse({
+          rawOutput,
+          provider: OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
+          model: parsed.model ?? this.modelName,
+          promptVersion: request.promptVersion,
+          ...(parsed.inputTokens === undefined
+            ? {}
+            : { inputTokens: parsed.inputTokens }),
+          ...(parsed.outputTokens === undefined
+            ? {}
+            : { outputTokens: parsed.outputTokens }),
+        })
+      } catch (error) {
+        const normalized = mapStructuredChatError(error)
+        if (
+          attempt < maxRetries &&
+          normalized.code === SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT &&
+          normalized.finishReason === 'length'
+        ) {
+          this.logger.warn({
+            event: 'semantic_guard_retrying_after_length_truncation',
+            attempt,
+            maxRetries,
+            previousTokens: completionTokens,
+          })
+          completionTokens = Math.min(completionTokens * 2, 4096)
+          continue
+        }
+
+        this.logger.warn({
+          event: 'semantic_guard_provider_failed',
+          errorClass: normalized.name,
+          errorCode: normalized.code,
+          status: normalized.status ?? null,
+          finishReason: normalized.finishReason ?? null,
+        })
+        throw normalized
+      }
     }
+
+    throw new SemanticGuardModelError(
+      SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+      { finishReason: 'length' },
+    )
   }
 }
 

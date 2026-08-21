@@ -186,6 +186,10 @@ export function guardEducationalContextFromGenerationContext(
       studentState: context.acceptedAnalysis.result.studentState,
       effortEvidence: context.acceptedAnalysis.result.effortEvidence,
       learningEvidence: context.acceptedAnalysis.result.learningEvidence,
+      answerCorrectness: context.acceptedAnalysis.result.answerCorrectness,
+      objectiveCompleted: context.acceptedAnalysis.result.objectiveCompleted,
+      misconceptionRecoveryVerified:
+        context.acceptedAnalysis.result.misconceptionRecoveryVerified,
       misconceptions: context.acceptedAnalysis.result.misconceptions,
       evidenceReferences: context.acceptedAnalysis.result.evidenceReferences,
       confidence: context.acceptedAnalysis.result.confidence,

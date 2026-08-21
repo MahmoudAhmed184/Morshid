@@ -92,19 +92,19 @@ describe('SafeFallbackService', () => {
       technique: TeachingTechnique.ORIENTATION_QUESTION,
       level: ExplanationDetailLevel.CONCISE,
       expectedMessage:
-        'Let us narrow it down to one step. What was your last confident step?',
+        'Let us break this down. What is the starting value or condition to check first?',
     },
     {
       technique: TeachingTechnique.ORIENTATION_QUESTION,
       level: ExplanationDetailLevel.STANDARD,
       expectedMessage:
-        'Let us narrow it down to one step. Show the last step you were confident about and what you expected next.',
+        'Let us break this down into one step. What is the first value or condition to check?',
     },
     {
       technique: TeachingTechnique.ORIENTATION_QUESTION,
       level: ExplanationDetailLevel.DETAILED,
       expectedMessage:
-        'Let us narrow this down step by step. Show the last step you were confident about, and what you expected to happen next.',
+        'Let us break this problem down into smaller steps. What is the starting value or condition you should look at first?',
     },
   ])(
     'produces safe fallback message for $technique at $level level',
@@ -131,29 +131,59 @@ describe('SafeFallbackService', () => {
     )
 
     expect(fallback.message).toBe(
-      'Let us narrow it down to one step. Show the last step you were confident about and what you expected next.',
+      'Let us break this down into one step. What is the first value or condition to check?',
     )
   })
+
+  it.each(Object.values(ExplanationDetailLevel))(
+    'does not invent correctness for a no-action decision at %s detail',
+    (level) => {
+      const fallback = service.create(
+        baseDecision(TeachingTechnique.VERIFICATION, {
+          requireStudentAction: false,
+        }),
+        level,
+      )
+
+      expect(fallback.requiresStudentAction).toBe(true)
+      expect(fallback.message).toContain('?')
+      expect(fallback.message).not.toMatch(
+        /\b(?:correct|verified|successfully worked through|completed)\b/iu,
+      )
+      if (fallback.studentAction === null) {
+        throw new Error('Expected fallback student action')
+      }
+      expect(fallback.studentAction.description).not.toMatch(
+        /\b(?:correct|verified|successfully worked through|completed)\b/iu,
+      )
+    },
+  )
 
   it.each([
     {
       purpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
       technique: TeachingTechnique.ORIENTATION_QUESTION,
+      expectedMessage:
+        'Let us check your reasoning. What was the first step you considered?',
       expectedDescription: 'describe what they tried',
     },
     {
       purpose: StudentActionPurpose.CONCEPTUAL_UNDERSTANDING,
       technique: TeachingTechnique.ORIENTATION_QUESTION,
+      expectedMessage:
+        'Let us explore the core concept. How would you explain what this concept does in your own words?',
       expectedDescription: 'conceptual understanding question',
     },
     {
       purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
       technique: TeachingTechnique.FOCUSED_QUESTION,
+      expectedMessage:
+        'Let us break this down into one step. What is the first value or condition to check?',
       expectedDescription: 'FOCUSED_QUESTION reasoning question',
     },
   ])(
     'uses the resolved $purpose obligation',
-    ({ purpose, technique, expectedDescription }) => {
+    ({ purpose, technique, expectedMessage, expectedDescription }) => {
       const response = service.create(
         baseDecision(technique, {
           studentActionPurpose: purpose,
@@ -161,9 +191,10 @@ describe('SafeFallbackService', () => {
         }),
       )
 
-      expect(response.message).toBe(
-        'Let us narrow it down to one step. Show the last step you were confident about and what you expected next.',
-      )
+      expect(response.message).toBe(expectedMessage)
+      if (response.studentAction === null) {
+        throw new Error('Expected fallback student action')
+      }
       expect(response.studentAction.description).toContain(expectedDescription)
       expect(response).toMatchObject({
         requiresStudentAction: true,

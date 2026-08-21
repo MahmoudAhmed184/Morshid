@@ -25,6 +25,61 @@ describe('StructuralResponseValidator', () => {
     })
   })
 
+  it('approves a no-action completion and preserves a null studentAction', () => {
+    const result = validator().validateRaw(
+      {
+        ...validRawCandidate(),
+        message: 'Your reasoning correctly completes this objective.',
+        requiresStudentAction: false,
+        studentAction: null,
+      },
+      {
+        ...policy(),
+        studentActionObligation: {
+          ...policy().studentActionObligation,
+          required: false,
+          purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+          technique: TeachingTechnique.VERIFICATION,
+        },
+      },
+      {
+        provider: 'deterministic',
+        model: 'deterministic-tutor',
+        tokenUsage: { input: 0, output: 0 },
+      },
+    )
+
+    expect(result).toMatchObject({
+      stage: RESPONSE_VALIDATION_STAGE.STRUCTURAL,
+      approved: true,
+    })
+  })
+
+  it('reports the contract stage and field for malformed studentAction output', () => {
+    const result = validator().validateRaw(
+      { ...validRawCandidate(), studentAction: null },
+      policy(),
+      {
+        provider: 'deterministic',
+        model: 'deterministic-tutor',
+        tokenUsage: { input: 0, output: 0 },
+      },
+    )
+
+    expect(result).toMatchObject({
+      approved: false,
+      violations: [
+        {
+          type: RESPONSE_VIOLATION_TYPE.MISSING_REQUIRED_FIELD,
+          field: 'studentAction',
+        },
+      ],
+    })
+    expect(result.violations[0]?.evidence).toContain(
+      'Contract stage CANDIDATE_SCHEMA',
+    )
+  })
+
   it.each([
     ['malformed', 'not-json', RESPONSE_VIOLATION_TYPE.MALFORMED_RESPONSE],
     [
