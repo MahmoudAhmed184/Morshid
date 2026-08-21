@@ -26,5 +26,6 @@ describe('ConfirmDialog', () => {
     expect(titleElement.className).toMatch(
       /break-words|\[overflow-wrap:anywhere\]/,
     )
+    expect(screen.getByRole('alertdialog')).toHaveClass('overflow-x-hidden')
   })
 })
