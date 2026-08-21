@@ -331,20 +331,35 @@ async function upsertSeedCourse(
   createdById: string | null,
   universityId: string,
 ) {
-  return tx.course.upsert({
+  const existing = await tx.course.findFirst({
     where: {
+      universityId,
       code: course.code,
+      archivedAt: null,
     },
-    update: {
+  })
+
+  if (existing) {
+    return tx.course.update({
+      where: {
+        id: existing.id,
+      },
+      data: {
+        title: course.title,
+        createdById,
+        universityId,
+        archivedAt: null,
+      },
+    })
+  }
+
+  return tx.course.create({
+    data: {
+      code: course.code,
       title: course.title,
       createdById,
       universityId,
-    },
-    create: {
-      code: course.code,
-      title: course.title,
-      createdById,
-      universityId,
+      archivedAt: null,
     },
   })
 }

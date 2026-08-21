@@ -227,6 +227,7 @@ interface FindManyCourseArgs {
 
 interface CreateAuditLogArgs {
   data: {
+    universityId?: string | null
     actorUserId?: string | null
     action: string
     targetType: string
@@ -241,6 +242,7 @@ interface CreateAuditLogArgs {
 interface FindUniqueAuditLogArgs {
   where: {
     id: string
+    universityId?: string
   }
 }
 
@@ -307,7 +309,8 @@ interface FindUniqueCourseArgs {
 interface FindFirstCourseArgs {
   where?: {
     id?: string
-    code?: string
+    universityId?: string
+    code?: string | { equals?: string; mode?: 'insensitive' }
     archivedAt?: Date | null
   }
   select?: {
@@ -349,7 +352,7 @@ interface UpdateCourseArgs {
   where: {
     id: string
   }
-  data: Partial<Pick<Course, 'code' | 'title'>>
+  data: Partial<Pick<Course, 'code' | 'title' | 'archivedAt'>>
 }
 
 interface CountMaterialArgs {
@@ -749,6 +752,108 @@ export class IdentityTestStore {
       ),
       findUnique: jest.fn((args: FindUniqueAuditLogArgs) =>
         Promise.resolve(this.findAuditLog(args)),
+      ),
+      findFirst: jest.fn(
+        (args: {
+          where: { id: string; universityId?: string }
+          include?: { actor?: unknown }
+        }) => {
+          const log = this.auditLogs.get(args.where.id)
+          if (!log) return Promise.resolve(null)
+          if (
+            args.where.universityId !== undefined &&
+            log.universityId !== args.where.universityId
+          ) {
+            return Promise.resolve(null)
+          }
+          const actor =
+            log.actorUserId !== null
+              ? (this.users.get(log.actorUserId) ?? null)
+              : null
+          return Promise.resolve({
+            ...log,
+            actor:
+              actor !== null
+                ? {
+                    id: actor.id,
+                    email: actor.email,
+                    displayName: actor.displayName,
+                  }
+                : null,
+          })
+        },
+      ),
+      findMany: jest.fn(
+        (args?: {
+          where?: {
+            universityId?: string
+            action?: string
+            targetType?: string
+            courseId?: string
+            actorUserId?: string
+          }
+        }) => {
+          let logs = [...this.auditLogs.values()]
+          const where = args?.where
+          if (where !== undefined) {
+            if (where.universityId !== undefined) {
+              logs = logs.filter((l) => l.universityId === where.universityId)
+            }
+            if (where.action !== undefined) {
+              logs = logs.filter((l) => l.action === where.action)
+            }
+            if (where.targetType !== undefined) {
+              logs = logs.filter((l) => l.targetType === where.targetType)
+            }
+            if (where.courseId !== undefined) {
+              logs = logs.filter((l) => l.courseId === where.courseId)
+            }
+            if (where.actorUserId !== undefined) {
+              logs = logs.filter((l) => l.actorUserId === where.actorUserId)
+            }
+          }
+          return Promise.resolve(
+            logs.map((log) => ({
+              ...log,
+              actor:
+                log.actorUserId !== null
+                  ? (this.users.get(log.actorUserId) ?? null)
+                  : null,
+            })),
+          )
+        },
+      ),
+      count: jest.fn(
+        (args?: {
+          where?: {
+            universityId?: string
+            action?: string
+            targetType?: string
+            courseId?: string
+            actorUserId?: string
+          }
+        }) => {
+          let logs = [...this.auditLogs.values()]
+          const where = args?.where
+          if (where !== undefined) {
+            if (where.universityId !== undefined) {
+              logs = logs.filter((l) => l.universityId === where.universityId)
+            }
+            if (where.action !== undefined) {
+              logs = logs.filter((l) => l.action === where.action)
+            }
+            if (where.targetType !== undefined) {
+              logs = logs.filter((l) => l.targetType === where.targetType)
+            }
+            if (where.courseId !== undefined) {
+              logs = logs.filter((l) => l.courseId === where.courseId)
+            }
+            if (where.actorUserId !== undefined) {
+              logs = logs.filter((l) => l.actorUserId === where.actorUserId)
+            }
+          }
+          return Promise.resolve(logs.length)
+        },
       ),
     },
     studentTutoringPreference: {
@@ -1558,7 +1663,31 @@ export class IdentityTestStore {
     const where = args?.where
     const course = [...this.courses.values()].find((c) => {
       if (where?.id !== undefined && c.id !== where.id) return false
-      if (where?.code !== undefined && c.code !== where.code) return false
+      if (
+        where?.universityId !== undefined &&
+        c.universityId !== where.universityId
+      ) {
+        return false
+      }
+      if (where?.code !== undefined) {
+        if (typeof where.code === 'string') {
+          if (c.code !== where.code) return false
+        } else {
+          if (where.code.mode === 'insensitive') {
+            if (
+              c.code.trim().toLowerCase() !==
+              where.code.equals?.trim().toLowerCase()
+            ) {
+              return false
+            }
+          } else if (
+            where.code.equals !== undefined &&
+            c.code !== where.code.equals
+          ) {
+            return false
+          }
+        }
+      }
       if (where?.archivedAt !== undefined) {
         if (where.archivedAt === null && c.archivedAt !== null) return false
         if (
@@ -1647,9 +1776,15 @@ export class IdentityTestStore {
   }
 
   private createCourse(args: CreateCourseArgs): StoredCourse {
+    const targetUni =
+      args.data.universityId ?? '00000000-0000-4000-8000-000000000000'
+    const normalizedCode = args.data.code.trim().toLowerCase()
     if (
       [...this.courses.values()].some(
-        (course) => course.code === args.data.code,
+        (course) =>
+          course.universityId === targetUni &&
+          course.archivedAt === null &&
+          course.code.trim().toLowerCase() === normalizedCode,
       )
     ) {
       const error = new Error('Unique constraint failed') as Error & {
@@ -1666,8 +1801,7 @@ export class IdentityTestStore {
       id: `00000000-0000-4000-8000-0000000007${sequence
         .toString()
         .padStart(2, '0')}`,
-      universityId:
-        args.data.universityId ?? '00000000-0000-4000-8000-000000000000',
+      universityId: targetUni,
       code: args.data.code,
       title: args.data.title,
       createdById: args.data.createdById,
@@ -1690,10 +1824,32 @@ export class IdentityTestStore {
       throw new Error(`Missing course ${args.where.id}`)
     }
 
+    if (args.data.code !== undefined) {
+      const normalizedCode = args.data.code.trim().toLowerCase()
+      if (
+        [...this.courses.values()].some(
+          (c) =>
+            c.id !== course.id &&
+            c.universityId === course.universityId &&
+            c.archivedAt === null &&
+            c.code.trim().toLowerCase() === normalizedCode,
+        )
+      ) {
+        const error = new Error('Unique constraint failed') as Error & {
+          code?: string
+        }
+        error.code = 'P2002'
+        throw error
+      }
+    }
+
     const updated = {
       ...course,
       ...(args.data.code === undefined ? {} : { code: args.data.code }),
       ...(args.data.title === undefined ? {} : { title: args.data.title }),
+      ...(args.data.archivedAt === undefined
+        ? {}
+        : { archivedAt: args.data.archivedAt }),
       updatedAt: new Date('2026-07-06T12:00:00.000Z'),
     }
     this.courses.set(course.id, updated)
@@ -2043,6 +2199,7 @@ export class IdentityTestStore {
 
     const auditLog: AuditLog = {
       id: `00000000-0000-4000-8000-00000000040${sequence.toString()}`,
+      universityId: args.data.universityId ?? null,
       actorUserId: args.data.actorUserId ?? null,
       action: args.data.action,
       targetType: args.data.targetType,

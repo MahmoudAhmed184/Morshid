@@ -143,8 +143,9 @@ export class CourseAdministrationController {
       ),
     )
     query: ListCourseAdministrationQuery,
+    @Req() request: AuthenticatedHttpRequest,
   ): Promise<CourseAdministrationListResponseDto> {
-    return this.courseAdministrationService.listCourses(query)
+    return this.courseAdministrationService.listCourses(query, request.user)
   }
 
   @Post()

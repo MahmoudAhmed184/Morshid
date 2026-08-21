@@ -131,9 +131,14 @@ class CoursesServiceTestRepository extends CoursesRepository {
 
   findCourseAdministrationByCode(
     code: string,
+    universityId?: string,
   ): Promise<RepositoryCourseAdministrationRecord | null> {
     return Promise.resolve(
-      this.findAdminCourses().find((course) => course.code === code) ?? null,
+      this.findAdminCourses().find(
+        (course) =>
+          course.code === code &&
+          (universityId === undefined || course.universityId === universityId),
+      ) ?? null,
     )
   }
 

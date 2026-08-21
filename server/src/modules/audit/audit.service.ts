@@ -24,6 +24,7 @@ export type AuditMetadata = Readonly<Record<string, AuditMetadataValue>>
 
 export interface AuditLogRecord {
   id: string
+  universityId: string | null
   actorUserId: string | null
   action: AuditEventAction
   targetType: AuditTargetType
@@ -50,6 +51,7 @@ export interface AuditTargetInput {
 export type AuditRequestContext = RequestContext
 
 export interface RecordAuditEventInput {
+  universityId?: string | null
   actorUserId?: string | null
   action: AuditEventAction
   target: AuditTargetInput
@@ -59,6 +61,7 @@ export interface RecordAuditEventInput {
 }
 
 export interface ListAuditEventsInput {
+  universityId?: string
   page?: number
   limit?: number
   search?: string
@@ -86,13 +89,36 @@ export class AuditService {
     input: RecordAuditEventInput,
     transaction?: DatabaseTransaction,
   ): Promise<AuditLogRecord> {
-    const auditLog =
+    const prisma =
       transaction === undefined
-        ? this.prismaService.auditLog
-        : asPrismaTransaction(transaction).auditLog
+        ? this.prismaService
+        : asPrismaTransaction(transaction)
 
-    const record = await auditLog.create({
+    let universityId = input.universityId
+    if (universityId === undefined) {
+      if (input.courseId !== undefined && input.courseId !== null) {
+        const course = await prisma.course.findUnique({
+          where: { id: input.courseId },
+          select: { universityId: true },
+        })
+        universityId = course?.universityId ?? null
+      } else if (
+        input.actorUserId !== undefined &&
+        input.actorUserId !== null
+      ) {
+        const user = await prisma.user.findUnique({
+          where: { id: input.actorUserId },
+          select: { universityId: true },
+        })
+        universityId = user?.universityId ?? null
+      } else {
+        universityId = null
+      }
+    }
+
+    const record = await prisma.auditLog.create({
       data: {
+        universityId: universityId ?? null,
         actorUserId: input.actorUserId ?? null,
         action: input.action,
         targetType: input.target.type,
@@ -106,10 +132,23 @@ export class AuditService {
     return toAuditLogRecord(record)
   }
 
-  async findEventById(id: string): Promise<AuditLogRecord | null> {
-    const record = await this.prismaService.auditLog.findUnique({
+  async findEventById(
+    id: string,
+    universityId?: string,
+  ): Promise<AuditLogRecord | null> {
+    const record = await this.prismaService.auditLog.findFirst({
       where: {
         id,
+        ...(universityId !== undefined ? { universityId } : {}),
+      },
+      include: {
+        actor: {
+          select: {
+            id: true,
+            email: true,
+            displayName: true,
+          },
+        },
       },
     })
     return record === null ? null : toAuditLogRecord(record)
@@ -131,6 +170,10 @@ export class AuditService {
     const skip = (page - 1) * limit
 
     const where: Prisma.AuditLogWhereInput = {}
+
+    if (input.universityId !== undefined && input.universityId.length > 0) {
+      where.universityId = input.universityId
+    }
 
     if (input.action !== undefined && input.action.length > 0) {
       where.action = input.action
@@ -213,6 +256,7 @@ export class AuditService {
 
 function toAuditLogRecord(record: {
   id: string
+  universityId?: string | null
   actorUserId: string | null
   action: string
   targetType: string
@@ -226,6 +270,7 @@ function toAuditLogRecord(record: {
 }): AuditLogRecord {
   return {
     ...record,
+    universityId: record.universityId ?? null,
     action: record.action as AuditEventAction,
     targetType: record.targetType as AuditTargetType,
     metadata: isAuditMetadata(record.metadata) ? record.metadata : {},

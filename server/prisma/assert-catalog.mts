@@ -15,7 +15,7 @@ const databaseUrl = process.env.DATABASE_URL
 // enum label order plus every public index, CHECK/FK definition and action,
 // application trigger definition, and application function body queried below.
 const expectedCatalogSemanticFingerprint =
-  '50ebb0a01f8c39ab49ce8a0d327fe0589879003a094ffd591577b809711f7bb1'
+  'b0a41e46b6a1eee7319d93e7c2df5eafbfc643c7ad16c3930ffdef374dbb32c5'
 
 if (databaseUrl === undefined) {
   throw new Error('DATABASE_URL is required for Prisma catalog assertions')
@@ -72,8 +72,8 @@ const expectedIndexes = [
   'course_memberships_pkey',
   'course_policy_overrides_course_id_key',
   'course_policy_overrides_pkey',
-  'courses_code_key',
   'courses_pkey',
+  'courses_university_id_code_active_key',
   'debugging_diagnoses_attempt_id_key',
   'debugging_diagnoses_pkey',
   'deployment_policy_defaults_pkey',
@@ -90,6 +90,7 @@ const expectedIndexes = [
   'idx_allowance_resets_student_course_created',
   'idx_audit_actor_created',
   'idx_audit_course_created',
+  'idx_audit_university_created',
   'idx_citations_material',
   'idx_courses_archived_at',
   'idx_courses_created_by',
@@ -254,6 +255,7 @@ const expectedForeignKeys = [
   'allowance_resets_student_id_fkey',
   'audit_logs_actor_user_id_fkey',
   'audit_logs_course_id_fkey',
+  'audit_logs_university_id_fkey',
   'chat_sessions_course_id_fkey',
   'chat_sessions_course_id_student_id_fkey',
   'chat_sessions_student_id_fkey',

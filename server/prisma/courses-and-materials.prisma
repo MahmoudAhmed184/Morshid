@@ -19,7 +19,7 @@ enum MaterialStatus {
 model Course {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   universityId String    @map("university_id") @db.Uuid
-  code         String    @unique(map: "courses_code_key") @db.VarChar(40)
+  code         String    @db.VarChar(40)
   title        String    @db.VarChar(160)
   createdById  String?   @map("created_by") @db.Uuid
   archivedAt   DateTime? @map("archived_at") @db.Timestamptz(6)

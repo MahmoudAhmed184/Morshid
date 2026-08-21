@@ -147,6 +147,7 @@ export interface CoursePageInput {
   cursor?: string
   search?: string
   role?: CourseMembershipRole
+  universityId?: string
 }
 
 export interface CourseAdministrationPage {
@@ -252,6 +253,7 @@ export abstract class CoursesRepository {
 
   abstract findCourseAdministrationByCode(
     code: string,
+    universityId?: string,
   ): Promise<CourseAdministrationRecord | null>
 
   abstract createCourse(
@@ -377,6 +379,9 @@ export class PrismaCoursesRepository extends CoursesRepository {
     const courses = await this.prismaService.course.findMany({
       where: {
         archivedAt: null,
+        ...(input.universityId !== undefined
+          ? { universityId: input.universityId }
+          : {}),
         ...(input.search !== undefined
           ? {
               OR: [
@@ -415,9 +420,15 @@ export class PrismaCoursesRepository extends CoursesRepository {
 
   findCourseAdministrationByCode(
     code: string,
+    universityId?: string,
   ): Promise<CourseAdministrationRecord | null> {
+    const normalizedCode = code.trim()
     return this.prismaService.course.findFirst({
-      where: { code, archivedAt: null },
+      where: {
+        code: { equals: normalizedCode, mode: 'insensitive' },
+        archivedAt: null,
+        ...(universityId !== undefined ? { universityId } : {}),
+      },
       select: courseAdministrationSelect,
     })
   }
@@ -425,12 +436,14 @@ export class PrismaCoursesRepository extends CoursesRepository {
   async createCourse(
     input: CreateCourseInput,
   ): Promise<CourseAdministrationRecord> {
+    const normalizedCode = input.code.trim()
+    const normalizedTitle = input.title.trim()
     try {
       return await this.prismaService.$transaction(async (tx) => {
         const course = await tx.course.create({
           data: {
-            code: input.code,
-            title: input.title,
+            code: normalizedCode,
+            title: normalizedTitle,
             universityId: input.universityId,
             createdById: input.actorUserId,
           },
@@ -441,6 +454,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
           {
             actorUserId: input.actorUserId,
             course,
+            universityId: input.universityId,
             requestContext: input.requestContext,
           },
           asDatabaseTransaction(tx),
@@ -450,7 +464,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
       })
     } catch (error) {
       if (isUniqueConstraintViolation(error)) {
-        throw new CourseCodeAlreadyExistsError(input.code)
+        throw new CourseCodeAlreadyExistsError(normalizedCode)
       }
 
       throw error
@@ -460,6 +474,10 @@ export class PrismaCoursesRepository extends CoursesRepository {
   async updateCourse(
     input: UpdateCourseInput,
   ): Promise<CourseAdministrationRecord> {
+    const normalizedCode =
+      input.code !== undefined ? input.code.trim() : undefined
+    const normalizedTitle =
+      input.title !== undefined ? input.title.trim() : undefined
     try {
       return await this.prismaService.$transaction(async (tx) => {
         const previousCourse = await tx.course.findUnique({
@@ -467,6 +485,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
           select: {
             code: true,
             title: true,
+            universityId: true,
           },
         })
 
@@ -477,8 +496,10 @@ export class PrismaCoursesRepository extends CoursesRepository {
         const course = await tx.course.update({
           where: { id: input.courseId },
           data: {
-            code: input.code,
-            title: input.title,
+            ...(normalizedCode !== undefined ? { code: normalizedCode } : {}),
+            ...(normalizedTitle !== undefined
+              ? { title: normalizedTitle }
+              : {}),
           },
           select: courseAdministrationSelect,
         })
@@ -488,6 +509,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
             actorUserId: input.actorUserId,
             course,
             previousCourse,
+            universityId: previousCourse.universityId,
             requestContext: input.requestContext,
           },
           asDatabaseTransaction(tx),
@@ -497,7 +519,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
       })
     } catch (error) {
       if (isUniqueConstraintViolation(error) && input.code !== undefined) {
-        throw new CourseCodeAlreadyExistsError(input.code)
+        throw new CourseCodeAlreadyExistsError(normalizedCode ?? input.code)
       }
 
       throw error
@@ -508,7 +530,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
     await this.prismaService.$transaction(async (tx) => {
       const course = await tx.course.findFirst({
         where: { id: input.courseId, archivedAt: null },
-        select: { id: true, code: true, title: true },
+        select: { id: true, code: true, title: true, universityId: true },
       })
       if (course === null) return
 
@@ -529,6 +551,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
         {
           actorUserId: input.actorUserId,
           course,
+          universityId: course.universityId,
           requestContext: input.requestContext,
         },
         asDatabaseTransaction(tx),
