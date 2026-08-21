@@ -1,5 +1,6 @@
 import { MessageRequestKind, StudentState } from '../../tutoring-values'
 import {
+  ANSWER_CORRECTNESS,
   EDUCATIONAL_ANALYSIS_SOURCE,
   LEARNING_EVIDENCE_STRENGTH,
   type EducationalAnalysisResult,
@@ -11,7 +12,12 @@ export interface SupportedMisconceptionRecoveryAnalysis {
   readonly studentMessageId: string
   readonly result: Pick<
     EducationalAnalysisResult,
-    'requestKind' | 'studentState' | 'learningEvidence' | 'misconceptions'
+    | 'requestKind'
+    | 'studentState'
+    | 'learningEvidence'
+    | 'answerCorrectness'
+    | 'misconceptionRecoveryVerified'
+    | 'misconceptions'
   >
 }
 
@@ -25,6 +31,8 @@ export function hasSupportedMisconceptionRecoveryEvidence(
     analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.MODEL &&
     result.requestKind === MessageRequestKind.ATTEMPT_DIAGNOSIS &&
     result.studentState === StudentState.NEAR_SOLUTION &&
+    result.answerCorrectness === ANSWER_CORRECTNESS.CORRECT &&
+    result.misconceptionRecoveryVerified === true &&
     result.misconceptions.length === 0 &&
     learningEvidence.present &&
     learningEvidence.strength === LEARNING_EVIDENCE_STRENGTH.STRONG &&

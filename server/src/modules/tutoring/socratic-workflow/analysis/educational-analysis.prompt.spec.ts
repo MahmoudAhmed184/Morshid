@@ -49,6 +49,12 @@ describe('educational analysis prompt', () => {
     expect(request.messages[0].content).toContain(
       'do not copy a provisional or historical requestKind value',
     )
+    expect(request.messages[0].content).toContain(
+      'Progress, setup, substitution, or recognition of one rule is not completion',
+    )
+    expect(request.messages[0].content).toContain(
+      'Current contradictions override any positive historical state',
+    )
     expect(request.messages[1].content).toContain(
       ANALYSIS_UNTRUSTED_CONTEXT_END_MARKER,
     )

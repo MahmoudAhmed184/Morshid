@@ -18,7 +18,7 @@ import {
   type StudentActionObligation,
 } from '../teaching-decision/student-action-obligation'
 
-export const SAFE_FALLBACK_PROMPT_VERSION = 'safe-fallback.mvp.v2'
+export const SAFE_FALLBACK_PROMPT_VERSION = 'safe-fallback.mvp.v3'
 
 export const SAFE_FALLBACK_REASON = {
   VALIDATION_EXHAUSTED: 'VALIDATION_EXHAUSTED',
@@ -37,16 +37,19 @@ export class SafeFallbackService {
   ): ApprovedResponse {
     const studentActionObligation =
       studentActionObligationFromDecision(decision)
+    const fallbackObligation = conservativeFallbackObligation(
+      studentActionObligation,
+    )
     const level = normalizeExplanationDetailLevel(detailLevel)
 
     return Object.freeze({
-      message: fallbackMessage(studentActionObligation, level),
+      message: fallbackMessage(fallbackObligation, level),
       responseIntent: decision.strategy,
       usedCitationIds: Object.freeze([]),
-      requiresStudentAction: studentActionObligation.required,
+      requiresStudentAction: fallbackObligation.required,
       studentAction: Object.freeze({
-        type: studentActionObligation.technique,
-        description: fallbackActionDescription(studentActionObligation),
+        type: fallbackObligation.technique,
+        description: fallbackActionDescription(fallbackObligation),
       }),
       reflectionIncluded: false,
       source: APPROVED_RESPONSE_SOURCE.SAFE_FALLBACK,
@@ -71,18 +74,18 @@ function fallbackMessage(
   obligation: StudentActionObligation,
   level: ExplanationDetailLevel = ExplanationDetailLevel.STANDARD,
 ): string {
-  if (!obligation.required) {
-    if (level === ExplanationDetailLevel.CONCISE) {
-      return 'Your reasoning is correct and verified.'
-    }
-    if (level === ExplanationDetailLevel.DETAILED) {
-      return 'Your reasoning is correct and verified. You have successfully worked through this step to completion.'
-    }
-    return 'Your reasoning is correct. You have successfully worked through this step.'
-  }
-
   const technique = obligation.technique
   const purpose = obligation.purpose
+
+  if (technique === TeachingTechnique.VERIFICATION) {
+    if (level === ExplanationDetailLevel.CONCISE) {
+      return 'Before relying on this step, what rule or calculation would you use to check it?'
+    }
+    if (level === ExplanationDetailLevel.DETAILED) {
+      return 'Let us verify the last step before relying on it. Which rule applies here, and what calculation or trace would check the result?'
+    }
+    return 'Let us verify the last step before relying on it. What calculation or rule would you use to check the result?'
+  }
 
   if (purpose === StudentActionPurpose.CONCEPTUAL_UNDERSTANDING) {
     if (level === ExplanationDetailLevel.CONCISE) {
@@ -136,10 +139,6 @@ function fallbackMessage(
 function fallbackActionDescription(
   obligation: StudentActionObligation,
 ): string {
-  if (!obligation.required) {
-    return 'Confirm verified understanding and consolidate the completed step.'
-  }
-
   switch (obligation.purpose) {
     case StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION:
       return 'Ask the student to describe what they tried as one action.'
@@ -148,6 +147,21 @@ function fallbackActionDescription(
     case StudentActionPurpose.PRIMARY_TECHNIQUE:
       return `Ask one meaningful ${obligation.technique} reasoning question.`
   }
+}
+
+function conservativeFallbackObligation(
+  obligation: StudentActionObligation,
+): StudentActionObligation {
+  if (obligation.required) {
+    return obligation
+  }
+
+  return Object.freeze({
+    ...obligation,
+    required: true,
+    generationInstruction:
+      'Ask for one lightweight verification because fallback cannot establish correctness or completion.',
+  })
 }
 
 export function approvedResponseFromCandidate(input: {

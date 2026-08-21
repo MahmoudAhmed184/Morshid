@@ -610,7 +610,7 @@ async function completeTurn(
       assistantMessageId: assistant.id,
       approvalSource: 'VALIDATED_CANDIDATE',
       approvedCandidateAttempt: 1,
-      validationPolicyVersion: 'response-validation.mvp.v1',
+      validationPolicyVersion: 'response-validation.mvp.v2',
       completedAt,
     },
   })

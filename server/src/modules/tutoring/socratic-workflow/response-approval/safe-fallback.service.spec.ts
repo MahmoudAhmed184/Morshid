@@ -135,6 +135,27 @@ describe('SafeFallbackService', () => {
     )
   })
 
+  it.each(Object.values(ExplanationDetailLevel))(
+    'does not invent correctness for a no-action decision at %s detail',
+    (level) => {
+      const fallback = service.create(
+        baseDecision(TeachingTechnique.VERIFICATION, {
+          requireStudentAction: false,
+        }),
+        level,
+      )
+
+      expect(fallback.requiresStudentAction).toBe(true)
+      expect(fallback.message).toContain('?')
+      expect(fallback.message).not.toMatch(
+        /\b(?:correct|verified|successfully worked through|completed)\b/iu,
+      )
+      expect(fallback.studentAction.description).not.toMatch(
+        /\b(?:correct|verified|successfully worked through|completed)\b/iu,
+      )
+    },
+  )
+
   it.each([
     {
       purpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,

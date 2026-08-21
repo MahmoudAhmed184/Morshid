@@ -69,6 +69,22 @@ function validateEvidenceReferences(
     issues,
   )
 
+  if (
+    (result.objectiveCompleted === true ||
+      result.misconceptionRecoveryVerified === true) &&
+    !result.learningEvidence.evidenceMessageIds.includes(
+      analysisContext.studentMessage.id,
+    )
+  ) {
+    issues.push({
+      category:
+        EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY.INVALID_EVIDENCE_REFERENCE,
+      path: 'learningEvidence.evidenceMessageIds',
+      message:
+        'Completion and misconception recovery require current-message evidence',
+    })
+  }
+
   result.misconceptions.forEach((misconception, index) => {
     validateEvidenceId(
       misconception.evidenceMessageId,
@@ -225,6 +241,7 @@ function enumLikePath(path: readonly PropertyKey[]): boolean {
     field === 'quality' ||
     field === 'type' ||
     field === 'strength' ||
+    field === 'answerCorrectness' ||
     field === 'topicRelation' ||
     field === 'recommendedStrategy' ||
     field === 'recommendedTechnique'

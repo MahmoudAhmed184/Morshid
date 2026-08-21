@@ -9,6 +9,7 @@ import {
   TeachingTechnique,
 } from '../tutoring-values'
 import {
+  ANSWER_CORRECTNESS,
   EDUCATIONAL_ANALYSIS_SOURCE,
   type EducationalAnalysisSource,
   EFFORT_QUALITY,
@@ -1351,6 +1352,9 @@ describe('Socratic Tutor Behavioral Hardening', () => {
             strength: LEARNING_EVIDENCE_STRENGTH.STRONG,
             evidenceMessageIds: ['msg-turn-4'],
           },
+          answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+          objectiveCompleted: true,
+          misconceptionRecoveryVerified: false,
           misconceptions: [],
           recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
           recommendedTechnique: TeachingTechnique.VERIFICATION,
@@ -1399,7 +1403,7 @@ describe('Socratic Tutor Behavioral Hardening', () => {
         StudentActionPurpose.PRIMARY_TECHNIQUE,
       )
       expect(turn4Draft.decisionReason).toContain(
-        'current-message-supported learning evidence demonstrated correct progress toward solution',
+        'current message correctly completed the objective',
       )
 
       const turn4DecisionRecord = baseDecision({
@@ -1449,6 +1453,10 @@ describe('Socratic Tutor Behavioral Hardening', () => {
           studentState: turn4Analysis.result.studentState,
           effortEvidence: turn4Analysis.result.effortEvidence,
           learningEvidence: turn4Analysis.result.learningEvidence,
+          answerCorrectness: turn4Analysis.result.answerCorrectness,
+          objectiveCompleted: turn4Analysis.result.objectiveCompleted,
+          misconceptionRecoveryVerified:
+            turn4Analysis.result.misconceptionRecoveryVerified,
           misconceptions: turn4Analysis.result.misconceptions,
           evidenceReferences: ['msg-turn-4'],
           confidence: 0.95,

@@ -9,6 +9,7 @@ import {
 } from '../../tutoring-values'
 import type { PersistedEducationalAnalysisRecord } from '../analysis/educational-analysis.repository'
 import {
+  ANSWER_CORRECTNESS,
   EDUCATIONAL_ANALYSIS_SOURCE,
   EFFORT_QUALITY,
   LEARNING_EVIDENCE_STRENGTH,
@@ -26,6 +27,7 @@ import {
   type TeachingPolicyDefaults,
 } from './teaching-policy.types'
 import { isDirectConceptualAnalysis } from './direct-conceptual-policy'
+import { hasSupportedMisconceptionRecoveryEvidence } from '../analysis/supported-misconception-recovery'
 
 export interface TeachingDecisionPolicyDraft {
   attemptId: string
@@ -324,7 +326,7 @@ function canPreservePreviousStrategy(
   )
 }
 
-function isMisconceptionRecovery(
+export function isMisconceptionRecovery(
   input: Pick<
     SelectTeachingDecisionInput,
     'analysis' | 'previousTeachingDecision' | 'topicResolutionOutcome'
@@ -335,20 +337,6 @@ function isMisconceptionRecovery(
     input.previousTeachingDecision.strategy ===
       TeachingStrategy.MISCONCEPTION_REPAIR &&
     hasSupportedMisconceptionRecoveryEvidence(input.analysis)
-  )
-}
-
-function hasSupportedMisconceptionRecoveryEvidence(
-  analysis: PersistedEducationalAnalysisRecord,
-): boolean {
-  const evidence = analysis.result.learningEvidence
-  const misconceptions = analysis.result.misconceptions
-
-  return (
-    analysis.result.studentState === StudentState.NEAR_SOLUTION &&
-    misconceptions.length === 0 &&
-    evidence.present &&
-    evidence.evidenceMessageIds.includes(analysis.studentMessageId)
   )
 }
 
@@ -479,9 +467,17 @@ export function isSolutionVerification(
   }
 
   return (
+    analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.MODEL &&
+    result.requestKind === MessageRequestKind.ATTEMPT_DIAGNOSIS &&
+    result.answerCorrectness === ANSWER_CORRECTNESS.CORRECT &&
+    result.objectiveCompleted === true &&
     result.misconceptions.length === 0 &&
     result.studentState === StudentState.NEAR_SOLUTION &&
-    hasVerifiedLearningEvidence(analysis)
+    result.learningEvidence.present &&
+    result.learningEvidence.strength === LEARNING_EVIDENCE_STRENGTH.STRONG &&
+    result.learningEvidence.evidenceMessageIds.includes(
+      analysis.studentMessageId,
+    )
   )
 }
 
@@ -527,7 +523,7 @@ function decisionReasonFor(
   const reason = isMisconceptionRecovery(input)
     ? 'Selected verification-oriented Socratic questioning because strong current-message-supported learning evidence corrected the active misconception.'
     : isSolutionVerification(input)
-      ? 'Selected verification-oriented Socratic questioning because current-message-supported learning evidence demonstrated correct progress toward solution.'
+      ? 'Selected verification-oriented Socratic questioning because the current message correctly completed the objective with strong supporting evidence.'
       : isDirectConceptualAnalysis(analysis.result)
         ? 'Selected guided explanation because the accepted analysis identifies a direct conceptual request without an attempt, misconception, or debugging context.'
         : analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK

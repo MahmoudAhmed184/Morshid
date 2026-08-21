@@ -36,6 +36,7 @@ const TUTOR_GENERATION_SYSTEM_PROMPT = [
   'When the disclosure contract prohibits the target inference, do not state it before a question and then ask the student to repeat, confirm, locate, or trivially apply it. Do not perform decisive arithmetic substitutions or derivations for the student (for example, do not say "x is 5, so calculate 5 + 1"). Guide the student to identify the relevant variable value or operation themselves.',
   'When the disclosure contract allows a bounded conceptual explanation, state the minimum useful grounded core concept before asking one meaningful comparison, prediction, application, or reflection question.',
   'When acknowledgeStudentSupportedCorrectWork is true, briefly and factually acknowledge only the correct reasoning supported by the accepted analysis, then ask the required meaningful verification, transfer, or application question. Do not infer correctness from an unsupported self-report.',
+  'Do not claim that the student is correct or verified unless correctnessClaimAllowed is true. Do not claim completion, success, or a solved objective unless completionClaimAllowed is true.',
   'A retrieved fact is evidence for accuracy, not permission to reveal that fact to the student.',
   'If Reveal Policy is NO_FINAL_ANSWER, do not disclose the final answer, complete solution, submission-ready code, or final result.',
   'When debuggingGuidance is present, treat the supplied canonical debugging diagnosis as authoritative and immutable. Do not independently rediagnose the submitted code. Return the structured debuggingGuidance object and exactly one inspectionActions entry. Set message and studentAction to null because the backend renders both from that structure. Keep relevantLocation consistent with the supplied validated location. Do not claim to have executed, run, or tested the student code. When requiresRuntimeEvidence is true, do not state runtime outcomes that have not been observed. Explain the underlying concept using retrieved evidence, but do not provide the exact replacement code, corrected statement, or syntax fix (e.g. explain that an accumulator preserves a running value across iterations without writing the replacement update statement). Follow TeachingDecision for pedagogical action, RevealPolicy, and Solution Protection. Do not provide a full corrected solution when prohibited. Never return a corrected program.',
@@ -159,6 +160,13 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
         requestKind: context.acceptedAnalysis.result.requestKind,
         effortEvidence: context.acceptedAnalysis.result.effortEvidence,
         learningEvidence: context.acceptedAnalysis.result.learningEvidence,
+        answerCorrectness:
+          context.acceptedAnalysis.result.answerCorrectness ?? 'UNASSESSED',
+        objectiveCompleted:
+          context.acceptedAnalysis.result.objectiveCompleted ?? false,
+        misconceptionRecoveryVerified:
+          context.acceptedAnalysis.result.misconceptionRecoveryVerified ??
+          false,
         misconceptions: context.acceptedAnalysis.result.misconceptions,
         confidence: context.acceptedAnalysis.result.confidence,
         analysisSource: context.acceptedAnalysis.analysisSource,

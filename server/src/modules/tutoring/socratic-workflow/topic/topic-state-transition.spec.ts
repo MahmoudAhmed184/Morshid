@@ -10,6 +10,7 @@ import {
   TeachingTechnique,
 } from '../../tutoring-values'
 import {
+  ANSWER_CORRECTNESS,
   EDUCATIONAL_ANALYSIS_SOURCE,
   LEARNING_EVIDENCE_STRENGTH,
   type EducationalAnalysisResult,
@@ -93,6 +94,8 @@ describe('TopicState transition builder', () => {
             strength: LEARNING_EVIDENCE_STRENGTH.STRONG,
             evidenceMessageIds: ['student-message-2'],
           },
+          answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+          misconceptionRecoveryVerified: true,
           misconceptions: [],
         },
       },
@@ -103,6 +106,35 @@ describe('TopicState transition builder', () => {
     expect(transition.patch.misconceptionStatus).toBe(
       MisconceptionStatus.CORRECTED,
     )
+  })
+
+  it('does not persist a verified learning status from strong evidence attached to a wrong answer', () => {
+    const result = analysisResult()
+    const transition = buildCompletedTopicStateTransition({
+      topicState: topicState({ learningStatus: LearningStatus.VERIFIED }),
+      analysis: {
+        analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+        studentMessageId: 'student-message-2',
+        result: {
+          ...result,
+          answerCorrectness: ANSWER_CORRECTNESS.INCORRECT,
+          learningEvidence: {
+            present: true,
+            strength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+            evidenceMessageIds: ['student-message-2'],
+          },
+          misconceptions: [],
+        },
+      },
+      decision: decision(),
+      approvedResponse: approvedResponse(),
+    })
+
+    expect(transition.patch).toMatchObject({
+      learningStatus: LearningStatus.IN_PROGRESS,
+      resolutionEvidenceStrength: ResolutionEvidenceStrength.NONE,
+      summary: 'Current answer assessment: incorrect.',
+    })
   })
 
   it('keeps an active misconception for an unsupported self-report', () => {
@@ -268,7 +300,7 @@ function approvedResponse(): ApprovedResponse {
       promptVersion: 'test',
       inputTokens: 1,
       outputTokens: 1,
-      validationPolicyVersion: 'response-validation.mvp.v1',
+      validationPolicyVersion: 'response-validation.mvp.v2',
       structuralApproved: true,
       deterministicApproved: true,
       semanticApproved: true,

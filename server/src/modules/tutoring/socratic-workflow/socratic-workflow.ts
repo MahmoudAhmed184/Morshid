@@ -19,6 +19,10 @@ import {
 import { EducationalAnalysisService } from './analysis/educational-analysis.service'
 import { TeachingPolicyEngine } from './teaching-decision/teaching-policy.engine'
 import {
+  isMisconceptionRecovery,
+  isSolutionVerification,
+} from './teaching-decision/teaching-policy.selector'
+import {
   ResponseApprovalService,
   type ResponseApprovalLifecycle,
 } from './response-approval/response-approval.service'
@@ -237,6 +241,32 @@ export class SocraticWorkflow {
       )
     }
 
+    this.logger.debug({
+      event: 'socratic_teaching_decision_selected',
+      attemptId,
+      topicId,
+      analysisId: analysisResult.analysis.id,
+      analysisSource: analysisResult.analysis.analysisSource,
+      studentState: analysisResult.analysis.result.studentState,
+      answerCorrectness:
+        analysisResult.analysis.result.answerCorrectness ?? 'UNASSESSED',
+      objectiveCompleted:
+        analysisResult.analysis.result.objectiveCompleted ?? false,
+      strategy: decisionResult.decision.strategy,
+      requireStudentAction: decisionResult.decision.requireStudentAction,
+      studentActionPurpose: decisionResult.decision.studentActionPurpose,
+      solutionVerified: isSolutionVerification({
+        analysis: analysisResult.analysis,
+        previousTeachingDecision,
+        topicResolutionOutcome: resolution.outcome,
+      }),
+      misconceptionRecovered: isMisconceptionRecovery({
+        analysis: analysisResult.analysis,
+        previousTeachingDecision,
+        topicResolutionOutcome: resolution.outcome,
+      }),
+    })
+
     assertRequestBudget(input.requestBudget)
 
     const canExecuteSpecializedDebugging =
@@ -365,6 +395,21 @@ export class SocraticWorkflow {
         topicId,
       )
     }
+
+    this.logger.debug({
+      event: 'socratic_response_approved',
+      attemptId,
+      topicId,
+      safeFallbackUsed: approval.approvedResponse.safeFallbackUsed,
+      safeFallbackReason: approval.safeFallbackReason,
+      validationViolations: Array.from(
+        new Set(
+          approval.validationResults.flatMap((result) =>
+            result.violations.map((violation) => violation.type),
+          ),
+        ),
+      ),
+    })
 
     const outputRisk = this.safetyRiskDetector.detectOutput(
       approval.approvedResponse.message,

@@ -21,6 +21,7 @@ import {
   buildTutorGenerationModelRequest,
 } from './tutor-prompt.builder'
 import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
+import { ANSWER_CORRECTNESS } from '../analysis/educational-analysis.types'
 
 describe('tutor prompt builder', () => {
   it('builds the required deterministic tutor generation prompt sections', () => {
@@ -267,6 +268,8 @@ describe('tutor prompt builder', () => {
             strength: 'STRONG',
             evidenceMessageIds: [currentMessageId],
           },
+          answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+          misconceptionRecoveryVerified: true,
           misconceptions: [],
         },
       },

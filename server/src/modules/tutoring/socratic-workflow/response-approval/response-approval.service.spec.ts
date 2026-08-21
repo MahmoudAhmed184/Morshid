@@ -269,6 +269,40 @@ describe('ResponseApprovalService', () => {
     expect(harness.generation.calls).toHaveLength(2)
   })
 
+  it('keeps fallback neutral when the decision did not require student action', async () => {
+    const harness = buildHarness(
+      [
+        {
+          success: false,
+          errorCode: TUTOR_GENERATION_FAILURE_CODE.TUTOR_PROVIDER_TIMEOUT,
+          infrastructureRetryCount: 1,
+        },
+      ],
+      {
+        decision: decision({
+          primaryTechnique: TeachingTechnique.VERIFICATION,
+          requireStudentAction: false,
+        }),
+      },
+    )
+
+    const result = await harness.service.approve(input())
+
+    expect(result).toMatchObject({
+      success: true,
+      safeFallbackReason: 'GENERATION_RETRY_FAILED',
+      approvedResponse: {
+        source: 'SAFE_FALLBACK',
+        requiresStudentAction: true,
+      },
+    })
+    if (result.success) {
+      expect(result.approvedResponse.message).not.toMatch(
+        /\b(?:correct|verified|successfully worked through|completed)\b/iu,
+      )
+    }
+  })
+
   it('refuses a protected complete solution and retains hash-only candidate audit metadata', async () => {
     const candidate = validCandidate({
       message:
@@ -535,7 +569,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v9',
+    promptVersion: 'tutor-generation.mvp.v10',
     tokenUsage: { input: 10, output: 5 },
     ...patch,
   }
@@ -669,7 +703,7 @@ function approvedSemanticResult(): ValidationResult {
     provider: 'deterministic',
     model: 'semantic-guard',
     promptVersion: 'semantic-guard.mvp.v3',
-    policyVersion: 'response-validation.mvp.v1',
+    policyVersion: 'response-validation.mvp.v2',
   }
 }
 
@@ -683,6 +717,6 @@ function semanticFailureResult(): ValidationResult {
     provider: null,
     model: null,
     promptVersion: 'semantic-guard.mvp.v3',
-    policyVersion: 'response-validation.mvp.v1',
+    policyVersion: 'response-validation.mvp.v2',
   }
 }

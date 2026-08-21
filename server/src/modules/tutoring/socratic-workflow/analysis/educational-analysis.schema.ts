@@ -7,6 +7,7 @@ import {
   TeachingTechnique,
 } from '../../tutoring-values'
 import {
+  ANSWER_CORRECTNESS,
   EFFORT_QUALITY,
   EFFORT_TYPE,
   LEARNING_EVIDENCE_STRENGTH,
@@ -66,6 +67,13 @@ export const SUPPORTED_LEARNING_EVIDENCE_STRENGTHS = [
   LEARNING_EVIDENCE_STRENGTH.WEAK,
   LEARNING_EVIDENCE_STRENGTH.MODERATE,
   LEARNING_EVIDENCE_STRENGTH.STRONG,
+] as const
+
+export const SUPPORTED_ANSWER_CORRECTNESS = [
+  ANSWER_CORRECTNESS.UNASSESSED,
+  ANSWER_CORRECTNESS.INCORRECT,
+  ANSWER_CORRECTNESS.PARTIALLY_CORRECT,
+  ANSWER_CORRECTNESS.CORRECT,
 ] as const
 
 export const SUPPORTED_TOPIC_RELATIONS = [
@@ -275,6 +283,11 @@ export const EducationalAnalysisResultSchema = z
     studentState: z.enum(SUPPORTED_EDUCATIONAL_ANALYSIS_STUDENT_STATES),
     effortEvidence: EffortEvidenceSchema,
     learningEvidence: LearningEvidenceSchema,
+    answerCorrectness: z
+      .enum(SUPPORTED_ANSWER_CORRECTNESS)
+      .default(ANSWER_CORRECTNESS.UNASSESSED),
+    objectiveCompleted: z.boolean().default(false),
+    misconceptionRecoveryVerified: z.boolean().default(false),
     misconceptions: z
       .array(MisconceptionAnalysisSchema)
       .max(EDUCATIONAL_ANALYSIS_LIMITS.maxMisconceptions),
@@ -288,7 +301,56 @@ export const EducationalAnalysisResultSchema = z
       .min(1)
       .max(EDUCATIONAL_ANALYSIS_LIMITS.maxEvidenceReferences),
   })
-  .strict() satisfies z.ZodType<EducationalAnalysisResult>
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      value.objectiveCompleted &&
+      value.answerCorrectness !== ANSWER_CORRECTNESS.CORRECT
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['objectiveCompleted'],
+        message: 'A completed objective requires a correct current answer',
+      })
+    }
+
+    if (
+      value.misconceptionRecoveryVerified &&
+      value.answerCorrectness !== ANSWER_CORRECTNESS.CORRECT
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['misconceptionRecoveryVerified'],
+        message:
+          'Verified misconception recovery requires a correct current answer',
+      })
+    }
+
+    if (
+      (value.objectiveCompleted || value.misconceptionRecoveryVerified) &&
+      (!value.learningEvidence.present ||
+        value.learningEvidence.strength !== LEARNING_EVIDENCE_STRENGTH.STRONG)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['learningEvidence'],
+        message:
+          'Completion and misconception recovery require strong learning evidence',
+      })
+    }
+
+    if (
+      (value.objectiveCompleted || value.misconceptionRecoveryVerified) &&
+      value.misconceptions.length > 0
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['misconceptions'],
+        message:
+          'Completion and misconception recovery cannot retain an active misconception',
+      })
+    }
+  }) satisfies z.ZodType<EducationalAnalysisResult>
 
 function hasAtMostCodePoints(value: string, maximum: number): boolean {
   let codePoints = 0

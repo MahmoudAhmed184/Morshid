@@ -9,6 +9,7 @@ import {
 } from '../../tutoring-values'
 import type { PersistedEducationalAnalysisRecord } from '../analysis/educational-analysis.repository'
 import {
+  ANSWER_CORRECTNESS,
   EDUCATIONAL_ANALYSIS_SOURCE,
   EFFORT_QUALITY,
   EFFORT_TYPE,
@@ -160,7 +161,7 @@ describe('teaching policy selector', () => {
     })
   })
 
-  it('reconciles previous GUIDED_EXPLANATION to SOCRATIC_QUESTIONING + VERIFICATION on verified near-solution progress with requireStudentAction false', () => {
+  it('ends the objective only when the current message explicitly completes it correctly', () => {
     const draft = selectTeachingDecisionDraft({
       analysis: analysis({
         requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
@@ -172,6 +173,8 @@ describe('teaching policy selector', () => {
         learningPresent: true,
         learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
         learningEvidenceMessageIds: ['message-1'],
+        answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+        objectiveCompleted: true,
       }),
       topicState: topicState({ guidanceLevel: 2 }),
       previousTeachingDecision: previousDecision({
@@ -189,8 +192,59 @@ describe('teaching policy selector', () => {
       studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
     })
     expect(draft.decisionReason).toContain(
-      'current-message-supported learning evidence demonstrated correct progress toward solution',
+      'current message correctly completed the objective',
     )
+  })
+
+  it('keeps eliciting the final evaluation after correct partial arithmetic progress', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        effortPresent: true,
+        effortQuality: EFFORT_QUALITY.STRONG,
+        effortType: EFFORT_TYPE.CALCULATION_ATTEMPT,
+        effortEvidenceMessageIds: ['message-1'],
+        learningPresent: true,
+        learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+        learningEvidenceMessageIds: ['message-1'],
+        answerCorrectness: ANSWER_CORRECTNESS.PARTIALLY_CORRECT,
+        objectiveCompleted: false,
+      }),
+      topicState: topicState({ guidanceLevel: 2 }),
+      previousTeachingDecision: previousDecision({ guidanceLevel: 2 }),
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      requireStudentAction: true,
+    })
+  })
+
+  it('does not complete a wrong final answer even when other analysis labels remain positive', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        learningPresent: true,
+        learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+        learningEvidenceMessageIds: ['message-1'],
+        answerCorrectness: ANSWER_CORRECTNESS.INCORRECT,
+        objectiveCompleted: false,
+      }),
+      topicState: topicState({ guidanceLevel: 1 }),
+      previousTeachingDecision: previousDecision({
+        strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+        primaryTechnique: TeachingTechnique.VERIFICATION,
+        requireStudentAction: false,
+      }),
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+      requireStudentAction: true,
+    })
   })
 
   it('requires student action when near-solution progress lacks current verified learning evidence', () => {
@@ -375,6 +429,8 @@ describe('teaching policy selector', () => {
         learningPresent: true,
         learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
         learningEvidenceMessageIds: ['message-1'],
+        answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+        misconceptionRecoveryVerified: true,
       }),
       topicState: topicState({ guidanceLevel: 2 }),
       previousTeachingDecision: previousDecision({
@@ -392,6 +448,32 @@ describe('teaching policy selector', () => {
     expect(draft.decisionReason).toContain(
       'strong current-message-supported learning evidence corrected the active misconception',
     )
+  })
+
+  it('does not recover range-boundary reasoning from a mixed correct-and-wrong sequence', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        learningPresent: true,
+        learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+        learningEvidenceMessageIds: ['message-1'],
+        answerCorrectness: ANSWER_CORRECTNESS.INCORRECT,
+        misconceptionRecoveryVerified: false,
+      }),
+      topicState: topicState({ guidanceLevel: 2 }),
+      previousTeachingDecision: previousDecision({
+        strategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+        primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
+        guidanceLevel: 2,
+      }),
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+      primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
+      requireStudentAction: true,
+    })
   })
 
   it('preserves misconception repair without supported current-message correction', () => {
@@ -922,6 +1004,9 @@ function analysis(
     learningPresent: boolean
     learningStrength: PersistedEducationalAnalysisRecord['result']['learningEvidence']['strength']
     learningEvidenceMessageIds: string[]
+    answerCorrectness: PersistedEducationalAnalysisRecord['result']['answerCorrectness']
+    objectiveCompleted: boolean
+    misconceptionRecoveryVerified: boolean
     requestKind: MessageRequestKind
     studentState: StudentState
     topicRelation: PersistedEducationalAnalysisRecord['result']['topicRelation']
@@ -954,6 +1039,11 @@ function analysis(
         strength: input.learningStrength ?? LEARNING_EVIDENCE_STRENGTH.NONE,
         evidenceMessageIds: input.learningEvidenceMessageIds ?? [],
       },
+      answerCorrectness:
+        input.answerCorrectness ?? ANSWER_CORRECTNESS.UNASSESSED,
+      objectiveCompleted: input.objectiveCompleted ?? false,
+      misconceptionRecoveryVerified:
+        input.misconceptionRecoveryVerified ?? false,
       misconceptions: input.misconceptions ?? [],
       topicRelation:
         input.topicRelation ?? TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,

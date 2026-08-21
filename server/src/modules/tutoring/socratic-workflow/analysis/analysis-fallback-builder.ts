@@ -15,6 +15,7 @@ import {
   SUPPORTED_RECOMMENDED_TEACHING_TECHNIQUES,
 } from './educational-analysis.schema'
 import {
+  ANSWER_CORRECTNESS,
   EFFORT_QUALITY,
   LEARNING_EVIDENCE_STRENGTH,
   type EducationalAnalysisResult,
@@ -57,6 +58,9 @@ export class AnalysisFallbackBuilder {
         strength: LEARNING_EVIDENCE_STRENGTH.NONE,
         evidenceMessageIds: [],
       },
+      answerCorrectness: ANSWER_CORRECTNESS.UNASSESSED,
+      objectiveCompleted: false,
+      misconceptionRecoveryVerified: false,
       misconceptions: [],
       topicRelation,
       recommendedStrategy: safePreviousStrategy(context),

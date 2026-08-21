@@ -6,7 +6,7 @@ import type {
 } from '../../tutoring-values'
 import type { TopicResolutionOutcome } from '../topic/topic.types'
 
-export const EDUCATIONAL_ANALYSIS_SCHEMA_VERSION = 'educational-analysis.v1'
+export const EDUCATIONAL_ANALYSIS_SCHEMA_VERSION = 'educational-analysis.v2'
 
 export const EDUCATIONAL_ANALYSIS_SOURCE = {
   MODEL: 'model',
@@ -60,6 +60,16 @@ export const LEARNING_EVIDENCE_STRENGTH = {
 
 export type LearningEvidenceStrength =
   (typeof LEARNING_EVIDENCE_STRENGTH)[keyof typeof LEARNING_EVIDENCE_STRENGTH]
+
+export const ANSWER_CORRECTNESS = {
+  UNASSESSED: 'UNASSESSED',
+  INCORRECT: 'INCORRECT',
+  PARTIALLY_CORRECT: 'PARTIALLY_CORRECT',
+  CORRECT: 'CORRECT',
+} as const
+
+export type AnswerCorrectness =
+  (typeof ANSWER_CORRECTNESS)[keyof typeof ANSWER_CORRECTNESS]
 
 export const EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY = {
   MALFORMED_INPUT: 'malformed_input',
@@ -121,6 +131,13 @@ export interface EducationalAnalysisResult {
   studentState: StudentState
   effortEvidence: EffortEvidence
   learningEvidence: LearningEvidence
+  /**
+   * Optional only while reading analyses persisted before v2. The v2 schema
+   * always supplies these fields and policy treats their absence as unverified.
+   */
+  answerCorrectness?: AnswerCorrectness
+  objectiveCompleted?: boolean
+  misconceptionRecoveryVerified?: boolean
   misconceptions: MisconceptionAnalysis[]
   topicRelation: TopicRelation
   recommendedStrategy: TeachingStrategy

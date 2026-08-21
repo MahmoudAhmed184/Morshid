@@ -16,6 +16,7 @@ import {
 } from '../../src/modules/tutoring/socratic-workflow/analysis/educational-analysis.repository'
 import { EDUCATIONAL_ANALYSIS_PROMPT_VERSION } from '../../src/modules/tutoring/socratic-workflow/analysis/educational-analysis.prompt'
 import {
+  ANSWER_CORRECTNESS,
   EDUCATIONAL_ANALYSIS_FALLBACK_REASON,
   EDUCATIONAL_ANALYSIS_SOURCE,
   EDUCATIONAL_ANALYSIS_SCHEMA_VERSION,
@@ -83,6 +84,9 @@ describe('EducationalAnalysisRepository (e2e)', () => {
       result: {
         requestKind: MessageRequestKind.CODE_DIAGNOSIS,
         studentState: StudentState.DEBUGGING_ISSUE,
+        answerCorrectness: ANSWER_CORRECTNESS.INCORRECT,
+        objectiveCompleted: false,
+        misconceptionRecoveryVerified: false,
         evidenceReferences: [fixture.studentMessageId],
       },
     })
@@ -121,6 +125,9 @@ describe('EducationalAnalysisRepository (e2e)', () => {
       failureCategory: null,
       confidencePolicyVersion: 'educational-analysis-confidence-policy.v1',
       infrastructureRetryCount: 0,
+      answerCorrectness: ANSWER_CORRECTNESS.INCORRECT,
+      objectiveCompleted: false,
+      misconceptionRecoveryVerified: false,
     })
     // EducationalAnalysisRepository owns only the analysis aggregate. The
     // workflow records the authoritative request kind through Tutoring's
@@ -346,6 +353,9 @@ function analysisResult(studentMessageId: string): EducationalAnalysisResult {
       strength: LEARNING_EVIDENCE_STRENGTH.NONE,
       evidenceMessageIds: [],
     },
+    answerCorrectness: ANSWER_CORRECTNESS.INCORRECT,
+    objectiveCompleted: false,
+    misconceptionRecoveryVerified: false,
     misconceptions: [
       {
         code: 'NON_SHRINKING_SEARCH_INTERVAL',
@@ -380,6 +390,9 @@ function fallbackResult(studentMessageId: string): EducationalAnalysisResult {
       strength: LEARNING_EVIDENCE_STRENGTH.NONE,
       evidenceMessageIds: [],
     },
+    answerCorrectness: ANSWER_CORRECTNESS.UNASSESSED,
+    objectiveCompleted: false,
+    misconceptionRecoveryVerified: false,
     misconceptions: [],
     topicRelation: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
     recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,

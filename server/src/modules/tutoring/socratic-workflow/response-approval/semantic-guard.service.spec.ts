@@ -17,6 +17,7 @@ import {
   type SemanticGuardRequest,
 } from './semantic-guard.types'
 import type { CandidateResponse } from '../generation/tutor-generation.types'
+import { ANSWER_CORRECTNESS } from '../analysis/educational-analysis.types'
 
 describe('SemanticGuardService', () => {
   it('uses only the independent SemanticGuardPort and attaches backend metadata', async () => {
@@ -59,6 +60,34 @@ describe('SemanticGuardService', () => {
       approved: false,
       recommendedAction: RESPONSE_VALIDATION_ACTION.REGENERATE,
     })
+  })
+
+  it('instructs the guard to reject unsupported correctness and completion claims', async () => {
+    const guard = new FakeSemanticGuardPort({ approved: true, violations: [] })
+
+    await new SemanticGuardService(guard).evaluate(input())
+
+    const payload = JSON.parse(
+      guard.requests[0]?.messages[1].content ?? '{}',
+    ) as {
+      trustedPolicy: {
+        functionalResponseRequirements: {
+          correctnessClaimAllowed: boolean
+          completionClaimAllowed: boolean
+        }
+      }
+      adjudicationRules: string[]
+    }
+    expect(payload.trustedPolicy.functionalResponseRequirements).toMatchObject({
+      correctnessClaimAllowed: false,
+      completionClaimAllowed: false,
+    })
+    expect(payload.adjudicationRules.join(' ')).toContain(
+      'reject any claim that the student answer, reasoning, result, or step is correct or verified',
+    )
+    expect(payload.adjudicationRules.join(' ')).toContain(
+      'reject any claim that the objective, solution, or step is complete',
+    )
   })
 
   it('uses the focused TeachingDecision obligation without adding a prior-attempt requirement', async () => {
@@ -145,6 +174,8 @@ describe('SemanticGuardService', () => {
             strength: 'STRONG',
             evidenceMessageIds: ['message-1'],
           },
+          answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+          misconceptionRecoveryVerified: true,
           misconceptions: [],
         },
       },
@@ -748,6 +779,9 @@ function input(
           strength: 'NONE',
           evidenceMessageIds: [],
         },
+        answerCorrectness: ANSWER_CORRECTNESS.INCORRECT,
+        objectiveCompleted: false,
+        misconceptionRecoveryVerified: false,
         misconceptions: [
           {
             code: 'REVERSE_ITERATION',
@@ -834,7 +868,7 @@ function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v9',
+    promptVersion: 'tutor-generation.mvp.v10',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

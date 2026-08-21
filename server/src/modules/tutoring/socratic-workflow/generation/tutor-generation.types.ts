@@ -211,6 +211,9 @@ export interface TutorGuardEducationalContext {
     readonly studentState: PersistedEducationalAnalysisRecord['result']['studentState']
     readonly effortEvidence: PersistedEducationalAnalysisRecord['result']['effortEvidence']
     readonly learningEvidence: PersistedEducationalAnalysisRecord['result']['learningEvidence']
+    readonly answerCorrectness?: PersistedEducationalAnalysisRecord['result']['answerCorrectness']
+    readonly objectiveCompleted?: PersistedEducationalAnalysisRecord['result']['objectiveCompleted']
+    readonly misconceptionRecoveryVerified?: PersistedEducationalAnalysisRecord['result']['misconceptionRecoveryVerified']
     readonly misconceptions: PersistedEducationalAnalysisRecord['result']['misconceptions']
     readonly evidenceReferences: PersistedEducationalAnalysisRecord['result']['evidenceReferences']
     readonly confidence: number
