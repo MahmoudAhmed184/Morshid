@@ -72,6 +72,12 @@ export const listUsersQuerySchema = z
     role: z.enum([UserRole.STUDENT, UserRole.INSTRUCTOR]).optional(),
     status: z.enum([UserStatus.ACTIVE, UserStatus.DISABLED]).optional(),
     courseId: z.uuid().optional(),
+    excludeCourseIds: z
+      .preprocess(
+        (value) => (typeof value === 'string' ? [value] : value),
+        z.array(z.uuid()).min(1).max(50),
+      )
+      .optional(),
     search: z.string().trim().min(1).max(120).optional(),
   })
   .strict()
@@ -101,7 +107,7 @@ export class CreateUserRequestDto {
   role!: CreatableUserRole
 
   @ApiProperty({
-    minLength: 15,
+    minLength: 9,
     maxLength: 128,
   })
   password!: string
@@ -128,7 +134,7 @@ export class UpdateUserRequestDto {
 
 export class ResetUserPasswordRequestDto {
   @ApiProperty({
-    minLength: 15,
+    minLength: 9,
     maxLength: 128,
   })
   newPassword!: string
@@ -309,6 +315,10 @@ export class ManagedUserListResponseDto {
   @Type(() => ManagedUserListItemDto)
   @ApiProperty({ type: [ManagedUserListItemDto] })
   users!: ManagedUserListItemDto[]
+
+  @Expose()
+  @ApiPropertyOptional({ minimum: 0 })
+  totalCount?: number
 
   @Expose()
   @ApiPropertyOptional({ format: 'uuid' })

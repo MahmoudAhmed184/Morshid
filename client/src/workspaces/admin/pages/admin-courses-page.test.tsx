@@ -5,14 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CourseAdministration } from '@/features/courses/course-administration.schema'
 import {
-  useCourseAdministration,
+  useCourseAdministrationPages,
   useCourseAdministrationMutations,
 } from '@/workspaces/admin/use-course-administration'
 import { AdminCoursesPage } from './admin-courses-page'
 
 vi.mock('@/workspaces/admin/use-course-administration')
 
-const useCourseAdministrationMock = vi.mocked(useCourseAdministration)
+const useCourseAdministrationPagesMock = vi.mocked(useCourseAdministrationPages)
 const useCourseAdministrationMutationsMock = vi.mocked(
   useCourseAdministrationMutations,
 )
@@ -59,7 +59,7 @@ function mockCoursesQuery(
   overrides = {},
 ) {
   return {
-    data: courses,
+    data: { pages: [{ courses, totalCount: courses.length }] },
     isPending: false,
     isError: false,
     isFetching: false,
@@ -68,13 +68,13 @@ function mockCoursesQuery(
     fetchNextPage: vi.fn(),
     refetch: vi.fn(),
     ...overrides,
-  } as unknown as ReturnType<typeof useCourseAdministration>
+  } as unknown as ReturnType<typeof useCourseAdministrationPages>
 }
 
 describe('AdminCoursesPage search and pagination', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    useCourseAdministrationMock.mockReturnValue(mockCoursesQuery())
+    useCourseAdministrationPagesMock.mockReturnValue(mockCoursesQuery())
     useCourseAdministrationMutationsMock.mockReturnValue({
       createCourse: { mutateAsync: vi.fn(), isPending: false } as any,
       updateCourse: { mutateAsync: vi.fn(), isPending: false } as any,
@@ -101,7 +101,7 @@ describe('AdminCoursesPage search and pagination', () => {
     expect(screen.getAllByText('MATH201').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('passes debounced search query to useCourseAdministration', async () => {
+  it('passes debounced search query to useCourseAdministrationPages', async () => {
     const user = userEvent.setup()
     render(<AdminCoursesPage />)
 
@@ -113,10 +113,11 @@ describe('AdminCoursesPage search and pagination', () => {
     expect(searchInput).toHaveValue('Linear')
   })
 
-  it('shows LoadMoreButton when hasNextPage is true and triggers fetchNextPage', async () => {
+  it('uses numbered pagination and fetches the next server page', async () => {
     const fetchNextPage = vi.fn()
-    useCourseAdministrationMock.mockReturnValue(
+    useCourseAdministrationPagesMock.mockReturnValue(
       mockCoursesQuery(sampleCourses, {
+        data: { pages: [{ courses: sampleCourses, totalCount: 20 }] },
         hasNextPage: true,
         fetchNextPage,
       }),
@@ -124,17 +125,17 @@ describe('AdminCoursesPage search and pagination', () => {
     const user = userEvent.setup()
     render(<AdminCoursesPage />)
 
-    const loadMoreButton = screen.getByRole('button', {
-      name: 'Load more courses',
+    const nextButton = screen.getByRole('button', {
+      name: 'Go to next page',
     })
-    expect(loadMoreButton).toBeVisible()
+    expect(nextButton).toBeVisible()
 
-    await user.click(loadMoreButton)
+    await user.click(nextButton)
     expect(fetchNextPage).toHaveBeenCalledOnce()
   })
 
   it('shows appropriate empty states for no courses vs no search matches', () => {
-    useCourseAdministrationMock.mockReturnValue(mockCoursesQuery([]))
+    useCourseAdministrationPagesMock.mockReturnValue(mockCoursesQuery([]))
 
     render(<AdminCoursesPage />)
     expect(screen.getByText('No courses found')).toBeVisible()

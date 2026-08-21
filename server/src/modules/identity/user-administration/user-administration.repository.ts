@@ -49,6 +49,7 @@ export interface ListUserAdministrationRepositoryInput {
   role?: CreatableUserRole
   status?: UserStatus
   courseId?: string
+  excludeCourseIds?: string[]
   search?: string
   universityId?: string
 }
@@ -56,6 +57,7 @@ export interface ListUserAdministrationRepositoryInput {
 export interface ListedUsersPage {
   users: ListedUserRecord[]
   nextCursor?: string
+  totalCount?: number
 }
 
 export interface CreateManagedUserRepositoryInput {
@@ -199,46 +201,73 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
   async listUsers(
     input: ListUserAdministrationRepositoryInput,
   ): Promise<ListedUsersPage> {
-    const users = await this.prismaService.user.findMany({
-      where: {
-        role: input.role,
-        status: input.status,
-        ...(input.universityId === undefined
-          ? {}
-          : { universityId: input.universityId }),
-        ...(input.courseId === undefined
-          ? {}
-          : {
-              memberships: {
-                some: { courseId: input.courseId, removedAt: null },
-              },
-            }),
-        ...(input.search === undefined
-          ? {}
-          : {
-              OR: [
-                {
-                  displayName: {
-                    contains: input.search,
-                    mode: Prisma.QueryMode.insensitive,
-                  },
-                },
-                {
-                  email: {
-                    contains: input.search,
-                    mode: Prisma.QueryMode.insensitive,
-                  },
-                },
-              ],
-            }),
-      },
-      select: listedUserRecordSelect,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: input.limit + 1,
-      ...(input.cursor === undefined
+    const where: Prisma.UserWhereInput = {
+      role: input.role,
+      status: input.status,
+      ...(input.universityId === undefined
         ? {}
-        : { cursor: { id: input.cursor }, skip: 1 }),
-    })
+        : { universityId: input.universityId }),
+      ...(input.courseId === undefined && input.excludeCourseIds === undefined
+        ? {}
+        : {
+            AND: [
+              ...(input.courseId === undefined
+                ? []
+                : [
+                    {
+                      memberships: {
+                        some: {
+                          courseId: input.courseId,
+                          removedAt: null,
+                        },
+                      },
+                    },
+                  ]),
+              ...(input.excludeCourseIds === undefined
+                ? []
+                : [
+                    {
+                      memberships: {
+                        none: {
+                          courseId: { in: input.excludeCourseIds },
+                          removedAt: null,
+                        },
+                      },
+                    },
+                  ]),
+            ],
+          }),
+      ...(input.search === undefined
+        ? {}
+        : {
+            OR: [
+              {
+                displayName: {
+                  contains: input.search,
+                  mode: Prisma.QueryMode.insensitive,
+                },
+              },
+              {
+                email: {
+                  contains: input.search,
+                  mode: Prisma.QueryMode.insensitive,
+                },
+              },
+            ],
+          }),
+    }
+    const [users, totalCount] = await Promise.all([
+      this.prismaService.user.findMany({
+        where,
+        select: listedUserRecordSelect,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: input.limit + 1,
+        ...(input.cursor === undefined
+          ? {}
+          : { cursor: { id: input.cursor }, skip: 1 }),
+      }),
+      this.prismaService.user.count({ where }),
+    ])
 
     const hasNextPage = users.length > input.limit
     const pageUsers = hasNextPage ? users.slice(0, input.limit) : users
@@ -246,6 +275,7 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
 
     return {
       users: pageUsers,
+      totalCount,
       ...(nextCursor === undefined ? {} : { nextCursor }),
     }
   }

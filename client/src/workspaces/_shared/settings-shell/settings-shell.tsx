@@ -56,11 +56,11 @@ export function SettingsShell({
       />
 
       {/* Horizontal pill tabs bar */}
-      <div className="overflow-x-auto py-1 no-scrollbar">
-        <div className="inline-flex p-0.5">
+      <div className="overflow-x-auto py-1 no-scrollbar max-w-full">
+        <div className="inline-flex min-w-full sm:min-w-0 p-0.5">
           <nav
             aria-label="Settings navigation"
-            className="inline-flex items-center gap-1 rounded-xl border border-border/50 bg-muted/70 p-1.5 text-sm font-medium shadow-2xs"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-muted/60 p-1.5 text-sm font-medium shadow-2xs backdrop-blur-xs"
           >
             {tabs.map((tab) => {
               const Icon = tab.icon
@@ -72,16 +72,18 @@ export function SettingsShell({
                   to={tab.to}
                   aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    'flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium whitespace-nowrap shrink-0 transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring select-none',
                     isActive
                       ? 'bg-background font-semibold text-foreground shadow-xs'
-                      : 'text-muted-foreground hover:bg-background/50 hover:text-foreground',
+                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
                   )}
                 >
                   {Icon ? (
                     <Icon className="size-4 shrink-0" aria-hidden />
                   ) : null}
-                  <span>{tab.label}</span>
+                  <span className="whitespace-nowrap leading-none">
+                    {tab.label}
+                  </span>
                 </Link>
               )
             })}

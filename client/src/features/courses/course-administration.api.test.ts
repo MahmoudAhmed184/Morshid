@@ -53,7 +53,7 @@ describe('admin course API', () => {
   it('loads and validates the P0 course list', async () => {
     const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe(
-        'http://localhost:4000/api/v1/admin/courses?limit=25',
+        'http://localhost:4000/api/v1/admin/courses?limit=10',
       )
       expect(init?.method).toBe('GET')
       return Response.json({

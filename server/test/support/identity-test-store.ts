@@ -176,7 +176,14 @@ interface FindManyMembershipArgs {
   where?: {
     userId?: string | { in?: string[] }
     courseId?: string | { in?: string[] }
+    role?: CourseMembershipRole
     removedAt?: Date | null
+    user?: {
+      OR?: {
+        displayName?: { contains: string; mode?: 'insensitive' }
+        email?: { contains: string; mode?: 'insensitive' }
+      }[]
+    }
   }
   select?: {
     id?: boolean
@@ -193,6 +200,13 @@ interface FindManyMembershipArgs {
     role?: 'asc' | 'desc'
     user?: { email?: 'asc' | 'desc' }
   }[]
+  cursor?: { id: string }
+  skip?: number
+  take?: number
+}
+
+interface CountMembershipArgs {
+  where?: FindManyMembershipArgs['where']
 }
 
 interface FindFirstMembershipArgs {
@@ -208,6 +222,14 @@ interface FindFirstMembershipArgs {
 }
 
 interface FindManyCourseArgs {
+  where?: {
+    archivedAt?: Date | null
+    universityId?: string
+    OR?: {
+      code?: { contains: string; mode?: 'insensitive' }
+      title?: { contains: string; mode?: 'insensitive' }
+    }[]
+  }
   include?: {
     memberships?: {
       where?: {
@@ -223,6 +245,14 @@ interface FindManyCourseArgs {
       }
     }
   }
+  orderBy?: { code?: 'asc' | 'desc'; id?: 'asc' | 'desc' }[]
+  cursor?: { id: string }
+  skip?: number
+  take?: number
+}
+
+interface CountCourseArgs {
+  where?: FindManyCourseArgs['where']
 }
 
 interface CreateAuditLogArgs {
@@ -693,6 +723,9 @@ export class IdentityTestStore {
       findMany: jest.fn((args?: FindManyMembershipArgs) =>
         Promise.resolve(this.findMemberships(args)),
       ),
+      count: jest.fn((args?: CountMembershipArgs) =>
+        Promise.resolve(this.findMemberships(args).length),
+      ),
       create: jest.fn((args: CreateCourseMembershipArgs) =>
         Promise.resolve(this.createMembership(args)),
       ),
@@ -715,6 +748,9 @@ export class IdentityTestStore {
       ),
       findMany: jest.fn((args?: FindManyCourseArgs) =>
         Promise.resolve(this.findCourses(args)),
+      ),
+      count: jest.fn((args?: CountCourseArgs) =>
+        Promise.resolve(this.findCourses(args).length),
       ),
       create: jest.fn((args: CreateCourseArgs) =>
         Promise.resolve(this.createCourse(args)),
@@ -1598,6 +1634,37 @@ export class IdentityTestStore {
       memberships = memberships.filter((m) => m.removedAt === null)
     }
 
+    if (args?.where?.role !== undefined) {
+      memberships = memberships.filter((m) => m.role === args.where?.role)
+    }
+
+    const userSearch = args?.where?.user?.OR?.[0]?.displayName?.contains
+    if (userSearch !== undefined) {
+      const normalizedSearch = userSearch.toLowerCase()
+      memberships = memberships.filter((membership) => {
+        const user = this.users.get(membership.userId)
+        return (
+          user?.displayName.toLowerCase().includes(normalizedSearch) === true ||
+          user?.email.toLowerCase().includes(normalizedSearch) === true
+        )
+      })
+    }
+
+    if (args?.cursor !== undefined) {
+      const cursorIndex = memberships.findIndex(
+        (membership) => membership.id === args.cursor?.id,
+      )
+      if (cursorIndex >= 0) {
+        memberships = memberships.slice(cursorIndex + (args.skip ?? 0))
+      }
+    } else if (args?.skip !== undefined) {
+      memberships = memberships.slice(args.skip)
+    }
+
+    if (args?.take !== undefined) {
+      memberships = memberships.slice(0, args.take)
+    }
+
     return memberships.map((membership) => {
       if (args?.include?.course !== true) {
         return {
@@ -1621,8 +1688,43 @@ export class IdentityTestStore {
   }
 
   private findCourses(args: FindManyCourseArgs | undefined): StoredCourse[] {
-    const courses = [...this.courses.values()]
+    let courses = [...this.courses.values()]
+
+    if (args?.where?.archivedAt === null) {
+      courses = courses.filter((course) => course.archivedAt === null)
+    }
+    if (args?.where?.universityId !== undefined) {
+      courses = courses.filter(
+        (course) => course.universityId === args.where?.universityId,
+      )
+    }
+    const search = args?.where?.OR?.[0]?.code?.contains
+    if (search !== undefined) {
+      const normalizedSearch = search.toLowerCase()
+      courses = courses.filter(
+        (course) =>
+          course.code.toLowerCase().includes(normalizedSearch) ||
+          course.title.toLowerCase().includes(normalizedSearch),
+      )
+    }
+
     courses.sort((a, b) => a.code.localeCompare(b.code))
+
+    if (args?.cursor !== undefined) {
+      const cursorIndex = courses.findIndex(
+        (course) => course.id === args.cursor?.id,
+      )
+      if (cursorIndex >= 0) {
+        courses = courses.slice(cursorIndex + (args.skip ?? 0))
+      }
+    } else if (args?.skip !== undefined) {
+      courses = courses.slice(args.skip)
+    }
+
+    if (args?.take !== undefined) {
+      courses = courses.slice(0, args.take)
+    }
+
     return courses.map((course) => {
       const membershipUserId = args?.include?.memberships?.where?.userId
 

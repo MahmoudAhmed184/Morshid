@@ -125,7 +125,7 @@ function mockMembersQuery(
   overrides = {},
 ) {
   return {
-    data: members,
+    data: { pages: [{ members, totalCount: members.length }] },
     isPending: false,
     isError: false,
     isFetching: false,
@@ -197,21 +197,43 @@ describe('AdminAssignmentsPage search and tabs', () => {
     await user.type(searchInput, 'Alice')
     expect(searchInput).toHaveValue('Alice')
 
-    const courseSelect = screen.getByRole('combobox', { name: 'Course' })
-    await user.click(courseSelect)
+    const courseSearch = screen.getByRole('textbox', { name: 'Course' })
+    await user.click(courseSearch)
     await user.click(
-      await screen.findByRole('option', {
-        name: 'CS102 — Data Structures',
-      }),
+      await screen.findByRole('button', { name: /Data Structures/ }),
     )
 
     expect(searchInput).toHaveValue('')
   })
 
-  it('supports pagination with load more members button', async () => {
+  it('closes the course picker on Escape and outside interaction', async () => {
+    const user = userEvent.setup()
+    renderAssignmentsPage()
+
+    const courseSearch = screen.getByRole('textbox', { name: 'Course' })
+    await user.click(courseSearch)
+    expect(
+      screen.getByRole('button', { name: /Data Structures/ }),
+    ).toBeVisible()
+
+    await user.keyboard('{Escape}')
+    expect(
+      screen.queryByRole('button', { name: /Data Structures/ }),
+    ).not.toBeInTheDocument()
+    expect(courseSearch).not.toHaveFocus()
+
+    await user.click(courseSearch)
+    await user.click(document.body)
+    expect(
+      screen.queryByRole('button', { name: /Data Structures/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('supports pagination with numbered assignment pages', async () => {
     const fetchNextPage = vi.fn()
     useCourseMembersMock.mockReturnValue(
       mockMembersQuery(sampleMembers, {
+        data: { pages: [{ members: sampleMembers, totalCount: 20 }] },
         hasNextPage: true,
         fetchNextPage,
       }),
@@ -219,12 +241,12 @@ describe('AdminAssignmentsPage search and tabs', () => {
     const user = userEvent.setup()
     renderAssignmentsPage()
 
-    const loadMoreButton = screen.getByRole('button', {
-      name: 'Load more assignments',
+    const nextPageButton = screen.getByRole('button', {
+      name: 'Go to next page',
     })
-    expect(loadMoreButton).toBeVisible()
+    expect(nextPageButton).toBeVisible()
 
-    await user.click(loadMoreButton)
+    await user.click(nextPageButton)
     expect(fetchNextPage).toHaveBeenCalledOnce()
   })
 })

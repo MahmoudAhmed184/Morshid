@@ -51,7 +51,7 @@ export class UpdateUserImportRowDto {
   @ApiProperty({
     required: false,
     format: 'password',
-    minLength: 15,
+    minLength: 9,
     maxLength: 128,
   })
   password?: string

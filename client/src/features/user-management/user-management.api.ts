@@ -13,6 +13,7 @@ export type ListManagedUsersInput = {
   role?: 'STUDENT' | 'INSTRUCTOR'
   status?: 'ACTIVE' | 'DISABLED'
   courseId?: string
+  excludeCourseIds?: string[]
   search?: string
 }
 
@@ -29,6 +30,7 @@ function createManagedUsersPath({
   role,
   status,
   courseId,
+  excludeCourseIds,
   search,
 }: ListManagedUsersInput) {
   const searchParams = new URLSearchParams({ limit: String(limit) })
@@ -40,6 +42,11 @@ function createManagedUsersPath({
   if (role) searchParams.set('role', role)
   if (status) searchParams.set('status', status)
   if (courseId) searchParams.set('courseId', courseId)
+  if (excludeCourseIds) {
+    for (const excludedCourseId of excludeCourseIds) {
+      searchParams.append('excludeCourseIds', excludedCourseId)
+    }
+  }
   if (search) searchParams.set('search', search)
 
   return `/api/v1/admin/users?${searchParams.toString()}`

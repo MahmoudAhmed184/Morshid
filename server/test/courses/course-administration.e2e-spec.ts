@@ -810,7 +810,7 @@ describe('Course administration (e2e)', () => {
   })
 
   describe('POST /api/v1/admin/courses/members/resolve', () => {
-    it('resolves active users by email and uuid for a role with duplicate and alreadyAssigned detection', async () => {
+    it('resolves active users by email for a role with duplicate and alreadyAssigned detection', async () => {
       const token = await signInAs('admin@morshid.demo')
       const student1 = requireUserByEmail('student1@morshid.demo')
       const student2 = requireUserByEmail('student2@morshid.demo')
@@ -822,10 +822,9 @@ describe('Course administration (e2e)', () => {
         .send({
           identifiers: [
             student1.email.toUpperCase(), // case-insensitive email
-            student2.id, // UUID match
+            student2.email,
             student1.email, // duplicate
             instructor.email, // wrong role (INSTRUCTOR when resolving STUDENT)
-            '00000000-0000-4000-8000-000000009999', // unknown UUID
             'nonexistent@morshid.demo', // unknown email
           ],
           role: CourseMembershipRole.STUDENT,
@@ -859,7 +858,6 @@ describe('Course administration (e2e)', () => {
       expect(body.duplicates).toEqual([student1.email])
       expect(body.unmatched).toEqual([
         instructor.email,
-        '00000000-0000-4000-8000-000000009999',
         'nonexistent@morshid.demo',
       ])
     })

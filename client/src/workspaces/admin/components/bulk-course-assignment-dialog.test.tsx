@@ -10,6 +10,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveCourseMembers } from '@/features/courses/course-administration.api'
+import { getManagedUsers } from '@/features/user-management/user-management.api'
 import type { CourseAdministration } from '@/features/courses/course-administration.schema'
 
 import { BulkCourseAssignmentDialog } from './bulk-course-assignment-dialog'
@@ -71,8 +72,21 @@ vi.mock('@/workspaces/admin/users/use-user-management', () => ({
     filters.role === 'INSTRUCTOR' ? instructorQueryResult : studentQueryResult,
 }))
 
+vi.mock('@/workspaces/admin/use-course-administration', () => ({
+  useCourseAdministration: () => ({
+    data: [course],
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
+  }),
+}))
+
 vi.mock('@/features/courses/course-administration.api', () => ({
   resolveCourseMembers: vi.fn(),
+}))
+
+vi.mock('@/features/user-management/user-management.api', () => ({
+  getManagedUsers: vi.fn(),
 }))
 
 const course: CourseAdministration = {
@@ -99,6 +113,7 @@ describe('BulkCourseAssignmentDialog', () => {
   it('chooses courses before users without rendering role tabs', async () => {
     const user = userEvent.setup()
     const onAssign = vi.fn().mockResolvedValue(undefined)
+    const onAssigned = vi.fn()
 
     render(
       <BulkCourseAssignmentDialog
@@ -106,6 +121,7 @@ describe('BulkCourseAssignmentDialog', () => {
         role="STUDENT"
         isPending={false}
         onAssign={onAssign}
+        onAssigned={onAssigned}
       />,
     )
 
@@ -129,6 +145,7 @@ describe('BulkCourseAssignmentDialog', () => {
         role: 'STUDENT',
       }),
     )
+    expect(onAssigned).toHaveBeenCalledWith(course.id)
   })
 
   it('pre-selects the defaultCourseId when opened and allows unselecting it', async () => {
@@ -165,7 +182,47 @@ describe('BulkCourseAssignmentDialog', () => {
     expect(await screen.findByText('Demo Student')).toBeInTheDocument()
   })
 
-  it('resolves pasted student identifiers and adds matched users to selection', async () => {
+  it('selects every eligible student, not just the visible page', async () => {
+    const user = userEvent.setup()
+    const getManagedUsersMock = vi.mocked(getManagedUsers)
+    getManagedUsersMock.mockResolvedValueOnce({
+      users: [
+        {
+          ...student,
+          courseAssignments: { ...student.courseAssignments, courses: [] },
+        },
+      ],
+      totalCount: 1,
+    })
+
+    render(
+      <BulkCourseAssignmentDialog
+        courses={[course]}
+        defaultCourseId={course.id}
+        role="STUDENT"
+        isPending={false}
+        onAssign={vi.fn().mockResolvedValue(undefined)}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Assign students' }))
+    await user.click(screen.getByRole('button', { name: 'Choose students' }))
+    await user.click(screen.getByRole('button', { name: 'Select all 1' }))
+
+    await waitFor(() =>
+      expect(getManagedUsersMock).toHaveBeenCalledWith({
+        cursor: undefined,
+        limit: 100,
+        role: 'STUDENT',
+        status: 'ACTIVE',
+        excludeCourseIds: [course.id],
+        search: undefined,
+      }),
+    )
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
+  })
+
+  it('resolves pasted student email addresses and adds matched users to selection', async () => {
     const user = userEvent.setup()
     const onAssign = vi.fn().mockResolvedValue(undefined)
     const resolveCourseMembersMock = vi.mocked(resolveCourseMembers)
@@ -214,7 +271,7 @@ describe('BulkCourseAssignmentDialog', () => {
       screen.getByText('Bulk select and import students'),
     ).toBeInTheDocument()
 
-    // Paste identifiers
+    // Paste email addresses
     const textarea = screen.getByPlaceholderText(/student1@morshid.demo/i)
     fireEvent.change(textarea, {
       target: { value: `${student.email}\nstudent3@morshid.demo` },
@@ -232,19 +289,14 @@ describe('BulkCourseAssignmentDialog', () => {
     expect(screen.getByText('In CS-201')).toBeInTheDocument()
     expect(screen.getByText('Ready')).toBeInTheDocument()
 
-    // Apply to selection
+    // Apply only the student who is not already assigned to the selected course
     await user.click(
-      screen.getByRole('button', { name: /add 2 students to selection/i }),
+      screen.getByRole('button', { name: /add 1 students to selection/i }),
     )
 
-    // Verify view switches to Selected with 2 students
-    expect(await screen.findByText(/selected \(2\)/i)).toBeInTheDocument()
+    // Verify view switches to Selected with only the available student
+    expect(await screen.findByText(/selected \(1\)/i)).toBeInTheDocument()
     expect(screen.getByText('Student Three')).toBeInTheDocument()
-    expect(screen.getByText('Demo Student')).toBeInTheDocument()
-
-    // Unselect one individual student
-    await user.click(screen.getByRole('checkbox', { name: /Demo Student/i }))
-    expect(screen.getByText(/selected \(1\)/i)).toBeInTheDocument()
 
     // Final assign
     await user.click(screen.getByRole('button', { name: 'Assign 1 students' }))

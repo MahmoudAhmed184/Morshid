@@ -9,7 +9,7 @@ import {
   UserPlusIcon,
   XIcon,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,14 +24,18 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { NumberedPagination } from '@/components/ui/custom/pagination'
 import type {
   CourseAdministration,
   CourseMembershipRole,
   ResolvedCourseMember,
 } from '@/features/courses/course-administration.schema'
+import { getManagedUsers } from '@/features/user-management/user-management.api'
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value'
+import { managedUsersPageSize } from '@/features/user-management/user-management.queries'
 import { cn } from '@/lib/utils'
 import { useManagedUsers } from '@/workspaces/admin/users/use-user-management'
+import { useCourseAdministration } from '@/workspaces/admin/use-course-administration'
 
 import { BulkUserImportDialog } from './bulk-user-import-dialog'
 
@@ -42,14 +46,12 @@ type BulkCourseAssignmentDialogProps = {
   role: CourseMembershipRole
   defaultCourseId?: string
   isPending: boolean
-  hasNextCoursePage?: boolean
-  isLoadingMoreCourses?: boolean
-  onLoadMoreCourses?: () => void
   onAssign: (input: {
     courseIds: string[]
     userIds: string[]
     role: CourseMembershipRole
   }) => Promise<unknown>
+  onAssigned?: (courseId: string) => void
 }
 
 type UserItem = {
@@ -63,15 +65,14 @@ export function BulkCourseAssignmentDialog({
   role,
   defaultCourseId,
   isPending,
-  hasNextCoursePage = false,
-  isLoadingMoreCourses = false,
-  onLoadMoreCourses,
   onAssign,
+  onAssigned,
 }: BulkCourseAssignmentDialogProps) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<AssignmentStep>('courses')
   const [courseSearch, setCourseSearch] = useState('')
   const [userSearch, setUserSearch] = useState('')
+  const [userPage, setUserPage] = useState(1)
   const [userViewMode, setUserViewMode] = useState<'all' | 'selected'>('all')
   const [bulkImportOpen, setBulkImportOpen] = useState(false)
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(() =>
@@ -80,12 +81,19 @@ export function BulkCourseAssignmentDialog({
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
   const [knownUsers, setKnownUsers] = useState<Map<string, UserItem>>(new Map())
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [isSelectingAllUsers, setIsSelectingAllUsers] = useState(false)
 
   const debouncedUserSearch = useDebouncedValue(userSearch.trim(), 250)
+  const debouncedCourseSearch = useDebouncedValue(courseSearch.trim(), 250)
+  const dialogCoursesQuery = useCourseAdministration(
+    debouncedCourseSearch,
+    open && step === 'courses',
+  )
   const usersQuery = useManagedUsers(
     {
       role,
       status: 'ACTIVE',
+      excludeCourseIds: [...selectedCourseIds],
       search: debouncedUserSearch || undefined,
     },
     open && step === 'users' && userViewMode === 'all',
@@ -94,16 +102,40 @@ export function BulkCourseAssignmentDialog({
     () => usersQuery.data?.pages.flatMap((page) => page.users) ?? [],
     [usersQuery.data],
   )
+  const userPages = usersQuery.data?.pages ?? []
+  const currentPageUsers = userPages[userPage - 1]?.users ?? []
+  const totalUserCount = userPages.at(-1)?.totalCount ?? paginatedUsers.length
+  const totalUserPages = Math.max(
+    1,
+    Math.ceil(totalUserCount / managedUsersPageSize),
+  )
 
-  const filteredCourses = useMemo(() => {
-    const query = courseSearch.trim().toLowerCase()
-    if (!query) return courses
-    return courses.filter(
-      (course) =>
-        course.code.toLowerCase().includes(query) ||
-        course.title.toLowerCase().includes(query),
+  useEffect(() => {
+    if (
+      open &&
+      step === 'users' &&
+      userViewMode === 'all' &&
+      userPage > userPages.length &&
+      usersQuery.hasNextPage &&
+      !usersQuery.isFetchingNextPage
+    ) {
+      void usersQuery.fetchNextPage()
+    }
+  }, [open, step, userPage, userPages.length, userViewMode, usersQuery])
+
+  const dialogCourses = useMemo(() => {
+    const coursesById = new Map(
+      courses
+        .filter((course) => selectedCourseIds.has(course.id))
+        .map((course) => [course.id, course]),
     )
-  }, [courseSearch, courses])
+
+    for (const course of dialogCoursesQuery.data ?? []) {
+      coursesById.set(course.id, course)
+    }
+
+    return [...coursesById.values()]
+  }, [courses, dialogCoursesQuery.data, selectedCourseIds])
 
   const userLabel = role === 'STUDENT' ? 'students' : 'instructors'
   const maxUserSelections = Math.floor(
@@ -131,11 +163,11 @@ export function BulkCourseAssignmentDialog({
   }, [selectedUserIds, knownUsers, paginatedUsers, userSearch])
 
   const displayedUsers =
-    userViewMode === 'selected' ? selectedUsersList : paginatedUsers
+    userViewMode === 'selected' ? selectedUsersList : currentPageUsers
 
   const allVisibleCoursesSelected =
-    filteredCourses.length > 0 &&
-    filteredCourses.every((course) => selectedCourseIds.has(course.id))
+    dialogCourses.length > 0 &&
+    dialogCourses.every((course) => selectedCourseIds.has(course.id))
 
   const allVisibleUsersSelected =
     displayedUsers.length > 0 &&
@@ -145,6 +177,7 @@ export function BulkCourseAssignmentDialog({
     setStep('courses')
     setCourseSearch('')
     setUserSearch('')
+    setUserPage(1)
     setUserViewMode('all')
     setSelectedCourseIds(
       defaultCourseId ? new Set([defaultCourseId]) : new Set(),
@@ -161,6 +194,7 @@ export function BulkCourseAssignmentDialog({
   }
 
   const toggleCourse = (courseId: string) => {
+    setUserPage(1)
     setSelectedCourseIds((current) => {
       const next = new Set(current)
       if (next.has(courseId)) next.delete(courseId)
@@ -170,12 +204,13 @@ export function BulkCourseAssignmentDialog({
   }
 
   const toggleVisibleCourses = () => {
+    setUserPage(1)
     setSelectedCourseIds((current) => {
       const next = new Set(current)
       if (allVisibleCoursesSelected) {
-        for (const course of filteredCourses) next.delete(course.id)
+        for (const course of dialogCourses) next.delete(course.id)
       } else {
-        for (const course of filteredCourses) {
+        for (const course of dialogCourses) {
           if (next.size >= 50) break
           next.add(course.id)
         }
@@ -208,6 +243,54 @@ export function BulkCourseAssignmentDialog({
     })
   }
 
+  const toggleAllUsers = async () => {
+    if (selectedUserIds.size >= Math.min(totalUserCount, maxUserSelections)) {
+      setSelectedUserIds(new Set())
+      return
+    }
+
+    try {
+      setErrorMessage(null)
+      setIsSelectingAllUsers(true)
+      const users: UserItem[] = []
+      let cursor: string | undefined
+
+      do {
+        const page = await getManagedUsers({
+          cursor,
+          limit: 100,
+          role,
+          status: 'ACTIVE',
+          excludeCourseIds: [...selectedCourseIds],
+          search: debouncedUserSearch || undefined,
+        })
+        users.push(
+          ...page.users.map((user) => ({
+            id: user.id,
+            displayName: user.displayName,
+            email: user.email,
+          })),
+        )
+        cursor = page.nextCursor
+      } while (cursor && users.length < maxUserSelections)
+
+      setKnownUsers((current) => {
+        const next = new Map(current)
+        for (const user of users) next.set(user.id, user)
+        return next
+      })
+      setSelectedUserIds(
+        new Set(users.slice(0, maxUserSelections).map((user) => user.id)),
+      )
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Unable to select all users.',
+      )
+    } finally {
+      setIsSelectingAllUsers(false)
+    }
+  }
+
   const handleApplyBulkImport = (resolvedUsers: ResolvedCourseMember[]) => {
     setKnownUsers((prev) => {
       const next = new Map(prev)
@@ -237,11 +320,16 @@ export function BulkCourseAssignmentDialog({
     if (selectedCourseIds.size === 0 || selectedUserIds.size === 0) return
     try {
       setErrorMessage(null)
+      const courseIds = [...selectedCourseIds]
       await onAssign({
-        courseIds: [...selectedCourseIds],
+        courseIds,
         userIds: [...selectedUserIds],
         role,
       })
+      const mostRecentlySelectedCourseId = courseIds.at(-1)
+      if (mostRecentlySelectedCourseId) {
+        onAssigned?.(mostRecentlySelectedCourseId)
+      }
       setDialogOpen(false)
     } catch (error) {
       setErrorMessage(
@@ -264,12 +352,12 @@ export function BulkCourseAssignmentDialog({
           <BookCheckIcon className="size-4" />
           Assign {userLabel}
         </DialogTrigger>
-        <DialogContent className="flex h-[min(88vh,820px)] w-[min(96vw,1120px)] max-w-none flex-col gap-4 overflow-hidden p-5 sm:max-w-none sm:p-6">
+        <DialogContent className="flex h-[min(98vh,900px)] w-[min(97vw,1120px)] max-h-[calc(100dvh-0.5rem)] max-w-none flex-col gap-2 overflow-hidden p-3 sm:max-h-[calc(100dvh-0.5rem)] sm:max-w-none sm:p-4">
           <DialogHeader className="shrink-0 pr-10">
             <DialogTitle>Assign {userLabel} to courses</DialogTitle>
             <DialogDescription>
               Choose courses first, then choose the {userLabel} to add to all of
-              them. Existing assignments are skipped.
+              them. People already assigned to any selected course are hidden.
             </DialogDescription>
           </DialogHeader>
 
@@ -284,16 +372,16 @@ export function BulkCourseAssignmentDialog({
           <div className="min-h-0 flex-1 overflow-hidden rounded-xl border bg-muted/15">
             {step === 'courses' ? (
               <CourseSelectionStep
-                courses={filteredCourses}
+                courses={dialogCourses}
                 search={courseSearch}
                 selectedCourseIds={selectedCourseIds}
                 allVisibleSelected={allVisibleCoursesSelected}
                 onSearchChange={setCourseSearch}
                 onToggleCourse={toggleCourse}
                 onToggleAll={toggleVisibleCourses}
-                hasNextPage={hasNextCoursePage}
-                isLoadingMore={isLoadingMoreCourses}
-                onLoadMore={onLoadMoreCourses}
+                hasNextPage={dialogCoursesQuery.hasNextPage}
+                isLoadingMore={dialogCoursesQuery.isFetchingNextPage}
+                onLoadMore={() => void dialogCoursesQuery.fetchNextPage()}
               />
             ) : (
               <UserSelectionStep
@@ -304,24 +392,34 @@ export function BulkCourseAssignmentDialog({
                 selectedUserIds={selectedUserIds}
                 allVisibleSelected={allVisibleUsersSelected}
                 maxSelections={maxUserSelections}
-                isLoading={usersQuery.isPending && userViewMode === 'all'}
+                isLoading={
+                  userViewMode === 'all' &&
+                  (usersQuery.isPending || userPage > userPages.length)
+                }
                 isError={usersQuery.isError && userViewMode === 'all'}
-                hasNextPage={usersQuery.hasNextPage && userViewMode === 'all'}
-                isLoadingMore={
+                page={userPage}
+                totalPages={totalUserPages}
+                totalCount={totalUserCount}
+                isChangingPage={
                   usersQuery.isFetchingNextPage && userViewMode === 'all'
                 }
                 onViewModeChange={setUserViewMode}
-                onSearchChange={setUserSearch}
+                onSearchChange={(value) => {
+                  setUserSearch(value)
+                  setUserPage(1)
+                }}
                 onToggleUser={toggleUser}
                 onToggleAll={toggleVisibleUsers}
+                onToggleAllUsers={() => void toggleAllUsers()}
                 onOpenBulkImport={() => setBulkImportOpen(true)}
-                onLoadMore={() => void usersQuery.fetchNextPage()}
+                onPageChange={setUserPage}
                 onRetry={() => void usersQuery.refetch()}
+                isSelectingAllUsers={isSelectingAllUsers}
               />
             )}
           </div>
 
-          <DialogFooter className="shrink-0 items-center border-t pt-4 sm:justify-between">
+          <DialogFooter className="shrink-0 items-center border-t pt-2 sm:justify-between">
             <p className="mr-auto text-xs text-muted-foreground">
               {selectedCourseIds.size} course
               {selectedCourseIds.size === 1 ? '' : 's'} · {selectedUserIds.size}{' '}
@@ -516,15 +614,19 @@ type UserSelectionStepProps = {
   maxSelections: number
   isLoading: boolean
   isError: boolean
-  hasNextPage: boolean
-  isLoadingMore: boolean
+  page: number
+  totalPages: number
+  totalCount: number
+  isChangingPage: boolean
   onViewModeChange: (mode: 'all' | 'selected') => void
   onSearchChange: (value: string) => void
   onToggleUser: (userId: string) => void
   onToggleAll: () => void
+  onToggleAllUsers: () => void
   onOpenBulkImport: () => void
-  onLoadMore: () => void
+  onPageChange: (page: number) => void
   onRetry: () => void
+  isSelectingAllUsers: boolean
 }
 
 function UserSelectionStep({
@@ -537,17 +639,24 @@ function UserSelectionStep({
   maxSelections,
   isLoading,
   isError,
-  hasNextPage,
-  isLoadingMore,
+  page,
+  totalPages,
+  totalCount,
+  isChangingPage,
   onViewModeChange,
   onSearchChange,
   onToggleUser,
   onToggleAll,
+  onToggleAllUsers,
   onOpenBulkImport,
-  onLoadMore,
+  onPageChange,
   onRetry,
+  isSelectingAllUsers,
 }: UserSelectionStepProps) {
   const userLabel = role === 'STUDENT' ? 'Students' : 'Instructors'
+  const selectableUserCount = Math.min(totalCount, maxSelections)
+  const allUsersSelected =
+    selectableUserCount > 0 && selectedUserIds.size >= selectableUserCount
   return (
     <div className="flex h-full min-h-0 flex-col">
       <SelectionHeader
@@ -561,17 +670,13 @@ function UserSelectionStep({
         onViewModeChange={onViewModeChange}
         onSearchChange={onSearchChange}
         onToggleAll={onToggleAll}
+        onToggleAllUsers={viewMode === 'all' ? onToggleAllUsers : undefined}
+        allUsersSelected={allUsersSelected}
+        totalCount={selectableUserCount}
+        isSelectingAllUsers={isSelectingAllUsers}
         onOpenBulkImport={onOpenBulkImport}
         showBulkImport
       />
-      <div className="flex shrink-0 items-center justify-between border-b px-4 py-2 text-xs text-muted-foreground">
-        <span>
-          {viewMode === 'all'
-            ? `Showing all active ${userLabel.toLowerCase()}.`
-            : `Showing selected ${userLabel.toLowerCase()} (${selectedUserIds.size}).`}{' '}
-          Up to {maxSelections.toLocaleString()} may be selected.
-        </span>
-      </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {isLoading ? (
           <div className="flex h-full items-center justify-center gap-2 text-muted-foreground">
@@ -596,9 +701,9 @@ function UserSelectionStep({
             }
           />
         ) : (
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2">
             {users.map((user) => (
-              <SelectionCard
+              <UserSelectionRow
                 key={user.id}
                 checked={selectedUserIds.has(user.id)}
                 title={user.displayName}
@@ -608,22 +713,20 @@ function UserSelectionStep({
             ))}
           </div>
         )}
-        {hasNextPage ? (
-          <div className="flex justify-center pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isLoadingMore}
-              onClick={onLoadMore}
-            >
-              {isLoadingMore ? <Loader2Icon className="animate-spin" /> : null}
-              {isLoadingMore
-                ? 'Loading…'
-                : `Load more ${userLabel.toLowerCase()}`}
-            </Button>
-          </div>
-        ) : null}
       </div>
+      {viewMode === 'all' && totalCount > 0 ? (
+        <div className="shrink-0 border-t px-3 py-2">
+          <NumberedPagination
+            page={page}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            limit={managedUsersPageSize}
+            itemName={userLabel.toLowerCase()}
+            disabled={isChangingPage}
+            onPageChange={onPageChange}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -635,11 +738,15 @@ type SelectionHeaderProps = {
   searchPlaceholder: string
   allVisibleSelected: boolean
   hasItems: boolean
+  totalCount?: number
+  allUsersSelected?: boolean
+  isSelectingAllUsers?: boolean
   viewMode?: 'all' | 'selected'
   showBulkImport?: boolean
   onViewModeChange?: (mode: 'all' | 'selected') => void
   onSearchChange: (value: string) => void
   onToggleAll: () => void
+  onToggleAllUsers?: () => void
   onOpenBulkImport?: () => void
 }
 
@@ -650,15 +757,19 @@ function SelectionHeader({
   searchPlaceholder,
   allVisibleSelected,
   hasItems,
+  totalCount,
+  allUsersSelected = false,
+  isSelectingAllUsers = false,
   viewMode,
   showBulkImport = false,
   onViewModeChange,
   onSearchChange,
   onToggleAll,
+  onToggleAllUsers,
   onOpenBulkImport,
 }: SelectionHeaderProps) {
   return (
-    <div className="flex shrink-0 flex-col gap-3 border-b bg-card p-4 sm:flex-row sm:items-center">
+    <div className="flex shrink-0 flex-col gap-2 border-b bg-card p-2 sm:flex-row sm:items-center">
       <div className="flex items-center gap-2">
         <h3 className="font-semibold">{title}</h3>
         <Badge variant="secondary">{selectedCount} selected</Badge>
@@ -734,6 +845,20 @@ function SelectionHeader({
         >
           {allVisibleSelected ? 'Unselect visible' : 'Select visible'}
         </Button>
+        {onToggleAllUsers && totalCount ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSelectingAllUsers}
+            onClick={onToggleAllUsers}
+          >
+            {isSelectingAllUsers
+              ? 'Selecting…'
+              : allUsersSelected
+                ? `Unselect all ${totalCount}`
+                : `Select all ${totalCount}`}
+          </Button>
+        ) : null}
       </div>
     </div>
   )
@@ -766,6 +891,51 @@ function SelectionCard({
       className={cn(
         'flex min-w-0 cursor-pointer items-center gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:border-primary/50 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
         checked && 'border-primary bg-primary/5',
+      )}
+    >
+      <Checkbox
+        checked={checked}
+        aria-hidden
+        tabIndex={-1}
+        className="pointer-events-none shrink-0"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{title}</span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {description}
+        </span>
+      </span>
+    </div>
+  )
+}
+
+function UserSelectionRow({
+  checked,
+  title,
+  description,
+  onToggle,
+}: {
+  checked: boolean
+  title: string
+  description: string
+  onToggle: () => void
+}) {
+  return (
+    <div
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={`${title} — ${description}`}
+      tabIndex={0}
+      onClick={onToggle}
+      onKeyDown={(event) => {
+        if (event.key === ' ' || event.key === 'Enter') {
+          event.preventDefault()
+          onToggle()
+        }
+      }}
+      className={cn(
+        'flex min-w-0 cursor-pointer items-center gap-3 rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40',
+        checked && 'bg-primary/5',
       )}
     >
       <Checkbox

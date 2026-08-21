@@ -42,7 +42,7 @@ export function PasswordField({
           type={visible ? 'text' : 'password'}
           placeholder={placeholder}
           autoComplete="current-password"
-          className="h-10 rounded-xl pr-11 sm:h-11 md:h-12"
+          className="h-10 rounded-xl pr-11 sm:h-11"
           {...inputProps}
         />
         <Button

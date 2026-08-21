@@ -26,12 +26,20 @@ function useAdminId() {
   return useAuthStore((state) => state.user?.id)
 }
 
-export function useCourseAdministration(search = '') {
+export function useCourseAdministration(search = '', enabled = true) {
+  const adminId = useAdminId()
+  return useInfiniteQuery({
+    ...courseAdministrationQueryOptions(adminId ?? 'anonymous', search),
+    enabled: adminId !== undefined && enabled,
+    select: (data) => data.pages.flatMap((page) => page.courses),
+  })
+}
+
+export function useCourseAdministrationPages(search = '') {
   const adminId = useAdminId()
   return useInfiniteQuery({
     ...courseAdministrationQueryOptions(adminId ?? 'anonymous', search),
     enabled: adminId !== undefined,
-    select: (data) => data.pages.flatMap((page) => page.courses),
   })
 }
 
@@ -49,7 +57,6 @@ export function useCourseMembers(
       role,
     ),
     enabled: adminId !== undefined && courseId !== undefined,
-    select: (data) => data.pages.flatMap((page) => page.members),
   })
 }
 

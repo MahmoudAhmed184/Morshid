@@ -272,9 +272,9 @@ describe('Admin routes', () => {
       await screen.findByRole('heading', { name: 'Course Assignments' }),
     ).toBeVisible()
 
-    const courseSelect = await screen.findByRole('combobox', { name: 'Course' })
-    expect(courseSelect).toHaveTextContent(courseLabel)
-    expect(courseSelect).not.toHaveTextContent(courseId)
+    const coursePicker = await screen.findByRole('textbox', { name: 'Course' })
+    expect(coursePicker).toHaveAttribute('placeholder', courseLabel)
+    expect(coursePicker).not.toHaveAttribute('placeholder', courseId)
   })
 
   it('switches between Students and Instructors tabs on the assignments page', async () => {

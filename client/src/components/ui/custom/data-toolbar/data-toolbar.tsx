@@ -51,7 +51,7 @@ export function DataToolbar({
       >
         <div
           className={cn(
-            'grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-center',
+            'flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center min-w-0 flex-1',
             controlsClassName,
           )}
         >
@@ -60,7 +60,7 @@ export function DataToolbar({
               value={search ?? ''}
               onValueChange={onSearchChange}
               placeholder={searchPlaceholder}
-              className={cn('sm:max-w-none xl:max-w-xs', searchClassName)}
+              className={cn('w-full sm:w-64 xl:w-72 shrink-0', searchClassName)}
             />
           ) : null}
           {filters}

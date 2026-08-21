@@ -127,7 +127,7 @@ describe('SecurityTabContent', () => {
       expect(newInput).toHaveValue('pasted-new-valid-passphrase-2026')
     })
 
-    it('shows validation error when new password is shorter than 15 characters', async () => {
+    it('shows validation error when new password is shorter than 9 characters', async () => {
       const user = userEvent.setup()
       useAuthStore.getState().setSession(studentSession)
 
@@ -137,16 +137,13 @@ describe('SecurityTabContent', () => {
         screen.getByLabelText('Current password'),
         'old-password-12345',
       )
-      await user.type(screen.getByLabelText('New password'), 'ShortPass123!')
-      await user.type(
-        screen.getByLabelText('Confirm new password'),
-        'ShortPass123!',
-      )
+      await user.type(screen.getByLabelText('New password'), 'Short1!')
+      await user.type(screen.getByLabelText('Confirm new password'), 'Short1!')
 
       await user.click(screen.getByRole('button', { name: 'Change password' }))
 
       expect(
-        await screen.findByText('New password must be at least 15 characters.'),
+        await screen.findByText('New password must be at least 9 characters.'),
       ).toBeInTheDocument()
       expect(passwordApi.changePasswordApi).not.toHaveBeenCalled()
     })

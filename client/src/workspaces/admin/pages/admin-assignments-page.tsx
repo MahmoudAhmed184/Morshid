@@ -1,18 +1,18 @@
-import { GraduationCapIcon, UserCheckIcon } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import {
+  GraduationCapIcon,
+  SearchIcon,
+  UserCheckIcon,
+  UserMinusIcon,
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { DataToolbar } from '@/components/ui/custom/data-toolbar'
 import { PageHeader } from '@/components/ui/custom/page-header'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BulkCourseAssignmentDialog } from '@/workspaces/admin/components/bulk-course-assignment-dialog'
 import { AdminAssignmentsTable } from '@/workspaces/admin/components/admin-assignments-table'
@@ -23,17 +23,53 @@ import {
   useCourseAdministration,
 } from '@/workspaces/admin/use-course-administration'
 import type { CourseMembershipRole } from '@/features/courses/course-administration.schema'
-import { LoadMoreButton } from '@/components/ui/custom/load-more-button'
+import { getCourseMembers } from '@/features/courses/course-administration.api'
+import { NumberedPagination } from '@/components/ui/custom/pagination'
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value'
 
-export function AdminAssignmentsPage() {
-  const [selectedCourseId, setSelectedCourseId] = useState('')
-  const [selectedRoleTab, setSelectedRoleTab] =
-    useState<CourseMembershipRole>('STUDENT')
-  const [search, setSearch] = useState('')
+type AssignmentUrlState = {
+  courseId?: string
+  role?: CourseMembershipRole
+  search?: string
+  page?: number
+}
+
+type AdminAssignmentsPageProps = {
+  urlState?: AssignmentUrlState
+  onUrlStateChange?: (state: AssignmentUrlState) => void
+}
+
+export function AdminAssignmentsPage({
+  urlState = {},
+  onUrlStateChange,
+}: AdminAssignmentsPageProps) {
+  const assignmentsPerPage = 10
+  const [selectedCourseId, setSelectedCourseId] = useState(
+    urlState.courseId ?? '',
+  )
+  const [selectedRoleTab, setSelectedRoleTab] = useState<CourseMembershipRole>(
+    urlState.role ?? 'STUDENT',
+  )
+  const [search, setSearch] = useState(urlState.search ?? '')
+  const [coursePickerSearch, setCoursePickerSearch] = useState('')
+  const [isCoursePickerOpen, setIsCoursePickerOpen] = useState(false)
+  const coursePickerRef = useRef<HTMLDivElement>(null)
+  const coursePickerInputRef = useRef<HTMLInputElement>(null)
+  const [assignmentPage, setAssignmentPage] = useState(urlState.page ?? 1)
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(
+    new Set(),
+  )
   const debouncedSearch = useDebouncedValue(search.trim(), 250)
 
   const coursesQuery = useCourseAdministration()
+  const debouncedCoursePickerSearch = useDebouncedValue(
+    coursePickerSearch.trim(),
+    250,
+  )
+  const coursePickerQuery = useCourseAdministration(
+    debouncedCoursePickerSearch,
+    coursePickerSearch.trim().length > 0,
+  )
   const courseId = selectedCourseId || coursesQuery.data?.[0]?.id
   const membersQuery = useCourseMembers(
     courseId,
@@ -42,22 +78,85 @@ export function AdminAssignmentsPage() {
   )
   const mutations = useCourseAdministrationMutations(courseId)
 
-  const courseSelectItems = useMemo(
+  const pickerCourses = coursePickerSearch.trim()
+    ? (coursePickerQuery.data ?? [])
+    : (coursesQuery.data ?? [])
+
+  const memberPages = useMemo(
+    () => membersQuery.data?.pages ?? [],
+    [membersQuery.data?.pages],
+  )
+  const assignedMembers = useMemo(
     () =>
-      coursesQuery.data?.map((course) => ({
-        value: course.id,
-        label: `${course.code} — ${course.title}`,
-      })) ?? [],
-    [coursesQuery.data],
+      memberPages
+        .flatMap((page) => page.members)
+        .filter((member) => member.role === selectedRoleTab),
+    [memberPages, selectedRoleTab],
+  )
+  const displayedMembers = assignedMembers.slice(
+    (assignmentPage - 1) * assignmentsPerPage,
+    assignmentPage * assignmentsPerPage,
+  )
+  const loadedAssignmentPages = memberPages.length
+  const assignmentTotalCount =
+    memberPages.at(-1)?.totalCount ?? assignedMembers.length
+  const assignmentTotalPages = Math.max(
+    1,
+    Math.ceil(assignmentTotalCount / assignmentsPerPage),
   )
 
-  const displayedMembers = useMemo(
-    () =>
-      (membersQuery.data ?? []).filter(
-        (member) => member.role === selectedRoleTab,
-      ),
-    [membersQuery.data, selectedRoleTab],
+  const updateUrlState = useCallback(
+    (next: Partial<AssignmentUrlState>) => {
+      onUrlStateChange?.({
+        courseId,
+        role: selectedRoleTab,
+        search: search || undefined,
+        page: assignmentPage,
+        ...next,
+      })
+    },
+    [assignmentPage, courseId, onUrlStateChange, search, selectedRoleTab],
   )
+
+  useEffect(() => {
+    if (!selectedCourseId && courseId) {
+      updateUrlState({ courseId })
+    }
+  }, [courseId, selectedCourseId, updateUrlState])
+
+  useEffect(() => {
+    if (
+      assignmentPage > loadedAssignmentPages &&
+      membersQuery.hasNextPage &&
+      !membersQuery.isFetchingNextPage
+    ) {
+      void membersQuery.fetchNextPage()
+    }
+  }, [assignmentPage, loadedAssignmentPages, membersQuery])
+
+  useEffect(() => {
+    if (!isCoursePickerOpen) return
+
+    const closeOnOutsideInteraction = (event: PointerEvent) => {
+      if (!coursePickerRef.current?.contains(event.target as Node)) {
+        setIsCoursePickerOpen(false)
+      }
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsCoursePickerOpen(false)
+        coursePickerInputRef.current?.blur()
+      }
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsideInteraction)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideInteraction)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [isCoursePickerOpen])
+
   const selectedCourse = coursesQuery.data?.find(
     (course) => course.id === courseId,
   )
@@ -68,7 +167,9 @@ export function AdminAssignmentsPage() {
     mutations.updateMemberRole.isPending
 
   const isLoading =
-    coursesQuery.isPending || (courseId !== undefined && membersQuery.isPending)
+    coursesQuery.isPending ||
+    (courseId !== undefined &&
+      (membersQuery.isPending || assignmentPage > loadedAssignmentPages))
 
   const isError = coursesQuery.isError || membersQuery.isError
 
@@ -79,6 +180,28 @@ export function AdminAssignmentsPage() {
   const isCoursesEmpty = coursesQuery.data?.length === 0
   const isOverallEmpty = (selectedCourse?.adminMetadata.memberCount ?? 0) === 0
   const isTabEmpty = displayedMembers.length === 0
+  const visibleStudentIds = displayedMembers.map((member) => member.userId)
+  const removeStudents = async (userIds: string[]) => {
+    await Promise.all(
+      userIds.map((userId) => mutations.removeMember.mutateAsync(userId)),
+    )
+    setSelectedStudentIds(new Set())
+  }
+  const removeAllStudents = async () => {
+    if (!courseId) return
+    let cursor: string | undefined
+    const userIds: string[] = []
+    do {
+      const page = await getCourseMembers(
+        courseId,
+        {},
+        { cursor, role: 'STUDENT' },
+      )
+      userIds.push(...page.members.map((member) => member.userId))
+      cursor = page.nextCursor
+    } while (cursor)
+    await removeStudents(userIds)
+  }
 
   const emptyTitle = isCoursesEmpty
     ? 'No courses found'
@@ -110,13 +233,19 @@ export function AdminAssignmentsPage() {
       />
 
       <AdminPanel>
-        <div className="px-4 pt-3">
+        <div className="border-b px-4 pt-4">
           <Tabs
             className="w-full sm:w-fit"
             value={selectedRoleTab}
             onValueChange={(value) => {
               setSelectedRoleTab(value as CourseMembershipRole)
               setSearch('')
+              setAssignmentPage(1)
+              updateUrlState({
+                role: value as CourseMembershipRole,
+                search: undefined,
+                page: 1,
+              })
             }}
           >
             <TabsList
@@ -146,6 +275,91 @@ export function AdminAssignmentsPage() {
             </TabsList>
           </Tabs>
         </div>
+        <div className="grid gap-3 border-b px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div ref={coursePickerRef} className="relative max-w-2xl">
+            <label
+              htmlFor="assignment-course-search"
+              className="mb-1.5 block text-xs font-semibold text-foreground"
+            >
+              Select course
+            </label>
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="assignment-course-search"
+                ref={coursePickerInputRef}
+                aria-label="Course"
+                value={coursePickerSearch}
+                placeholder={
+                  selectedCourse
+                    ? `${selectedCourse.code} — ${selectedCourse.title}`
+                    : 'Search courses by name or code...'
+                }
+                className="h-11 pl-9"
+                onFocus={() => setIsCoursePickerOpen(true)}
+                onChange={(event) => {
+                  setCoursePickerSearch(event.target.value)
+                  setIsCoursePickerOpen(true)
+                }}
+              />
+            </div>
+            {isCoursePickerOpen ? (
+              <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">
+                {coursePickerSearch.trim() && coursePickerQuery.isPending ? (
+                  <p className="px-3 py-2 text-sm text-muted-foreground">
+                    Loading courses…
+                  </p>
+                ) : pickerCourses.length === 0 ? (
+                  <p className="px-3 py-2 text-sm text-muted-foreground">
+                    No courses match this search.
+                  </p>
+                ) : (
+                  pickerCourses.map((course) => (
+                    <button
+                      key={course.id}
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
+                      onClick={() => {
+                        setSelectedCourseId(course.id)
+                        setCoursePickerSearch('')
+                        setIsCoursePickerOpen(false)
+                        setSearch('')
+                        setAssignmentPage(1)
+                        updateUrlState({
+                          courseId: course.id,
+                          search: undefined,
+                          page: 1,
+                        })
+                      }}
+                    >
+                      <span className="truncate">{course.title}</span>
+                      <span className="ml-3 shrink-0 text-xs text-muted-foreground">
+                        {course.code}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
+          </div>
+          <BulkCourseAssignmentDialog
+            courses={coursesQuery.data ?? []}
+            role={selectedRoleTab}
+            defaultCourseId={courseId}
+            isPending={mutations.addMembers.isPending}
+            onAssign={(input) => mutations.addMembers.mutateAsync(input)}
+            onAssigned={(assignedCourseId) => {
+              setSelectedCourseId(assignedCourseId)
+              setSearch('')
+              setAssignmentPage(1)
+              updateUrlState({
+                courseId: assignedCourseId,
+                search: undefined,
+                page: 1,
+              })
+            }}
+          />
+        </div>
         <DataToolbar
           className="border-b px-4 py-3"
           contentClassName="md:flex-row md:items-center"
@@ -153,67 +367,15 @@ export function AdminAssignmentsPage() {
           searchClassName="md:min-w-48 md:flex-1 md:max-w-none xl:max-w-none"
           actionsClassName="md:w-auto"
           search={search}
-          onSearchChange={setSearch}
+          onSearchChange={(value) => {
+            setSearch(value)
+            setAssignmentPage(1)
+            updateUrlState({ search: value || undefined, page: 1 })
+          }}
           searchPlaceholder={
             selectedRoleTab === 'STUDENT'
               ? 'Search assigned students...'
               : 'Search assigned instructors...'
-          }
-          filters={
-            <>
-              <Select
-                value={courseId ?? null}
-                onValueChange={(value) => {
-                  setSelectedCourseId(value ?? '')
-                  setSearch('')
-                }}
-                items={courseSelectItems}
-              >
-                <SelectTrigger
-                  className="h-9 w-full max-w-full rounded-lg border-border/80 px-3 text-xs md:w-72 lg:w-80"
-                  aria-label="Course"
-                >
-                  <SelectValue placeholder="Choose a course" />
-                </SelectTrigger>
-                <SelectContent>
-                  {courseSelectItems.map((course) => (
-                    <SelectItem
-                      key={course.value}
-                      value={course.value}
-                      className="py-1.5 text-xs"
-                    >
-                      {course.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {coursesQuery.hasNextPage ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full sm:w-auto"
-                  disabled={coursesQuery.isFetchingNextPage}
-                  onClick={() => void coursesQuery.fetchNextPage()}
-                >
-                  {coursesQuery.isFetchingNextPage
-                    ? 'Loading…'
-                    : 'More courses'}
-                </Button>
-              ) : null}
-            </>
-          }
-          actions={
-            <BulkCourseAssignmentDialog
-              courses={coursesQuery.data ?? []}
-              role={selectedRoleTab}
-              defaultCourseId={courseId}
-              isPending={mutations.addMembers.isPending}
-              hasNextCoursePage={coursesQuery.hasNextPage}
-              isLoadingMoreCourses={coursesQuery.isFetchingNextPage}
-              onLoadMoreCourses={() => void coursesQuery.fetchNextPage()}
-              onAssign={(input) => mutations.addMembers.mutateAsync(input)}
-            />
           }
         />
 
@@ -234,6 +396,43 @@ export function AdminAssignmentsPage() {
           emptyTitle={emptyTitle}
           emptyDescription={emptyDescription}
         >
+          {selectedRoleTab === 'STUDENT' && displayedMembers.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-end gap-2 border-b bg-muted/15 px-4 py-2.5">
+              <ConfirmDialog
+                trigger={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={selectedStudentIds.size === 0}
+                  >
+                    <UserMinusIcon /> Remove selected ({selectedStudentIds.size}
+                    )
+                  </Button>
+                }
+                title="Remove selected students?"
+                description="These students will lose access to this course."
+                confirmLabel="Remove selected"
+                confirmInput={{ value: selectedCourse?.title ?? '' }}
+                disabled={selectedStudentIds.size === 0 || isPending}
+                onConfirm={() => removeStudents([...selectedStudentIds])}
+              />
+              <ConfirmDialog
+                trigger={
+                  <Button variant="destructive" size="sm">
+                    <UserMinusIcon /> Remove all students
+                  </Button>
+                }
+                title="Remove all students from this course?"
+                description="Type the course name to remove every assigned student."
+                confirmLabel="Remove all"
+                confirmInput={{ value: selectedCourse?.title ?? '' }}
+                disabled={!selectedCourse || isPending}
+                onConfirm={async () => {
+                  await removeAllStudents()
+                }}
+              />
+            </div>
+          ) : null}
           <AdminAssignmentsTable
             courseId={courseId}
             members={displayedMembers}
@@ -242,13 +441,43 @@ export function AdminAssignmentsPage() {
               mutations.updateMemberRole.mutate({ userId, role })
             }
             onRemove={(userId) => mutations.removeMember.mutateAsync(userId)}
+            selectedUserIds={selectedStudentIds}
+            onSelectionChange={
+              selectedRoleTab === 'STUDENT'
+                ? (userId, selected) =>
+                    setSelectedStudentIds((current) => {
+                      const next = new Set(current)
+                      if (selected) next.add(userId)
+                      else next.delete(userId)
+                      return next
+                    })
+                : undefined
+            }
+            onSelectPage={
+              selectedRoleTab === 'STUDENT'
+                ? (selected) =>
+                    setSelectedStudentIds(
+                      selected ? new Set(visibleStudentIds) : new Set(),
+                    )
+                : undefined
+            }
           />
-          <LoadMoreButton
-            hasNextPage={membersQuery.hasNextPage}
-            isFetchingNextPage={membersQuery.isFetchingNextPage}
-            onLoadMore={() => void membersQuery.fetchNextPage()}
-            label="Load more assignments"
-          />
+          {assignedMembers.length > 0 ? (
+            <div className="border-t px-4 py-3">
+              <NumberedPagination
+                page={assignmentPage}
+                totalPages={assignmentTotalPages}
+                totalCount={assignmentTotalCount}
+                limit={assignmentsPerPage}
+                itemName="assignments"
+                disabled={membersQuery.isFetchingNextPage}
+                onPageChange={(page) => {
+                  setAssignmentPage(page)
+                  updateUrlState({ page })
+                }}
+              />
+            </div>
+          ) : null}
         </DataTableState>
       </AdminPanel>
     </div>

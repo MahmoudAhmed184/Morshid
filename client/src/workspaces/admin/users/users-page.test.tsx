@@ -81,7 +81,7 @@ function mockUsersQuery(
   overrides = {},
 ) {
   return {
-    data: { pages: [{ users }] },
+    data: { pages: [{ users, totalCount: users.length }] },
     isPending: false,
     isError: false,
     isFetching: false,
@@ -167,10 +167,11 @@ describe('UsersPage search, filter, and pagination', () => {
     )
   })
 
-  it('renders LoadMoreButton and triggers next page fetch', async () => {
+  it('renders numbered pagination and fetches the next page', async () => {
     const fetchNextPage = vi.fn()
     useManagedUsersMock.mockReturnValue(
       mockUsersQuery([sampleStudent], {
+        data: { pages: [{ users: [sampleStudent], totalCount: 40 }] },
         hasNextPage: true,
         fetchNextPage,
       }),
@@ -178,12 +179,12 @@ describe('UsersPage search, filter, and pagination', () => {
     const user = userEvent.setup()
     render(<UsersPage role="STUDENT" />)
 
-    const loadMoreButton = screen.getByRole('button', {
-      name: 'Load more students',
+    const nextPageButton = screen.getByRole('button', {
+      name: 'Go to next page',
     })
-    expect(loadMoreButton).toBeVisible()
+    expect(nextPageButton).toBeVisible()
 
-    await user.click(loadMoreButton)
+    await user.click(nextPageButton)
     expect(fetchNextPage).toHaveBeenCalledOnce()
   })
 

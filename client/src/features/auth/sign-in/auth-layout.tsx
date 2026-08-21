@@ -8,7 +8,7 @@ type AuthLayoutProps = {
 
 export function AuthLayout({ children, className }: AuthLayoutProps) {
   return (
-    <div className="relative flex min-h-svh w-full items-center justify-center overflow-x-hidden overflow-y-auto bg-background px-3 pt-16 pb-4 text-foreground sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+    <div className="relative flex min-h-svh w-full items-center justify-center overflow-x-hidden overflow-y-auto bg-background px-3 pt-16 pb-4 text-foreground sm:px-6 sm:py-4 lg:px-8">
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 z-0 bg-cover bg-center bg-no-repeat opacity-90 saturate-[0.88] dark:opacity-45 dark:brightness-[0.55] dark:saturate-[0.72]"

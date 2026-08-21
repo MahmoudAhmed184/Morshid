@@ -82,7 +82,7 @@ describe('CreateUniversityDialog', () => {
       screen.queryByText('Owner email is required'),
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByText('Password must be at least 15 characters'),
+      screen.queryByText('Password must be at least 9 characters'),
     ).not.toBeInTheDocument()
 
     // Tab 2: Fill manager info
@@ -173,7 +173,7 @@ describe('CreateUniversityDialog', () => {
       screen.getByText(/Owner email is required|Invalid email address/i),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('Password must be at least 15 characters'),
+      screen.getByText('Password must be at least 9 characters'),
     ).toBeInTheDocument()
 
     // Typing in field should clear its error

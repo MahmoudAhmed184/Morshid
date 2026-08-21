@@ -47,7 +47,7 @@ export const bulkAddCourseMembersRequestSchema = z
 
 export const resolveCourseMembersRequestSchema = z
   .object({
-    identifiers: z.array(z.string().trim().min(1).max(320)).min(1).max(1_000),
+    identifiers: z.array(z.email().max(320)).min(1).max(1_000),
     role: z.enum(CourseMembershipRole),
     courseIds: z.array(z.uuid()).max(50).optional().default([]),
   })
@@ -144,7 +144,7 @@ export class BulkAddCourseMembersResponseDto {
 }
 
 export class ResolveCourseMembersRequestDto {
-  @ApiProperty({ type: [String], maxItems: 1000 })
+  @ApiProperty({ type: [String], format: 'email', maxItems: 1000 })
   identifiers!: string[]
 
   @ApiProperty({ enum: CourseMembershipRole, enumName: 'CourseMembershipRole' })
@@ -329,6 +329,10 @@ export class CourseAdministrationListResponseDto {
   courses!: CourseAdministrationItemDto[]
 
   @Expose()
+  @ApiPropertyOptional({ minimum: 0 })
+  totalCount?: number
+
+  @Expose()
   @ApiPropertyOptional({ format: 'uuid' })
   nextCursor?: string
 }
@@ -356,6 +360,10 @@ export class CourseAdministrationMemberListResponseDto {
   @Type(() => CourseAdministrationMembershipDto)
   @ApiProperty({ type: [CourseAdministrationMembershipDto] })
   members!: CourseAdministrationMembershipDto[]
+
+  @Expose()
+  @ApiPropertyOptional({ minimum: 0 })
+  totalCount?: number
 
   @Expose()
   @ApiPropertyOptional({ format: 'uuid' })

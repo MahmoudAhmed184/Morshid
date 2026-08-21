@@ -2,89 +2,96 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   downloadBulkAssignmentTemplate,
-  parseCsvIdentifiers,
-  parsePastedIdentifiers,
+  parseCsvEmails,
+  parsePastedEmails,
 } from './bulk-assignment-parser'
 
 describe('bulk-assignment-parser', () => {
-  describe('parsePastedIdentifiers', () => {
+  describe('parsePastedEmails', () => {
     it('returns empty array for blank or whitespace-only input', () => {
-      expect(parsePastedIdentifiers('')).toEqual([])
-      expect(parsePastedIdentifiers('   \n\t  \n  ')).toEqual([])
+      expect(parsePastedEmails('')).toEqual([])
+      expect(parsePastedEmails('   \n\t  \n  ')).toEqual([])
     })
 
-    it('parses identifiers separated by newlines, commas, semicolons, and tabs', () => {
+    it('parses emails separated by newlines, commas, semicolons, and tabs', () => {
       const input = `
         student1@morshid.demo, student2@morshid.demo;
-        10000000-0000-4000-8000-000000000001	student3@morshid.demo
+        student3@morshid.demo	student4@morshid.demo
 
-        student4@morshid.demo
+        student5@morshid.demo
       `
-      const result = parsePastedIdentifiers(input)
+      const result = parsePastedEmails(input)
       expect(result).toEqual([
         'student1@morshid.demo',
         'student2@morshid.demo',
-        '10000000-0000-4000-8000-000000000001',
         'student3@morshid.demo',
         'student4@morshid.demo',
+        'student5@morshid.demo',
       ])
+    })
+
+    it('ignores values that are not email addresses', () => {
+      expect(
+        parsePastedEmails(
+          'student@morshid.demo\n10000000-0000-4000-8000-000000000001',
+        ),
+      ).toEqual(['student@morshid.demo'])
     })
   })
 
-  describe('parseCsvIdentifiers', () => {
+  describe('parseCsvEmails', () => {
     it('returns an error if file is empty', async () => {
       const file = new File([''], 'empty.csv', { type: 'text/csv' })
-      const result = await parseCsvIdentifiers(file)
-      expect(result.identifiers).toEqual([])
+      const result = await parseCsvEmails(file)
+      expect(result.emails).toEqual([])
       expect(result.errors).toContain('The CSV file does not contain any data.')
     })
 
     it('parses single column without header', async () => {
       const csv = 'student1@morshid.demo\nstudent2@morshid.demo\n'
       const file = new File([csv], 'students.csv', { type: 'text/csv' })
-      const result = await parseCsvIdentifiers(file)
+      const result = await parseCsvEmails(file)
       expect(result.errors).toEqual([])
-      expect(result.identifiers).toEqual([
+      expect(result.emails).toEqual([
         'student1@morshid.demo',
         'student2@morshid.demo',
       ])
     })
 
-    it('parses CSV with recognized header (email, id, identifier, studentId, instructorId)', async () => {
+    it('parses CSV with an email header', async () => {
       const csv =
         'Name,Email,Department\nAlice,student1@morshid.demo,CS\nBob,student2@morshid.demo,Math\n'
       const file = new File([csv], 'students.csv', { type: 'text/csv' })
-      const result = await parseCsvIdentifiers(file)
+      const result = await parseCsvEmails(file)
       expect(result.errors).toEqual([])
-      expect(result.identifiers).toEqual([
+      expect(result.emails).toEqual([
         'student1@morshid.demo',
         'student2@morshid.demo',
       ])
     })
 
     it('handles UTF-8 BOM in CSV header', async () => {
-      const csv =
-        '\uFEFFidentifier\nstudent1@morshid.demo\nstudent2@morshid.demo'
+      const csv = '\uFEFFemail\nstudent1@morshid.demo\nstudent2@morshid.demo'
       const file = new File([csv], 'students.csv', { type: 'text/csv' })
-      const result = await parseCsvIdentifiers(file)
+      const result = await parseCsvEmails(file)
       expect(result.errors).toEqual([])
-      expect(result.identifiers).toEqual([
+      expect(result.emails).toEqual([
         'student1@morshid.demo',
         'student2@morshid.demo',
       ])
     })
 
-    it('returns error when exceeding 1,000 identifiers', async () => {
+    it('returns error when exceeding 1,000 email addresses', async () => {
       const lines = [
-        'identifier',
+        'email',
         ...Array.from({ length: 1001 }, (_, i) => `user${i}@morshid.demo`),
       ]
       const file = new File([lines.join('\n')], 'huge.csv', {
         type: 'text/csv',
       })
-      const result = await parseCsvIdentifiers(file)
+      const result = await parseCsvEmails(file)
       expect(result.errors).toContain(
-        'A single bulk assignment can contain at most 1,000 identifiers.',
+        'A single bulk assignment can contain at most 1,000 email addresses.',
       )
     })
   })

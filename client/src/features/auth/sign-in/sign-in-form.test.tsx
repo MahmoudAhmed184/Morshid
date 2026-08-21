@@ -53,7 +53,7 @@ function getForm() {
 }
 
 function getEmailInput() {
-  return within(getForm()).getByPlaceholderText('instructor@morshid.demo')
+  return within(getForm()).getByLabelText('Institutional Email')
 }
 
 function getPasswordInput() {
@@ -204,6 +204,19 @@ describe('SignInForm', () => {
   })
 
   describe('UX behavior', () => {
+    it('does not expose demo credential autofill controls', () => {
+      renderSignInForm()
+
+      expect(screen.queryByText('Autofill:')).not.toBeInTheDocument()
+      expect(getEmailInput()).toHaveAttribute(
+        'placeholder',
+        'name@university.edu',
+      )
+      expect(screen.queryByRole('button', { name: 'Admin' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Instructor' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Student' })).toBeNull()
+    })
+
     it('shows errors under the correct fields', async () => {
       renderSignInForm()
       submitSignInForm()

@@ -150,6 +150,7 @@ export class UserAdministrationService {
 
     return {
       users: page.users.map(mapListedUserRecord),
+      ...(page.totalCount === undefined ? {} : { totalCount: page.totalCount }),
       ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
     }
   }

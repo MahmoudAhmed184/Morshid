@@ -12,13 +12,6 @@ import {
   CourseMemberAlreadyExistsError,
 } from './course-administration.errors'
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-export function isUuid(value: string): boolean {
-  return UUID_REGEX.test(value)
-}
-
 // ---------------------------------------------------------------------------
 // Record interfaces
 // ---------------------------------------------------------------------------
@@ -153,11 +146,13 @@ export interface CoursePageInput {
 export interface CourseAdministrationPage {
   courses: CourseAdministrationRecord[]
   nextCursor?: string
+  totalCount?: number
 }
 
 export interface CourseMembershipPage {
   members: CourseMembershipRecord[]
   nextCursor?: string
+  totalCount?: number
 }
 
 export class CourseMemberNotFoundError extends Error {
@@ -241,6 +236,7 @@ export abstract class CoursesRepository {
 
     return {
       courses: pageCourses,
+      totalCount: courses.length,
       ...(hasNextPage
         ? { nextCursor: pageCourses[pageCourses.length - 1]?.id }
         : {}),
@@ -318,6 +314,7 @@ export abstract class CoursesRepository {
 
     return {
       members: pageMembers,
+      totalCount: members.length,
       ...(hasNextPage
         ? { nextCursor: pageMembers[pageMembers.length - 1]?.id }
         : {}),
@@ -376,33 +373,38 @@ export class PrismaCoursesRepository extends CoursesRepository {
   async listCourseAdministrationPage(
     input: CoursePageInput,
   ): Promise<CourseAdministrationPage> {
-    const courses = await this.prismaService.course.findMany({
-      where: {
-        archivedAt: null,
-        ...(input.universityId !== undefined
-          ? { universityId: input.universityId }
-          : {}),
-        ...(input.search !== undefined
-          ? {
-              OR: [
-                { code: { contains: input.search, mode: 'insensitive' } },
-                { title: { contains: input.search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
-      select: courseAdministrationSelect,
-      orderBy: [{ code: 'asc' }, { id: 'asc' }],
-      take: input.limit + 1,
-      ...(input.cursor !== undefined
-        ? { cursor: { id: input.cursor }, skip: 1 }
+    const where: Prisma.CourseWhereInput = {
+      archivedAt: null,
+      ...(input.universityId !== undefined
+        ? { universityId: input.universityId }
         : {}),
-    })
+      ...(input.search !== undefined
+        ? {
+            OR: [
+              { code: { contains: input.search, mode: 'insensitive' } },
+              { title: { contains: input.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    }
+    const [courses, totalCount] = await Promise.all([
+      this.prismaService.course.findMany({
+        where,
+        select: courseAdministrationSelect,
+        orderBy: [{ code: 'asc' }, { id: 'asc' }],
+        take: input.limit + 1,
+        ...(input.cursor !== undefined
+          ? { cursor: { id: input.cursor }, skip: 1 }
+          : {}),
+      }),
+      this.prismaService.course.count({ where }),
+    ])
     const hasNextPage = courses.length > input.limit
     const pageCourses = hasNextPage ? courses.slice(0, input.limit) : courses
 
     return {
       courses: pageCourses,
+      totalCount,
       ...(hasNextPage
         ? { nextCursor: pageCourses[pageCourses.length - 1]?.id }
         : {}),
@@ -798,28 +800,12 @@ export class PrismaCoursesRepository extends CoursesRepository {
       }
     }
 
-    const uuids: string[] = []
-    const emails: string[] = []
-
-    for (const ident of uniqueIdentifiers) {
-      if (isUuid(ident)) {
-        uuids.push(ident)
-      } else {
-        emails.push(ident)
-      }
-    }
-
     const targetCourseIds = input.courseIds ?? []
     const candidateUsers = await this.prismaService.user.findMany({
       where: {
         status: 'ACTIVE',
         role: input.role,
-        OR: [
-          ...(uuids.length > 0 ? [{ id: { in: uuids } }] : []),
-          ...(emails.length > 0
-            ? [{ email: { in: emails, mode: 'insensitive' as const } }]
-            : []),
-        ],
+        email: { in: uniqueIdentifiers, mode: 'insensitive' as const },
       },
       select: {
         id: true,
@@ -839,9 +825,6 @@ export class PrismaCoursesRepository extends CoursesRepository {
       },
     })
 
-    const userById = new Map(
-      candidateUsers.map((user) => [user.id.toLowerCase(), user]),
-    )
     const userByEmail = new Map(
       candidateUsers.map((user) => [user.email.toLowerCase(), user]),
     )
@@ -851,7 +834,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
 
     for (const ident of uniqueIdentifiers) {
       const key = ident.toLowerCase()
-      const user = isUuid(ident) ? userById.get(key) : userByEmail.get(key)
+      const user = userByEmail.get(key)
 
       if (user) {
         matchedIdentifierKeys.add(key)
@@ -1046,47 +1029,52 @@ export class PrismaCoursesRepository extends CoursesRepository {
     courseId: string,
     input: CoursePageInput,
   ): Promise<CourseMembershipPage> {
-    const members = await this.prismaService.courseMembership.findMany({
-      where: {
-        courseId,
-        removedAt: null,
-        ...(input.role !== undefined ? { role: input.role } : {}),
-        ...(input.search !== undefined
-          ? {
-              user: {
-                OR: [
-                  {
-                    displayName: {
-                      contains: input.search,
-                      mode: 'insensitive',
-                    },
+    const where: Prisma.CourseMembershipWhereInput = {
+      courseId,
+      removedAt: null,
+      ...(input.role !== undefined ? { role: input.role } : {}),
+      ...(input.search !== undefined
+        ? {
+            user: {
+              OR: [
+                {
+                  displayName: {
+                    contains: input.search,
+                    mode: 'insensitive',
                   },
-                  {
-                    email: { contains: input.search, mode: 'insensitive' },
-                  },
-                ],
-              },
-            }
-          : {}),
-      },
-      select: {
-        id: true,
-        userId: true,
-        role: true,
-        createdAt: true,
-        user: { select: courseUserSelect },
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: input.limit + 1,
-      ...(input.cursor !== undefined
-        ? { cursor: { id: input.cursor }, skip: 1 }
+                },
+                {
+                  email: { contains: input.search, mode: 'insensitive' },
+                },
+              ],
+            },
+          }
         : {}),
-    })
+    }
+    const [members, totalCount] = await Promise.all([
+      this.prismaService.courseMembership.findMany({
+        where,
+        select: {
+          id: true,
+          userId: true,
+          role: true,
+          createdAt: true,
+          user: { select: courseUserSelect },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: input.limit + 1,
+        ...(input.cursor !== undefined
+          ? { cursor: { id: input.cursor }, skip: 1 }
+          : {}),
+      }),
+      this.prismaService.courseMembership.count({ where }),
+    ])
     const hasNextPage = members.length > input.limit
     const pageMembers = hasNextPage ? members.slice(0, input.limit) : members
 
     return {
       members: pageMembers,
+      totalCount,
       ...(hasNextPage
         ? { nextCursor: pageMembers[pageMembers.length - 1]?.id }
         : {}),

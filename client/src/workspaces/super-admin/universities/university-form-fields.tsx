@@ -141,8 +141,8 @@ export function ManagerFields<T extends FieldValues>({
   form,
   serverFieldErrors,
   passwordLabel = 'Password',
-  passwordPlaceholder = 'Minimum 15 characters',
-  passwordDescription = 'Must be at least 15 characters long.',
+  passwordPlaceholder = 'Minimum 9 characters',
+  passwordDescription = 'Must be at least 9 characters long.',
   showValidationErrors = true,
 }: ManagerFieldsProps<T>) {
   return (

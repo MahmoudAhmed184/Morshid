@@ -26,6 +26,7 @@
     "infra:down": "docker compose down",
     "db:migrate": "npm run db:migrate --workspace server",
     "db:seed": "npm run db:seed --workspace server",
+    "seed:users": "tsx scripts/seed-university-users.mts",
     "db:reset": "node scripts/reset-local-db.mts",
     "reviews:clear-local": "node scripts/clear-local-review-data.mts",
     "demo:fresh-seed": "node scripts/fresh-seed-demo.mts",

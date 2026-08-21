@@ -282,15 +282,15 @@ describe('Self-Service Password Change (e2e)', () => {
     const email = 'student1@morshid.demo'
     const { session, cookie } = await signInUser(email)
 
-    // 1. Password shorter than 15 chars
+    // 1. Password shorter than 9 chars
     await request(app.getHttpServer())
       .patch('/api/v1/me/password')
       .set('Authorization', `Bearer ${session.accessToken}`)
       .set('Cookie', cookie)
       .send({
         currentPassword: P0_DEMO_PASSWORD,
-        newPassword: 'ShortPass123!',
-        confirmation: 'ShortPass123!',
+        newPassword: 'Short1!',
+        confirmation: 'Short1!',
       })
       .expect(400)
 
