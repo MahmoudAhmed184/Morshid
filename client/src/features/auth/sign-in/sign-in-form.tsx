@@ -61,68 +61,13 @@ export function SignInForm() {
     await navigate({ to: getDashboardPath(session.user.role) })
   }
 
-  const fillDemo = (
-    role: 'superadmin' | 'instructor' | 'student' | 'admin',
-  ) => {
-    const emails: Record<typeof role, string> = {
-      superadmin: 'superadmin@morshid.demo',
-      instructor: 'instructor@morshid.demo',
-      student: 'student1@morshid.demo',
-      admin: 'admin@morshid.demo',
-    }
-    form.setValue('email', emails[role], { shouldValidate: true })
-    form.setValue('password', 'MorshidDemoP0!', { shouldValidate: true })
-    setAuthErrorMessage(null)
-  }
-
   return (
     <Form {...form}>
       <form
-        className="flex flex-col gap-3.5 sm:gap-4.5"
+        className="flex flex-col gap-3 sm:gap-3.5"
         noValidate
         onSubmit={form.handleSubmit(onSubmit)}
       >
-        <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
-          <span className="mr-0.5 font-mono text-[0.62rem] tracking-wider text-muted-foreground uppercase sm:text-[0.65rem]">
-            Autofill:
-          </span>
-          <Button
-            type="button"
-            variant="secondary"
-            size="xs"
-            onClick={() => fillDemo('superadmin')}
-            className="h-auto rounded-full px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem]"
-          >
-            Super Admin
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="xs"
-            onClick={() => fillDemo('admin')}
-            className="h-auto rounded-full px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem]"
-          >
-            Admin
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="xs"
-            onClick={() => fillDemo('instructor')}
-            className="h-auto rounded-full px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem]"
-          >
-            Instructor
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="xs"
-            onClick={() => fillDemo('student')}
-            className="h-auto rounded-full px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem]"
-          >
-            Student
-          </Button>
-        </div>
         <FormField
           control={form.control}
           name="email"
@@ -140,13 +85,13 @@ export function SignInForm() {
                     {...field}
                     id={emailInputId}
                     type="email"
-                    placeholder="instructor@morshid.demo"
+                    placeholder="name@university.edu"
                     autoComplete="email"
                     aria-invalid={fieldState.error ? true : undefined}
                     aria-describedby={
                       fieldState.error ? emailErrorId : undefined
                     }
-                    className="h-10 rounded-xl pr-11 sm:h-11 md:h-12"
+                    className="h-10 rounded-xl pr-11 sm:h-11"
                   />
                   <Mail
                     className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted-foreground"
@@ -209,7 +154,7 @@ export function SignInForm() {
           type="submit"
           size="lg"
           disabled={form.formState.isSubmitting}
-          className="mt-2 h-10 w-full cursor-pointer rounded-full shadow-md hover:shadow-lg sm:mt-3 sm:h-11 md:h-12"
+          className="mt-1.5 h-10 w-full cursor-pointer rounded-full shadow-md hover:shadow-lg sm:mt-2 sm:h-11"
         >
           Sign in
           <ArrowRight data-icon="inline-end" aria-hidden />
