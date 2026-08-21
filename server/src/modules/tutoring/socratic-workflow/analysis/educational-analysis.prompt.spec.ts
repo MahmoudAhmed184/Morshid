@@ -53,6 +53,12 @@ describe('educational analysis prompt', () => {
       'Progress, setup, substitution, or recognition of one rule is not completion',
     )
     expect(request.messages[0].content).toContain(
+      'a current answer that correctly states the required concept or distinction may fully satisfy the objective',
+    )
+    expect(request.messages[0].content).toContain(
+      'correctly replaces every part of an active misconception may set answerCorrectness to CORRECT',
+    )
+    expect(request.messages[0].content).toContain(
       'Current contradictions override any positive historical state',
     )
     expect(request.messages[1].content).toContain(

@@ -1327,7 +1327,7 @@ describe('Socratic Tutor Behavioral Hardening', () => {
 
       // -------------------------------------------------------------
       // Turn 4: Correct learner attempt with reasoning
-      // Student: "I think y is 6 because 5 + 1 = 6"
+      // Student: "i calculate 5+1 = 6 as y = x+1"
       // Invariants:
       // - Overrides stale GUIDED_EXPLANATION / ORIENTATION_QUESTION from struggle turns
       // - Reconciles strategy to SOCRATIC_QUESTIONING + VERIFICATION
@@ -1430,10 +1430,7 @@ describe('Socratic Tutor Behavioral Hardening', () => {
         responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
         usedCitationIds: [],
         requiresStudentAction: false,
-        studentAction: {
-          type: TeachingTechnique.VERIFICATION,
-          description: 'Confirm verified calculation and reasoning.',
-        },
+        studentAction: null,
         reflectionIncluded: false,
         selfReportedCompliance: {
           finalAnswerRevealed: false,
@@ -1466,7 +1463,7 @@ describe('Socratic Tutor Behavioral Hardening', () => {
         },
         currentStudentMessage: {
           id: 'msg-turn-4',
-          content: 'I think y is 6 because 5 + 1 = 6',
+          content: 'i calculate 5+1 = 6 as y = x+1',
         },
         recentConversation: [
           ...turn3Context.recentConversation,
@@ -1484,7 +1481,7 @@ describe('Socratic Tutor Behavioral Hardening', () => {
             role: 'STUDENT',
             attemptId: 'attempt-turn-4',
             topicId: 'topic-1',
-            content: 'I think y is 6 because 5 + 1 = 6',
+            content: 'i calculate 5+1 = 6 as y = x+1',
           },
         ],
       }
@@ -1519,6 +1516,7 @@ describe('Socratic Tutor Behavioral Hardening', () => {
         )
         expect(turn4Result.approvedResponse.safeFallbackUsed).toBe(false)
         expect(turn4Result.approvedResponse.requiresStudentAction).toBe(false)
+        expect(turn4Result.approvedResponse.studentAction).toBeNull()
         expect(turn4Result.approvedResponse.message).toBe(
           'Your answer is correct. You used x = 5 and the calculation 5 + 1 = 6 to complete the evaluation of y.',
         )

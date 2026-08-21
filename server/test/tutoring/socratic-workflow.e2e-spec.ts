@@ -151,10 +151,13 @@ function storyCandidateResponse(
       responseIntent: input.responseIntent,
       usedCitationIds: citationIds,
       requiresStudentAction,
-      studentAction: {
-        type: input.studentActionType,
-        description: 'Ask for the one reasoning action stated in the message.',
-      },
+      studentAction: requiresStudentAction
+        ? {
+            type: input.studentActionType,
+            description:
+              'Ask for the one reasoning action stated in the message.',
+          }
+        : null,
       reflectionIncluded: false,
       selfReportedCompliance: {
         finalAnswerRevealed: false,
@@ -464,7 +467,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       approvalSource: 'VALIDATED_CANDIDATE',
       approvedCandidateAttempt: 1,
       safeFallbackReason: null,
-      validationPolicyVersion: 'response-validation.mvp.v3',
+      validationPolicyVersion: 'response-validation.mvp.v4',
     })
     await expect(
       prisma.tutoringCandidateAttempt.count({
@@ -532,7 +535,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(turn.assistantMessage.citations).toHaveLength(1)
 
     const promptVersion = Reflect.get(turn.assistantMessage, 'promptVersion')
-    expect(promptVersion).toBe('tutor-generation.mvp.v11')
+    expect(promptVersion).toBe('tutor-generation.mvp.v12')
 
     const reloadResponse = await request(requireApp().getHttpServer())
       .get(messagesPath(session.id))
@@ -648,7 +651,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(persisted.candidateAttempts[0]).toMatchObject({
       candidateAttempt: 1,
       generationOutcome: 'GENERATED',
-      promptVersion: 'tutor-generation.mvp.v11',
+      promptVersion: 'tutor-generation.mvp.v12',
     })
     expect(
       persisted.candidateAttempts[0].guardResults.map((result) => ({
@@ -1318,6 +1321,9 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
         recommendedTechnique: TeachingTechnique.VERIFICATION,
         meaningfulEffort: true,
         learningEvidenceStrength: 'STRONG' as const,
+        answerCorrectness: 'CORRECT' as const,
+        objectiveCompleted: true,
+        misconceptionRecoveryVerified: true,
         recommendedGuidanceLevel: 1,
       },
     ] as const
@@ -1350,10 +1356,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
         studentActionType: TeachingTechnique.COUNTEREXAMPLE,
       },
       {
-        message:
-          'Yes—that distinction is correct [retrieval.rank.1]. To verify it in a new case, what would a loop print after reaching `continue` at 2 and `break` at 4, and why?',
+        message: 'Yes, that distinction is correct [retrieval.rank.1].',
         responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
         studentActionType: TeachingTechnique.VERIFICATION,
+        requiresStudentAction: false,
       },
     ] as const
     let candidateIndex = 0
@@ -1413,9 +1419,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       })
       expect(turn.assistantMessage.citations).toHaveLength(1)
     }
-    expect(turns[3].assistantMessage.content).toMatch(/^Yes—/u)
-    expect(turns[3].assistantMessage.content).toMatch(/verify/iu)
-    expect(turns[3].assistantMessage.content).toMatch(/\?$/u)
+    expect(turns[3].assistantMessage.content).toMatch(
+      /^Yes, that distinction is correct/iu,
+    )
+    expect(turns[3].assistantMessage.content).not.toContain('?')
 
     const attempts = await prisma.tutoringAttempt.findMany({
       where: { sessionId: session.id },
@@ -1470,6 +1477,9 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       studentState: StudentState.NEAR_SOLUTION,
       learningEvidencePresent: true,
       learningEvidenceStrength: 'STRONG',
+      answerCorrectness: 'CORRECT',
+      objectiveCompleted: true,
+      misconceptionRecoveryVerified: true,
       recommendedTechnique: TeachingTechnique.VERIFICATION,
     })
     expect(analyses[3].evidenceLinks).toEqual(
@@ -1500,8 +1510,8 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       TeachingTechnique.VERIFICATION,
     ])
     expect(
-      decisions.every(({ requireStudentAction }) => requireStudentAction),
-    ).toBe(true)
+      decisions.map(({ requireStudentAction }) => requireStudentAction),
+    ).toEqual([true, true, true, false])
 
     for (const attempt of attempts) {
       expect(attempt).toMatchObject({
@@ -1537,6 +1547,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       activeStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
       primaryTechnique: TeachingTechnique.VERIFICATION,
       guidanceLevel: 1,
+      lastTutorQuestion: null,
     })
     await expect(
       prisma.topic.findFirstOrThrow({
@@ -2014,7 +2025,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       approvalSource: 'VALIDATED_CANDIDATE',
       approvedCandidateAttempt: 2,
       safeFallbackReason: null,
-      validationPolicyVersion: 'response-validation.mvp.v3',
+      validationPolicyVersion: 'response-validation.mvp.v4',
     })
     expect(persistedTurn.candidateAttempts).toHaveLength(2)
     expect(persistedTurn.candidateAttempts[0].guardResults).toHaveLength(2)
@@ -2361,7 +2372,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       approvalSource: 'SAFE_FALLBACK',
       approvedCandidateAttempt: null,
       safeFallbackReason: 'GUARD_UNAVAILABLE',
-      validationPolicyVersion: 'response-validation.mvp.v3',
+      validationPolicyVersion: 'response-validation.mvp.v4',
     })
     await expect(
       prisma.tutoringCandidateAttempt.count({

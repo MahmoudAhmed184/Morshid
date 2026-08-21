@@ -86,6 +86,14 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       functionalResponseRequirements,
       disclosurePolicyVersion: SOCRATIC_DISCLOSURE_POLICY_VERSION,
       outputProtection: input.educationalContext.outputProtection,
+      studentOwnedWork: {
+        intermediateExpressions: [
+          ...(input.validationContext.studentSuppliedExpressions ?? []),
+        ],
+        verifiedFinalAnswers: [
+          ...(input.validationContext.verifiedStudentFinalAnswers ?? []),
+        ],
+      },
       debuggingGuidanceRequired:
         input.validationContext.debuggingGuidanceRequired ?? false,
       debuggingGuidance: input.validationContext.debuggingGuidance ?? null,
@@ -151,6 +159,8 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'A focused clue or question that directs attention to relevant structure while preserving the target inference is compliant.',
       'Aggregate educationally relevant assertions from prior approved tutor messages and the candidate. Reject when the combined disclosures remove the protected reasoning even if each individual hint is small.',
       'Do not count reasoning already supplied by the student as tutor disclosure. Use message roles and evidence IDs to separate student-derived work from tutor assertions.',
+      'A candidate may quote, point back to, or ask the student to evaluate an intermediate expression that the student already supplied in the bounded conversation or current message. That reuse is not a new decisive substitution or DIRECT_ANSWER_DISCLOSURE. The student must still perform the requested evaluation or reasoning.',
+      'Do not extend student ownership beyond the supplied work. A computed value, final result, missing derivation, or corrected expression that does not appear in student-owned work remains tutor disclosure.',
       'When acknowledgeStudentSupportedCorrectWork is true, require a brief factual acknowledgment of the supported correct reasoning before a meaningful verification, transfer, or application action.',
       'Do not treat that acknowledgment as forbidden disclosure when it restates only reasoning already supported by the current student message.',
       'Do not require or reward affirmation based only on unsupported student self-report when acknowledgeStudentSupportedCorrectWork is false.',
@@ -295,12 +305,37 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       },
       {
         policyCondition:
-          'directTargetInferenceAllowed is false and Reveal Policy is NO_FINAL_ANSWER',
+          'directTargetInferenceAllowed is false, Reveal Policy is NO_FINAL_ANSWER, and the student supplied x = 5 and y = x + 1 but did not supply the substituted expression 5 + 1',
         candidateMeaning:
           'The tutor states "x is 5, so substitute it into y = x + 1 and calculate 5 + 1" or performs the decisive arithmetic substitution before asking the student for the result.',
         residualStudentWork:
           'Mechanical arithmetic calculation after the tutor performed the decisive variable substitution and reasoning derivation.',
         verdict: 'REJECT as DIRECT_ANSWER_DISCLOSURE',
+      },
+      {
+        policyCondition:
+          'directTargetInferenceAllowed is false, Reveal Policy is NO_FINAL_ANSWER, and the student already supplied y = 5 + 1',
+        candidateMeaning:
+          'The tutor points back to the student-owned expression and asks "What does 5 + 1 evaluate to?" or "Evaluate the expression 5 + 1."',
+        residualStudentWork:
+          'Evaluate the expression and provide the final value independently.',
+        verdict: 'APPROVE when all other checks pass',
+      },
+      {
+        policyCondition:
+          'studentActionObligation.required is true and the student has not supplied the final value 6',
+        candidateMeaning: 'The tutor states "y = 6" or "The answer is 6."',
+        residualStudentWork: 'None; the tutor supplied the final result.',
+        verdict:
+          'REJECT as FINAL_ANSWER_DISCLOSURE or DIRECT_ANSWER_DISCLOSURE according to the most specific typing rule',
+      },
+      {
+        policyCondition:
+          'completionClaimAllowed is true, studentActionObligation.required is false, and the current student message supplied y = 6',
+        candidateMeaning:
+          'The tutor concisely confirms that y = 6 is correct without adding a missing step or new derivation.',
+        residualStudentWork: 'None; the backend already verified completion.',
+        verdict: 'APPROVE when all other checks pass',
       },
       {
         policyCondition:

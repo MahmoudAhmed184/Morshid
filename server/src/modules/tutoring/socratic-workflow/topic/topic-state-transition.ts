@@ -57,9 +57,10 @@ export function buildCompletedTopicStateTransition(input: {
         result,
       ),
       summary: summaryFor(result),
-      lastTutorQuestion: boundedText(
-        input.approvedResponse.studentAction.description,
-      ),
+      lastTutorQuestion:
+        input.approvedResponse.studentAction === null
+          ? null
+          : boundedText(input.approvedResponse.studentAction.description),
       lastStudentAction: boundedText(studentActionSummary(result)),
       resolved: topicState.resolved,
     },

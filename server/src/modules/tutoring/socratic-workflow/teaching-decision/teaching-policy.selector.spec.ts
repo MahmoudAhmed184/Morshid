@@ -444,10 +444,44 @@ describe('teaching policy selector', () => {
       strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
       primaryTechnique: TeachingTechnique.VERIFICATION,
       guidanceLevel: 1,
+      requireStudentAction: true,
     })
     expect(draft.decisionReason).toContain(
       'strong current-message-supported learning evidence corrected the active misconception',
     )
+  })
+
+  it('accepts a fully completed conceptual misconception recovery without another verification action', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        effortPresent: true,
+        effortQuality: EFFORT_QUALITY.STRONG,
+        effortType: EFFORT_TYPE.EXPLANATION_ATTEMPT,
+        effortEvidenceMessageIds: ['message-1'],
+        learningPresent: true,
+        learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+        learningEvidenceMessageIds: ['message-1'],
+        answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+        objectiveCompleted: true,
+        misconceptionRecoveryVerified: true,
+      }),
+      topicState: topicState({ guidanceLevel: 2 }),
+      previousTeachingDecision: previousDecision({
+        strategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+        primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
+        guidanceLevel: 2,
+      }),
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.VERIFICATION,
+      guidanceLevel: 1,
+      requireStudentAction: false,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+    })
   })
 
   it('does not recover range-boundary reasoning from a mixed correct-and-wrong sequence', () => {

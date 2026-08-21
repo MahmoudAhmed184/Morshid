@@ -155,6 +155,7 @@ export class DeterministicTutorModelAdapter implements TutorModelPort {
     const allowedCitationIds = extractAllowedCitationIds(request)
     const debuggingGuidance = extractDebuggingGuidance(request)
     const responseIntent = extractTeachingStrategy(request)
+    const requiresStudentAction = extractRequiresStudentAction(request)
     const totalPromptChars = request.messages.reduce(
       (sum, message) => sum + message.content.length,
       0,
@@ -172,17 +173,20 @@ export class DeterministicTutorModelAdapter implements TutorModelPort {
                 responseIntent,
               )
             : {
-                message:
-                  'What is one small step you can try next using the cited course evidence?',
+                message: requiresStudentAction
+                  ? 'What is one small step you can try next using the cited course evidence?'
+                  : 'Your work correctly completes this objective.',
                 debuggingGuidance: null,
                 responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
                 usedCitationIds: Object.freeze(allowedCitationIds),
-                requiresStudentAction: true,
-                studentAction: Object.freeze({
-                  type: TeachingTechnique.ORIENTATION_QUESTION,
-                  description:
-                    'Ask the student to identify the next reasoning step.',
-                }),
+                requiresStudentAction,
+                studentAction: requiresStudentAction
+                  ? Object.freeze({
+                      type: TeachingTechnique.ORIENTATION_QUESTION,
+                      description:
+                        'Ask the student to identify the next reasoning step.',
+                    })
+                  : null,
                 reflectionIncluded: false,
                 selfReportedCompliance: Object.freeze({
                   finalAnswerRevealed: false,
@@ -198,6 +202,10 @@ export class DeterministicTutorModelAdapter implements TutorModelPort {
       }),
     )
   }
+}
+
+function extractRequiresStudentAction(request: TutorModelRequest): boolean {
+  return !request.messages[1].content.includes('"requiresStudentAction":false')
 }
 
 function debuggingCandidate(

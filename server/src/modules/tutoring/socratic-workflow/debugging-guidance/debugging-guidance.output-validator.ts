@@ -101,8 +101,9 @@ export function validateDebuggingGuidanceOutput(
   }
   const action = guidance.inspectionActions[0]
   if (
+    candidate.studentAction === null ||
     normalizeContractText(candidate.studentAction.description) !==
-    normalizeContractText(action)
+      normalizeContractText(action)
   ) {
     return rejected(
       DEBUGGING_GUIDANCE_VALIDATION_FAILURE.STRUCTURED_STUDENT_ACTION_MISMATCH,

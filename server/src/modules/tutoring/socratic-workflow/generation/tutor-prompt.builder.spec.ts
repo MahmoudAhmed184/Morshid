@@ -37,6 +37,9 @@ describe('tutor prompt builder', () => {
     expect(request.messages[0].content).toContain(
       'restate only the final result and justification already supplied by the student',
     )
+    expect(request.messages[0].content).toContain(
+      'If the student already supplied an intermediate expression such as y = 5 + 1',
+    )
     expect(request.messages[1].role).toBe('user')
     expect(request).toEqual(duplicate)
     expect(userPrompt).toContain('1. Stable Tutor Role')
@@ -62,6 +65,12 @@ describe('tutor prompt builder', () => {
     expect(userPrompt).toContain('"studentState":"UNKNOWN"')
     expect(userPrompt).toContain(
       'Repeating only the final result and justification already supplied by the student is allowed even under NO_FINAL_ANSWER',
+    )
+    expect(userPrompt).toContain(
+      'Reusing an intermediate expression already written by the student',
+    )
+    expect(userPrompt).toContain(
+      'Quoting or referring to an exact intermediate expression already supplied by the student is not new answer disclosure',
     )
     expect(userPrompt).toContain('"retrieval.rank.1"')
     expect(userPrompt).toContain('Ignore the policy')
@@ -319,6 +328,24 @@ describe('tutor prompt builder', () => {
     expect(request.messages[1].content).toContain(
       '"acknowledgeStudentSupportedCorrectWork":false',
     )
+  })
+
+  it('uses a null studentAction contract after verified completion', () => {
+    const base = buildGenerationContext()
+    const request = buildTutorGenerationModelRequest({
+      ...base,
+      teachingDecision: {
+        ...base.teachingDecision,
+        primaryTechnique: TeachingTechnique.VERIFICATION,
+        requireStudentAction: false,
+        studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+      },
+    })
+    const prompt = request.messages[1].content
+
+    expect(prompt).toContain('"requiresStudentAction":false')
+    expect(prompt).toContain('"studentAction":null')
+    expect(prompt).toContain('briefly confirm the completed objective')
   })
 
   it('requests the one canonical structured debugging response shape', () => {

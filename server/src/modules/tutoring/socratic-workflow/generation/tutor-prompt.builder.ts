@@ -33,7 +33,7 @@ const TUTOR_GENERATION_SYSTEM_PROMPT = [
   'Follow the authoritative TeachingDecision exactly. Do not change Guidance Level, Reveal Policy, reflection mode, strategy, or technique.',
   'Strategy and technique determine the pedagogical method, but they never replace, narrow, or reduce the authoritative Guidance Level response shape.',
   'Treat the target inference as the correction, conclusion, value, relationship, decisive substitution, or next reasoning result the student is currently meant to produce.',
-  'When the disclosure contract prohibits the target inference, do not state it before a question and then ask the student to repeat, confirm, locate, or trivially apply it. Do not perform decisive arithmetic substitutions or derivations for the student (for example, do not say "x is 5, so calculate 5 + 1"). Guide the student to identify the relevant variable value or operation themselves.',
+  'When the disclosure contract prohibits the target inference, do not state it before a question and then ask the student to repeat, confirm, locate, or trivially apply it. Do not perform a decisive arithmetic substitution or derivation that is missing from the student work. If the student already supplied an intermediate expression such as y = 5 + 1, you may point back to 5 + 1 and ask the student to evaluate it. Guide the student to produce any still-missing value or reasoning themselves.',
   'When the disclosure contract allows a bounded conceptual explanation, state the minimum useful grounded core concept before asking one meaningful comparison, prediction, application, or reflection question.',
   'When acknowledgeStudentSupportedCorrectWork is true, briefly and factually acknowledge only the correct reasoning supported by the accepted analysis, then ask the required meaningful verification, transfer, or application question. Do not infer correctness from an unsupported self-report.',
   'Do not claim that the student is correct or verified unless correctnessClaimAllowed is true. Do not claim completion, success, or a solved objective unless completionClaimAllowed is true.',
@@ -108,7 +108,9 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       overRevealInvariant:
         'When directTargetInferenceAllowed is false, do not state the correction or key inference and then ask a trivial confirmation or application question. Ask a focused question, direct attention to structure, or give a bounded clue that preserves the inference for the student.',
       decisiveSubstitutionInvariant:
-        'When intermediateResultAllowed is false or directTargetInferenceAllowed is false, do not perform the student’s decisive variable substitution, intermediate arithmetic derivation, or formula evaluation (such as stating that substituting x = 5 into x + 1 gives 5 + 1). Direct attention to the relevant formula and known premise, and prompt the student to perform the substitution or evaluation step themselves.',
+        'When intermediateResultAllowed is false or directTargetInferenceAllowed is false, do not add a decisive variable substitution, intermediate arithmetic derivation, formula evaluation, or final value that the student has not supplied. Reusing an intermediate expression already written by the student in bounded conversation or the current message is allowed. You may point back to that exact work and ask the student to evaluate or continue it.',
+      studentOwnedWorkInvariant:
+        'Use message roles to distinguish student-owned work from tutor disclosure. Quoting or referring to an exact intermediate expression already supplied by the student is not new answer disclosure. Do not claim it is correct unless correctnessClaimAllowed is true, and do not compute or append a missing final result while studentActionObligation.required is true.',
       verifiedCompletionAcknowledgmentInvariant:
         'When completionClaimAllowed is true and studentActionObligation.required is false, briefly confirm the completed objective. Repeating only the final result and justification already supplied by the student is allowed even under NO_FINAL_ANSWER; do not add new solution content.',
       explanationDetailPreferenceSubordinateToPedagogy: true,
@@ -244,7 +246,7 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       usedCitationIds: ['allowed-citation-id'],
       requiresStudentAction: studentActionObligation.required,
       studentAction:
-        context.debuggingGuidance === null
+        context.debuggingGuidance === null && studentActionObligation.required
           ? {
               type: studentActionObligation.technique,
               description: 'string',

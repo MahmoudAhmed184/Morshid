@@ -22,6 +22,7 @@ import {
 import {
   TUTOR_GENERATION_FAILURE_CODE,
   TUTOR_MODEL_PORT,
+  type CandidateResponseValidationDiagnostic,
   type TutorGenerationFailureCode,
   type TutorGenerationInput,
   type TutorGenerationServiceResult,
@@ -187,9 +188,18 @@ export class TutorGenerationService {
       },
     )
     if (!validation.success) {
+      this.logGenerationOutcome({
+        context,
+        status: 'failed',
+        errorCode: validation.errorCode,
+        latencyMs: Date.now() - startedAt,
+        infrastructureRetryCount,
+        validationDiagnostic: validation.diagnostic,
+      })
       return failure(
         TUTOR_GENERATION_FAILURE_CODE[validation.errorCode],
         infrastructureRetryCount,
+        validation.diagnostic,
       )
     }
 
@@ -231,6 +241,7 @@ export class TutorGenerationService {
     usedCitationCount?: number
     infrastructureRetryCount: number
     willRetry?: boolean
+    validationDiagnostic?: CandidateResponseValidationDiagnostic
   }): void {
     this.logger.log({
       stage: 'tutor_generation',
@@ -250,6 +261,9 @@ export class TutorGenerationService {
       infrastructureRetryCount: input.infrastructureRetryCount,
       willRetry: input.willRetry,
       errorCategory: input.errorCode,
+      validationContractStage: input.validationDiagnostic?.contractStage,
+      validationField: input.validationDiagnostic?.field,
+      validationReason: input.validationDiagnostic?.reason,
       usedCitationCount: input.usedCitationCount,
     })
   }
@@ -267,10 +281,12 @@ function hasStableDenseCitationIds(
 function failure(
   errorCode: TutorGenerationFailureCode,
   infrastructureRetryCount = 0,
+  validationDiagnostic?: CandidateResponseValidationDiagnostic,
 ): TutorGenerationServiceResult {
   return {
     success: false,
     errorCode,
     infrastructureRetryCount,
+    ...(validationDiagnostic === undefined ? {} : { validationDiagnostic }),
   }
 }

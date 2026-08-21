@@ -409,6 +409,13 @@ export class SocraticWorkflow {
           ),
         ),
       ),
+      validationDiagnostics: approval.validationResults.flatMap((result) =>
+        result.violations.map((violation) => ({
+          stage: result.stage,
+          type: violation.type,
+          field: violation.field,
+        })),
+      ),
     })
 
     const outputRisk = this.safetyRiskDetector.detectOutput(

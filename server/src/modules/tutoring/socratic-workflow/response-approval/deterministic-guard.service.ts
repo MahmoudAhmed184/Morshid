@@ -44,6 +44,7 @@ export class DeterministicGuardService {
     }
 
     if (
+      candidate.studentAction !== null &&
       candidate.studentAction.type !== context.studentActionObligation.technique
     ) {
       violations.push(
@@ -111,6 +112,7 @@ export class DeterministicGuardService {
         revealsFinalAnswer(normalized, {
           givenPremises: context.givenPremises,
           targetVariables: context.targetVariables,
+          verifiedStudentFinalAnswers: context.verifiedStudentFinalAnswers,
         })
       ) {
         violations.push(
@@ -127,6 +129,7 @@ export class DeterministicGuardService {
         revealsDecisiveSubstitution(normalized, {
           givenPremises: context.givenPremises,
           targetVariables: context.targetVariables,
+          studentSuppliedExpressions: context.studentSuppliedExpressions,
         })
       ) {
         violations.push(
@@ -228,6 +231,8 @@ export class DeterministicGuardService {
 export interface ProblemProtectionContext {
   readonly givenPremises?: ReadonlySet<string>
   readonly targetVariables?: ReadonlySet<string>
+  readonly studentSuppliedExpressions?: ReadonlySet<string>
+  readonly verifiedStudentFinalAnswers?: ReadonlySet<string>
 }
 
 export function extractProblemStatementGivensAndTargets(
@@ -250,7 +255,7 @@ export function extractProblemStatementGivensAndTargets(
       continue
     }
     const assignmentMatches = line.matchAll(
-      /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b/gu,
+      /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b(?!\s*[+\-*/%])/gu,
     )
     for (const match of assignmentMatches) {
       const varName = match[1]
@@ -287,15 +292,73 @@ export function extractProblemStatementGivensAndTargets(
   return { givenPremises, targetVariables }
 }
 
+export function extractStudentSuppliedExpressions(
+  studentMessages: readonly string[],
+): Set<string> {
+  const expressions = new Set<string>()
+
+  for (const message of studentMessages) {
+    const normalized = normalizeDeterministicText(message).toLowerCase()
+    const matches = normalized.matchAll(
+      /(?:\b[a-z_][a-z0-9_]*\b|[-+]?\d+(?:\.\d+)?)(?:\s*[+\-*/%]\s*(?:\b[a-z_][a-z0-9_]*\b|[-+]?\d+(?:\.\d+)?))+/gu,
+    )
+    for (const match of matches) {
+      expressions.add(normalizeMathExpression(match[0]))
+    }
+  }
+
+  return expressions
+}
+
+export function extractVerifiedStudentFinalAnswers(
+  currentStudentMessage: string,
+  targetVariables: ReadonlySet<string>,
+): Set<string> {
+  const normalized = normalizeDeterministicText(
+    currentStudentMessage,
+  ).toLowerCase()
+  const answers = new Set<string>()
+  const assignmentMatches = normalized.matchAll(
+    /\b([a-z_][a-z0-9_]*)\s*(?:=|\bis\b)\s*([-+]?\d+(?:\.\d+)?)\b(?!\s*[+\-*/%])/gu,
+  )
+
+  for (const match of assignmentMatches) {
+    const variable = match[1]
+    const value = match[2]
+    if (targetVariables.has(variable)) {
+      answers.add(finalAnswerKey(variable, value))
+    }
+  }
+
+  const answerMatches = normalized.matchAll(
+    /\b(?:the\s+answer|final\s+answer|answer)\s*(?:is|:)\s*([-+]?\d+(?:\.\d+)?)\b/gu,
+  )
+  for (const match of answerMatches) {
+    answers.add(finalAnswerKey('answer', match[1]))
+  }
+
+  return answers
+}
+
 export function revealsFinalAnswer(
   normalizedMessage: string,
   context?: ProblemProtectionContext,
 ): boolean {
+  const statedAnswerValue = explicitAnswerValue(normalizedMessage)
   if (
-    containsExplicitAnswerValue(normalizedMessage) ||
-    /\b(?:the\s+result|final\s+result|result)\s*(?:is|:)\s*[-+]?\d/u.test(
+    statedAnswerValue !== null &&
+    !isVerifiedStudentFinalValue(context, statedAnswerValue)
+  ) {
+    return true
+  }
+
+  const resultMatch =
+    /\b(?:the\s+result|final\s+result|result)\s*(?:is|:)\s*([-+]?\d+(?:\.\d+)?)\b/u.exec(
       normalizedMessage,
     )
+  if (
+    resultMatch !== null &&
+    !isVerifiedStudentFinalValue(context, resultMatch[1])
   ) {
     return true
   }
@@ -306,11 +369,16 @@ export function revealsFinalAnswer(
   for (const conclusionMatch of conclusionMatches) {
     const matchedText = conclusionMatch[0]
     const assignedVar =
-      /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b/u.exec(matchedText)
+      /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b(?!\s*[+\-*/%])/u.exec(
+        matchedText,
+      )
     if (assignedVar !== null) {
       const varName = assignedVar[1]
       const value = assignedVar[2]
-      if (!isGivenPremise(context, varName, value)) {
+      if (
+        !isGivenPremise(context, varName, value) &&
+        !isVerifiedStudentFinalAssignment(context, varName, value)
+      ) {
         return true
       }
     } else {
@@ -319,12 +387,16 @@ export function revealsFinalAnswer(
   }
 
   const assignmentMatches = normalizedMessage.matchAll(
-    /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b/gu,
+    /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b(?!\s*[+\-*/%])/gu,
   )
   for (const match of assignmentMatches) {
     const varName = match[1]
     const value = match[2]
     if (isGivenPremise(context, varName, value)) {
+      continue
+    }
+
+    if (isVerifiedStudentFinalAssignment(context, varName, value)) {
       continue
     }
 
@@ -351,7 +423,7 @@ const answerAssessmentTerms = new Set([
   'wrong',
 ])
 
-function containsExplicitAnswerValue(normalizedMessage: string): boolean {
+function explicitAnswerValue(normalizedMessage: string): string | null {
   const matches = normalizedMessage.matchAll(
     /\b(?:the\s+answer|final\s+answer|answer)\s*(?:is|:)\s*([^\s,.;!?]+)/gu,
   )
@@ -359,11 +431,11 @@ function containsExplicitAnswerValue(normalizedMessage: string): boolean {
   for (const match of matches) {
     const value = match[1].replace(/^[`'"([{]+|[`'"\])}]+$/gu, '')
     if (!answerAssessmentTerms.has(value)) {
-      return true
+      return value
     }
   }
 
-  return false
+  return null
 }
 
 function isGivenPremise(
@@ -389,6 +461,40 @@ function isTargetVariable(
     return false
   }
   return targets.has(varName)
+}
+
+function isVerifiedStudentFinalAssignment(
+  context: ProblemProtectionContext | undefined,
+  variable: string,
+  value: string,
+): boolean {
+  return (
+    context?.verifiedStudentFinalAnswers?.has(
+      finalAnswerKey(variable, value),
+    ) ?? false
+  )
+}
+
+function isVerifiedStudentFinalValue(
+  context: ProblemProtectionContext | undefined,
+  value: string,
+): boolean {
+  const answers = context?.verifiedStudentFinalAnswers
+  if (answers === undefined) {
+    return false
+  }
+
+  if (answers.has(finalAnswerKey('answer', value))) {
+    return true
+  }
+
+  for (const target of context?.targetVariables ?? []) {
+    if (answers.has(finalAnswerKey(target, value))) {
+      return true
+    }
+  }
+
+  return false
 }
 
 export function revealsDecisiveSubstitution(
@@ -417,7 +523,14 @@ export function revealsDecisiveSubstitution(
       `\\b${varName}\\s*([+\\-*/%])\\s*(\\d+)\\s*(?:becomes|is|=|gives|yields|results in|->|=>)\\s*${value}\\s*\\1\\s*\\2\\b`,
       'iu',
     )
-    if (substitutionPatternLeading.test(normalizedMessage)) {
+    const leadingMatch = substitutionPatternLeading.exec(normalizedMessage)
+    if (
+      leadingMatch !== null &&
+      !isStudentSuppliedExpression(
+        context,
+        `${value}${leadingMatch[1]}${leadingMatch[2]}`,
+      )
+    ) {
       return true
     }
 
@@ -426,7 +539,14 @@ export function revealsDecisiveSubstitution(
       `\\b(\\d+)\\s*([+\\-*/%])\\s*${varName}\\s*(?:becomes|is|=|gives|yields|results in|->|=>)\\s*\\1\\s*\\2\\s*${value}\\b`,
       'iu',
     )
-    if (substitutionPatternTrailing.test(normalizedMessage)) {
+    const trailingMatch = substitutionPatternTrailing.exec(normalizedMessage)
+    if (
+      trailingMatch !== null &&
+      !isStudentSuppliedExpression(
+        context,
+        `${trailingMatch[1]}${trailingMatch[2]}${value}`,
+      )
+    ) {
       return true
     }
 
@@ -435,7 +555,14 @@ export function revealsDecisiveSubstitution(
       `\\b[a-z_][a-z0-9_]*\\s*=\\s*(?:${value}\\s*[+\\-*/%]\\s*\\d+|\\d+\\s*[+\\-*/%]\\s*${value})\\b`,
       'iu',
     )
-    if (targetSubstitutionPattern.test(normalizedMessage)) {
+    const targetMatch = targetSubstitutionPattern.exec(normalizedMessage)
+    if (
+      targetMatch !== null &&
+      !isStudentSuppliedExpression(
+        context,
+        targetMatch[0].slice(targetMatch[0].indexOf('=') + 1),
+      )
+    ) {
       return true
     }
 
@@ -444,12 +571,55 @@ export function revealsDecisiveSubstitution(
       `\\b(?:substituting|substitute|replacing|replace)\\s+${varName}\\s*(?:with|=|as|is)\\s*${value}\\s*(?:gives|yields|we get|to get|is|=|results in)\\s*(?:${value}\\s*[+\\-*/%]\\s*\\d+|\\d+\\s*[+\\-*/%]\\s*${value})\\b`,
       'iu',
     )
-    if (descriptiveSubstitutionPattern.test(normalizedMessage)) {
+    const descriptiveMatch =
+      descriptiveSubstitutionPattern.exec(normalizedMessage)
+    if (
+      descriptiveMatch !== null &&
+      !containsStudentSuppliedExpression(context, descriptiveMatch[0], value)
+    ) {
       return true
     }
   }
 
   return false
+}
+
+function containsStudentSuppliedExpression(
+  context: ProblemProtectionContext | undefined,
+  text: string,
+  requiredValue: string,
+): boolean {
+  const matches = text.matchAll(
+    /(?:\b[a-z_][a-z0-9_]*\b|[-+]?\d+(?:\.\d+)?)(?:\s*[+\-*/%]\s*(?:\b[a-z_][a-z0-9_]*\b|[-+]?\d+(?:\.\d+)?))+/gu,
+  )
+  for (const match of matches) {
+    if (
+      match[0].includes(requiredValue) &&
+      isStudentSuppliedExpression(context, match[0])
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+function isStudentSuppliedExpression(
+  context: ProblemProtectionContext | undefined,
+  expression: string,
+): boolean {
+  return (
+    context?.studentSuppliedExpressions?.has(
+      normalizeMathExpression(expression),
+    ) ?? false
+  )
+}
+
+function normalizeMathExpression(expression: string): string {
+  return expression.replace(/\s+/gu, '')
+}
+
+function finalAnswerKey(variable: string, value: string): string {
+  return `${variable}=${value}`
 }
 
 export function revealsCompleteSolution(normalizedMessage: string): boolean {
@@ -502,7 +672,7 @@ export function countDisclosedSteps(message: string): number {
 function requestsMeaningfulStudentAction(
   candidate: CandidateResponse,
 ): boolean {
-  if (!candidate.requiresStudentAction) {
+  if (!candidate.requiresStudentAction || candidate.studentAction === null) {
     return false
   }
 

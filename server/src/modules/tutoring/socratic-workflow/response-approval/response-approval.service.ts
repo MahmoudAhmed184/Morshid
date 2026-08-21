@@ -11,6 +11,7 @@ import { citationIdForChunk } from '../generation/tutor-generation-context'
 import { TutorGenerationService } from '../generation/tutor-generation.service'
 import {
   TUTOR_GENERATION_FAILURE_CODE,
+  type TutorGuardEducationalContext,
   type TutorGenerationInput,
 } from '../generation/tutor-generation.types'
 import {
@@ -27,6 +28,8 @@ import {
 import {
   DeterministicGuardService,
   extractProblemStatementGivensAndTargets,
+  extractStudentSuppliedExpressions,
+  extractVerifiedStudentFinalAnswers,
 } from './deterministic-guard.service'
 import { SemanticGuardService } from './semantic-guard.service'
 import {
@@ -48,6 +51,7 @@ import {
 } from './response-audit.types'
 import type { OutputProtectionContext } from '../solution-protection/solution-protection.types'
 import { studentActionObligationFromDecision } from '../teaching-decision/student-action-obligation'
+import { buildTutorResponseRequirements } from '../generation/tutor-response-requirements'
 
 import {
   AutomaticSafetyRiskDetector,
@@ -165,6 +169,7 @@ export class ResponseApprovalService {
           await input.lifecycle?.beginValidation()
           const structural = structuralRejectionFromGenerationFailure(
             generation.errorCode,
+            generation.validationDiagnostic,
           )
           validationResults.push(structural)
           guardResultAudits.push(
@@ -236,16 +241,36 @@ export class ResponseApprovalService {
         }
       }
 
+      const boundedStudentMessages = studentMessagesForActiveTopic(
+        generation.educationalContext,
+        input.topicId,
+      )
       const initialStudentMessage =
-        generation.educationalContext.recentConversation.find(
-          (m) =>
-            m.role === 'STUDENT' &&
-            (m.topicId === input.topicId || m.attemptId !== null),
-        )?.content ??
+        boundedStudentMessages[0] ??
         generation.educationalContext.currentStudentMessage.content
 
       const { givenPremises, targetVariables } =
         extractProblemStatementGivensAndTargets(initialStudentMessage)
+      const studentSuppliedExpressions = extractStudentSuppliedExpressions(
+        boundedStudentMessages,
+      )
+      const responseRequirements = buildTutorResponseRequirements({
+        analysis: generation.educationalContext.acceptedAnalysis,
+        analysisSource:
+          generation.educationalContext.acceptedAnalysis.analysisSource,
+        studentMessageId:
+          generation.educationalContext.currentStudentMessage.id,
+        guidanceLevel: decision.guidanceLevel,
+        protectTargetSolution: input.outputProtection.protectTargetSolution,
+      })
+      const verifiedStudentFinalAnswers =
+        responseRequirements.completionClaimAllowed &&
+        !studentActionObligation.required
+          ? extractVerifiedStudentFinalAnswers(
+              generation.educationalContext.currentStudentMessage.content,
+              targetVariables,
+            )
+          : new Set<string>()
 
       const candidateValidationContext = buildCandidateValidationContext({
         allowedCitationIds: new Set(
@@ -264,6 +289,8 @@ export class ResponseApprovalService {
           decision.strategy === TeachingStrategy.DEBUGGING_GUIDANCE,
         givenPremises,
         targetVariables,
+        studentSuppliedExpressions,
+        verifiedStudentFinalAnswers,
       })
 
       await input.lifecycle?.beginValidation()
@@ -467,6 +494,26 @@ function approvalWithFallback(
       outputProtection,
     ),
   }
+}
+
+function studentMessagesForActiveTopic(
+  context: TutorGuardEducationalContext,
+  topicId: string,
+): string[] {
+  const messages = context.recentConversation
+    .filter(
+      (message) =>
+        message.role === 'STUDENT' &&
+        (message.topicId === null || message.topicId === topicId),
+    )
+    .map((message) => message.content)
+
+  const currentMessage = context.currentStudentMessage.content
+  if (messages.at(-1) !== currentMessage) {
+    messages.push(currentMessage)
+  }
+
+  return messages
 }
 
 function freezeAuditGraph(

@@ -73,7 +73,7 @@ export interface CandidateResponse {
   readonly responseIntent: TutorResponseIntent
   readonly usedCitationIds: readonly string[]
   readonly requiresStudentAction: boolean
-  readonly studentAction: TutorStudentAction
+  readonly studentAction: TutorStudentAction | null
   readonly reflectionIncluded: boolean
   readonly selfReportedCompliance: TutorSelfReportedCompliance
   readonly provider: string
@@ -83,6 +83,21 @@ export interface CandidateResponse {
     readonly input: number
     readonly output: number
   }
+}
+
+export interface CandidateResponseValidationDiagnostic {
+  readonly contractStage: 'CANDIDATE_SCHEMA' | 'CANDIDATE_POLICY'
+  readonly field: string | null
+  readonly reason:
+    | 'BACKEND_OWNED_FIELD'
+    | 'APPROVAL_FIELD'
+    | 'SCHEMA_MISMATCH'
+    | 'DUPLICATE_CITATION'
+    | 'INVALID_CITATION'
+    | 'MISSING_CITATION'
+    | 'STUDENT_ACTION_OBLIGATION_MISMATCH'
+    | 'REFLECTION_MODE_MISMATCH'
+    | 'DEBUGGING_CONTRACT_MISMATCH'
 }
 
 export interface CandidateResponsePolicyContext {
@@ -188,6 +203,7 @@ export type TutorGenerationServiceResult =
       readonly success: false
       readonly errorCode: TutorGenerationFailureCode
       readonly infrastructureRetryCount: number
+      readonly validationDiagnostic?: CandidateResponseValidationDiagnostic
     }
 
 export interface TutorModelRequest {

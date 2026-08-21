@@ -166,7 +166,7 @@ describe('debugging guidance contract', () => {
       validate({
         ...candidate,
         studentAction: {
-          ...candidate.studentAction,
+          type: TeachingTechnique.FOCUSED_QUESTION,
           description: 'Inspect a different expression.',
         },
       }),
@@ -231,7 +231,7 @@ function candidateWithActions(actions: readonly string[]): CandidateResponse {
       inspectionActions: actions,
     },
     studentAction: {
-      ...candidate.studentAction,
+      type: TeachingTechnique.FOCUSED_QUESTION,
       description: actions[0] ?? '',
     },
   })
@@ -265,7 +265,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v11',
+    promptVersion: 'tutor-generation.mvp.v12',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

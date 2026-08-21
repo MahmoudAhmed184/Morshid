@@ -184,6 +184,28 @@ describe('DeterministicTutorModelAdapter', () => {
     })
   })
 
+  it('returns a confirmation with no studentAction when the decision requires none', async () => {
+    const adapter = new DeterministicTutorModelAdapter()
+    const noActionRequest: TutorModelRequest = {
+      ...request,
+      messages: [
+        request.messages[0],
+        {
+          role: 'user',
+          content:
+            '{"allowedCitationIds":["retrieval.rank.1"],"requiresStudentAction":false}',
+        },
+      ],
+    }
+
+    await expect(adapter.generate(noActionRequest)).resolves.toMatchObject({
+      rawOutput: {
+        requiresStudentAction: false,
+        studentAction: null,
+      },
+    })
+  })
+
   it('renders the backend debugging context as a bounded diagnosis', async () => {
     const adapter = new DeterministicTutorModelAdapter()
     const response = await adapter.generate(debuggingRequest)

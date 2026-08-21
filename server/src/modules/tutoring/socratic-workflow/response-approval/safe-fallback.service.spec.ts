@@ -150,6 +150,9 @@ describe('SafeFallbackService', () => {
       expect(fallback.message).not.toMatch(
         /\b(?:correct|verified|successfully worked through|completed)\b/iu,
       )
+      if (fallback.studentAction === null) {
+        throw new Error('Expected fallback student action')
+      }
       expect(fallback.studentAction.description).not.toMatch(
         /\b(?:correct|verified|successfully worked through|completed)\b/iu,
       )
@@ -189,6 +192,9 @@ describe('SafeFallbackService', () => {
       )
 
       expect(response.message).toBe(expectedMessage)
+      if (response.studentAction === null) {
+        throw new Error('Expected fallback student action')
+      }
       expect(response.studentAction.description).toContain(expectedDescription)
       expect(response).toMatchObject({
         requiresStudentAction: true,

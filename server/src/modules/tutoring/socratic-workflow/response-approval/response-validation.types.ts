@@ -8,7 +8,7 @@ import type { DebuggingGuidanceContext } from '../debugging-guidance/debugging-g
 import type { StudentActionObligation } from '../teaching-decision/student-action-obligation'
 
 export const MVP_RESPONSE_VALIDATION_POLICY_VERSION =
-  'response-validation.mvp.v3'
+  'response-validation.mvp.v4'
 export const MAX_MVP_CANDIDATE_ATTEMPTS = 3
 
 export const RESPONSE_VALIDATION_STAGE = {
@@ -120,6 +120,8 @@ export interface CandidateValidationContext {
   readonly debuggingGuidanceRequired?: boolean
   readonly givenPremises?: ReadonlySet<string>
   readonly targetVariables?: ReadonlySet<string>
+  readonly studentSuppliedExpressions?: ReadonlySet<string>
+  readonly verifiedStudentFinalAnswers?: ReadonlySet<string>
 }
 
 export const APPROVED_RESPONSE_SOURCE = {

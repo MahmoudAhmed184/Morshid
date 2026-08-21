@@ -8,6 +8,8 @@ import {
 import {
   DeterministicGuardService,
   extractProblemStatementGivensAndTargets,
+  extractStudentSuppliedExpressions,
+  extractVerifiedStudentFinalAnswers,
 } from './deterministic-guard.service'
 import {
   RESPONSE_VALIDATION_STAGE,
@@ -71,6 +73,16 @@ describe('DeterministicGuardService', () => {
       expect(givenPremises.has('y = 6')).toBe(false)
     })
 
+    it('does not truncate a student-supplied expression into a numeric given', () => {
+      const extracted = extractProblemStatementGivensAndTargets(
+        'x = 5\ny = 5 + 1\nwhat is the value of y?',
+      )
+
+      expect(extracted.givenPremises.has('x = 5')).toBe(true)
+      expect(extracted.givenPremises.has('y = 5')).toBe(false)
+      expect(extracted.targetVariables.has('y')).toBe(true)
+    })
+
     it('does not extract student attempts or guesses as given premises', () => {
       const laterStudentAttempt = 'I think y = 6'
       const extracted =
@@ -100,6 +112,52 @@ describe('DeterministicGuardService', () => {
       )
 
       expect(result.approved).toBe(true)
+    })
+
+    it.each([
+      'What does 5 + 1 evaluate to? [retrieval.rank.1]',
+      'Evaluate the expression 5 + 1. [retrieval.rank.1]',
+      'Look back at y = 5 + 1. What value do you get? [retrieval.rank.1]',
+    ])(
+      'allows reuse of a student-supplied intermediate expression: %s',
+      (message) => {
+        const studentMessage = 'x = 5\ny = 5 + 1\nwhat is the value of y?'
+        const extracted =
+          extractProblemStatementGivensAndTargets(studentMessage)
+        const result = service().evaluate(
+          validCandidate({ message }),
+          context({
+            ...extracted,
+            studentSuppliedExpressions: extractStudentSuppliedExpressions([
+              studentMessage,
+            ]),
+          }),
+        )
+
+        expect(result.approved).toBe(true)
+        expect(result.violations).toHaveLength(0)
+      },
+    )
+
+    it('still rejects the same substituted expression when the student did not supply it', () => {
+      const result = service().evaluate(
+        validCandidate({
+          message:
+            'Since x = 5, y = 5 + 1. What is the value? [retrieval.rank.1]',
+        }),
+        context({
+          givenPremises,
+          targetVariables,
+          studentSuppliedExpressions: extractStudentSuppliedExpressions([
+            activeProblem,
+          ]),
+        }),
+      )
+
+      expect(result.approved).toBe(false)
+      expect(result.violations.map((violation) => violation.type)).toContain(
+        RESPONSE_VIOLATION_TYPE.DIRECT_ANSWER_DISCLOSURE,
+      )
     })
 
     it('allows unrelated intermediate numeric assignments not bound to target variable', () => {
@@ -210,6 +268,65 @@ describe('DeterministicGuardService', () => {
         RESPONSE_VIOLATION_TYPE.FINAL_ANSWER_DISCLOSURE,
       )
     })
+
+    it.each(['y = 6.', 'The answer is 6.'])(
+      'keeps a tutor-supplied final result prohibited: %s',
+      (disclosure) => {
+        const result = service().evaluate(
+          validCandidate({
+            message: `${disclosure} [retrieval.rank.1]`,
+          }),
+          context({
+            givenPremises,
+            targetVariables,
+            studentSuppliedExpressions: extractStudentSuppliedExpressions([
+              activeProblem,
+            ]),
+          }),
+        )
+
+        expect(result.approved).toBe(false)
+        expect(result.violations.map((violation) => violation.type)).toContain(
+          RESPONSE_VIOLATION_TYPE.FINAL_ANSWER_DISCLOSURE,
+        )
+      },
+    )
+
+    it.each(['y = 6 is correct.', 'The answer is 6. Nice work.'])(
+      'allows a verified acknowledgment of a student-supplied final result: %s',
+      (message) => {
+        const currentStudentMessage = 'y = 6'
+        const result = service().evaluate(
+          validCandidate({
+            message,
+            requiresStudentAction: false,
+            studentAction: {
+              type: TeachingTechnique.VERIFICATION,
+              description: 'Confirm the verified result.',
+            },
+          }),
+          context({
+            givenPremises,
+            targetVariables,
+            verifiedStudentFinalAnswers: extractVerifiedStudentFinalAnswers(
+              currentStudentMessage,
+              targetVariables,
+            ),
+            studentActionObligation: {
+              version: 'student-action-obligation.v1',
+              required: false,
+              purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+              technique: TeachingTechnique.VERIFICATION,
+              maximumMeaningfulActions: 1,
+              generationInstruction:
+                'Confirm correctness without requiring another student action.',
+            },
+          }),
+        )
+
+        expect(result.approved).toBe(true)
+      },
+    )
 
     it('does not mistake a correctness assessment for a disclosed answer value', () => {
       const result = service().evaluate(
@@ -446,7 +563,7 @@ describe('DeterministicGuardService', () => {
           rewriteRequested: false,
         }),
         studentAction: {
-          ...candidate.studentAction,
+          type: TeachingTechnique.FOCUSED_QUESTION,
           description: inspectionActions[0],
         },
       },
@@ -558,7 +675,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v11',
+    promptVersion: 'tutor-generation.mvp.v12',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

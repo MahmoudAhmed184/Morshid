@@ -93,6 +93,68 @@ describe('SemanticGuardService', () => {
     )
   })
 
+  it('separates student-owned intermediate work from new tutor disclosure', async () => {
+    const guard = new FakeSemanticGuardPort({ approved: true, violations: [] })
+    const base = input()
+
+    await new SemanticGuardService(guard).evaluate({
+      ...base,
+      validationContext: {
+        ...base.validationContext,
+        studentSuppliedExpressions: new Set(['5+1']),
+        verifiedStudentFinalAnswers: new Set<string>(),
+      },
+      educationalContext: {
+        ...base.educationalContext,
+        currentStudentMessage: {
+          id: 'message-1',
+          content: 'x = 5\ny = 5 + 1\nwhat is the value of y?',
+        },
+      },
+      candidate: candidate({
+        message: 'What does 5 + 1 evaluate to?',
+      }),
+    })
+
+    const payload = JSON.parse(
+      guard.requests[0]?.messages[1].content ?? '{}',
+    ) as {
+      trustedPolicy: {
+        studentOwnedWork: {
+          intermediateExpressions: string[]
+          verifiedFinalAnswers: string[]
+        }
+      }
+      adjudicationRules: string[]
+      semanticCalibrationExamples: {
+        candidateMeaning: string
+        verdict: string
+      }[]
+    }
+
+    expect(payload.trustedPolicy.studentOwnedWork).toEqual({
+      intermediateExpressions: ['5+1'],
+      verifiedFinalAnswers: [],
+    })
+    expect(payload.adjudicationRules.join(' ')).toContain(
+      'That reuse is not a new decisive substitution or DIRECT_ANSWER_DISCLOSURE',
+    )
+    expect(
+      payload.semanticCalibrationExamples.some(
+        (example) =>
+          example.candidateMeaning.includes('What does 5 + 1 evaluate to?') &&
+          example.verdict === 'APPROVE when all other checks pass',
+      ),
+    ).toBe(true)
+    expect(
+      payload.semanticCalibrationExamples.some(
+        (example) =>
+          example.candidateMeaning.includes('The answer is 6.') &&
+          example.verdict.includes('REJECT'),
+      ),
+    ).toBe(true)
+  })
+
   it('uses the focused TeachingDecision obligation without adding a prior-attempt requirement', async () => {
     const guard = new FakeSemanticGuardPort({ approved: true, violations: [] })
     const base = input()
@@ -871,7 +933,7 @@ function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v11',
+    promptVersion: 'tutor-generation.mvp.v12',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

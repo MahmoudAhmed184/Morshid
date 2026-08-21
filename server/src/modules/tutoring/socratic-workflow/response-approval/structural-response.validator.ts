@@ -9,6 +9,7 @@ import {
   TUTOR_CANDIDATE_LIMITS,
   type CandidateResponse,
   type CandidateResponsePolicyContext,
+  type CandidateResponseValidationDiagnostic,
 } from '../generation/tutor-generation.types'
 import {
   RESPONSE_VALIDATION_ACTION,
@@ -68,7 +69,12 @@ export class StructuralResponseValidator {
       tokenUsage: candidate.tokenUsage,
     })
     if (!validation.success) {
-      return reject([violationForGenerationFailure(validation.errorCode)])
+      return reject([
+        violationForGenerationFailure(
+          validation.errorCode,
+          validation.diagnostic,
+        ),
+      ])
     }
 
     return approvedValidationResult(RESPONSE_VALIDATION_STAGE.STRUCTURAL, {
@@ -91,45 +97,73 @@ export class StructuralResponseValidator {
       })
     }
 
-    return reject([violationForGenerationFailure(validation.errorCode)])
+    return reject([
+      violationForGenerationFailure(
+        validation.errorCode,
+        validation.diagnostic,
+      ),
+    ])
   }
 }
 
 export function structuralRejectionFromGenerationFailure(
   errorCode: string,
+  diagnostic?: CandidateResponseValidationDiagnostic,
 ): ValidationResult {
-  return reject([violationForGenerationFailure(errorCode)])
+  return reject([violationForGenerationFailure(errorCode, diagnostic)])
 }
 
 function violationForGenerationFailure(
   errorCode: string,
+  diagnostic?: CandidateResponseValidationDiagnostic,
 ): ResponseValidationViolation {
   switch (errorCode) {
     case 'TUTOR_MALFORMED_OUTPUT':
       return violation(
         RESPONSE_VIOLATION_TYPE.MALFORMED_RESPONSE,
         RESPONSE_VALIDATION_SEVERITY.CRITICAL,
-        null,
-        'Candidate was not parseable as the required response object.',
+        diagnostic?.field ?? null,
+        structuralEvidence(
+          'Candidate was not parseable as the required response object.',
+          diagnostic,
+        ),
         'Return a valid CandidateResponse JSON object with every required field.',
       )
     case 'TUTOR_INVALID_CITATION':
       return violation(
         RESPONSE_VIOLATION_TYPE.INVALID_CITATION,
         RESPONSE_VALIDATION_SEVERITY.HIGH,
-        'usedCitationIds',
-        'Candidate did not satisfy the backend citation grounding requirement.',
+        diagnostic?.field ?? 'usedCitationIds',
+        structuralEvidence(
+          'Candidate did not satisfy the backend citation grounding requirement.',
+          diagnostic,
+        ),
         'Use an allowed citation when grounding and citation support are required.',
       )
     default:
       return violation(
         RESPONSE_VIOLATION_TYPE.MISSING_REQUIRED_FIELD,
         RESPONSE_VALIDATION_SEVERITY.HIGH,
-        null,
-        'Candidate failed required schema or backend-owned metadata checks.',
+        diagnostic?.field ?? null,
+        structuralEvidence(
+          'Candidate failed required schema or backend-owned metadata checks.',
+          diagnostic,
+        ),
         'Return only the content fields and do not include approval or backend metadata.',
       )
   }
+}
+
+function structuralEvidence(
+  summary: string,
+  diagnostic?: CandidateResponseValidationDiagnostic,
+): string {
+  if (diagnostic === undefined) {
+    return summary
+  }
+
+  const field = diagnostic.field ?? 'response'
+  return `${summary} Contract stage ${diagnostic.contractStage}; field ${field}; reason ${diagnostic.reason}.`
 }
 
 export function buildCandidateValidationContext(input: {
@@ -146,6 +180,8 @@ export function buildCandidateValidationContext(input: {
   readonly debuggingGuidanceRequired?: boolean
   readonly givenPremises?: ReadonlySet<string>
   readonly targetVariables?: ReadonlySet<string>
+  readonly studentSuppliedExpressions?: ReadonlySet<string>
+  readonly verifiedStudentFinalAnswers?: ReadonlySet<string>
 }): CandidateValidationContext {
   return Object.freeze({ ...input })
 }

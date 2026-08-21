@@ -160,6 +160,10 @@ export function functionalStoryAnalysisResponse(
     readonly repeatedEffort?: boolean
     readonly addressesPreviousTutorAction?: boolean
     readonly learningEvidenceStrength?: 'MODERATE' | 'STRONG'
+    readonly answerCorrectness?:
+      'UNASSESSED' | 'INCORRECT' | 'PARTIALLY_CORRECT' | 'CORRECT'
+    readonly objectiveCompleted?: boolean
+    readonly misconceptionRecoveryVerified?: boolean
     readonly recommendedGuidanceLevel?: number
     readonly misconception?: {
       readonly code: string
@@ -204,6 +208,9 @@ export function functionalStoryAnalysisResponse(
             strength: input.learningEvidenceStrength,
             evidenceMessageIds: [evidenceMessageId],
           },
+    answerCorrectness: input.answerCorrectness ?? 'UNASSESSED',
+    objectiveCompleted: input.objectiveCompleted ?? false,
+    misconceptionRecoveryVerified: input.misconceptionRecoveryVerified ?? false,
     misconceptions:
       input.misconception === undefined
         ? []

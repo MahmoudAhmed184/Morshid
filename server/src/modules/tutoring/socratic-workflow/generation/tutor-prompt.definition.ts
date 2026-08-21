@@ -1,4 +1,4 @@
-export const TUTOR_GENERATION_PROMPT_VERSION = 'tutor-generation.mvp.v11'
+export const TUTOR_GENERATION_PROMPT_VERSION = 'tutor-generation.mvp.v12'
 
 export const TUTOR_GENERATION_PROMPT_DEFINITION = Object.freeze({
   id: TUTOR_GENERATION_PROMPT_VERSION,

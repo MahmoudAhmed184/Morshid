@@ -461,7 +461,8 @@ export function isSolutionVerification(
 
   if (
     input.previousTeachingDecision?.strategy ===
-    TeachingStrategy.MISCONCEPTION_REPAIR
+      TeachingStrategy.MISCONCEPTION_REPAIR &&
+    !hasSupportedMisconceptionRecoveryEvidence(analysis)
   ) {
     return false
   }

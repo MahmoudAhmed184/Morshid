@@ -59,6 +59,31 @@ describe('TopicState transition builder', () => {
     })
   })
 
+  it('persists no tutor question when a completed objective has no student action', () => {
+    const transition = buildCompletedTopicStateTransition({
+      topicState: topicState(),
+      analysis: {
+        analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+        studentMessageId: 'student-message-2',
+        result: {
+          ...analysisResult(),
+          studentState: StudentState.NEAR_SOLUTION,
+          answerCorrectness: ANSWER_CORRECTNESS.CORRECT,
+          objectiveCompleted: true,
+        },
+      },
+      decision: { ...decision(), requireStudentAction: false },
+      approvedResponse: {
+        ...approvedResponse(),
+        message: 'Your reasoning correctly completes this objective.',
+        requiresStudentAction: false,
+        studentAction: null,
+      },
+    })
+
+    expect(transition.patch.lastTutorQuestion).toBeNull()
+  })
+
   it('advances classified turns through the same versioned state contract', () => {
     expect(
       buildClassifiedTopicStateTransition({
@@ -300,7 +325,7 @@ function approvedResponse(): ApprovedResponse {
       promptVersion: 'test',
       inputTokens: 1,
       outputTokens: 1,
-      validationPolicyVersion: 'response-validation.mvp.v3',
+      validationPolicyVersion: 'response-validation.mvp.v4',
       structuralApproved: true,
       deterministicApproved: true,
       semanticApproved: true,
