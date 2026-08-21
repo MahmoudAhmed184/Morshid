@@ -2,32 +2,24 @@ import Papa from 'papaparse'
 
 import type { CourseMembershipRole } from '@/features/courses/course-administration.schema'
 
-const IDENTIFIER_HEADER_PATTERNS = [
-  /^identifier$/i,
-  /^email$/i,
-  /^id$/i,
-  /^user_?id$/i,
-  /^student_?id$/i,
-  /^instructor_?id$/i,
-  /^student\s*id$/i,
-  /^instructor\s*id$/i,
-  /^user\s*id$/i,
-]
+const EMAIL_HEADER_PATTERNS = [/^email$/i]
 
-export function parsePastedIdentifiers(text: string): string[] {
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export function parsePastedEmails(text: string): string[] {
   if (!text.trim()) return []
   return text
     .split(/[\r\n,;\t]+/)
     .map((item) => item.trim())
-    .filter((item) => item.length > 0)
+    .filter((item) => EMAIL_PATTERN.test(item))
 }
 
-export type ParsedCsvIdentifiers = {
-  identifiers: string[]
+export type ParsedCsvEmails = {
+  emails: string[]
   errors: string[]
 }
 
-export function parseCsvIdentifiers(file: File): Promise<ParsedCsvIdentifiers> {
+export function parseCsvEmails(file: File): Promise<ParsedCsvEmails> {
   return new Promise((resolve) => {
     Papa.parse<string[]>(file, {
       header: false,
@@ -43,7 +35,7 @@ export function parseCsvIdentifiers(file: File): Promise<ParsedCsvIdentifiers> {
 
         if (data.length === 0) {
           return resolve({
-            identifiers: [],
+            emails: [],
             errors: ['The CSV file does not contain any data.'],
           })
         }
@@ -56,9 +48,7 @@ export function parseCsvIdentifiers(file: File): Promise<ParsedCsvIdentifiers> {
             .replace(/^\uFEFF/, '')
             .trim()
             .toLowerCase()
-          if (
-            IDENTIFIER_HEADER_PATTERNS.some((pattern) => pattern.test(cell))
-          ) {
+          if (EMAIL_HEADER_PATTERNS.some((pattern) => pattern.test(cell))) {
             targetColumnIndex = i
             break
           }
@@ -73,31 +63,38 @@ export function parseCsvIdentifiers(file: File): Promise<ParsedCsvIdentifiers> {
 
           if (hasHeader) {
             const val = (row[targetColumnIndex] ?? '').trim()
-            if (val.length > 0) extracted.push(val)
+            if (EMAIL_PATTERN.test(val)) extracted.push(val)
           } else {
             const firstNonEmpty = row
               .map((c) => c.trim())
               .find((c) => c.length > 0)
-            if (firstNonEmpty !== undefined) extracted.push(firstNonEmpty)
+            if (
+              firstNonEmpty !== undefined &&
+              EMAIL_PATTERN.test(firstNonEmpty)
+            ) {
+              extracted.push(firstNonEmpty)
+            }
           }
         }
 
         if (extracted.length === 0) {
-          parsingErrors.push('The CSV file does not contain any identifiers.')
+          parsingErrors.push(
+            'The CSV file does not contain any email addresses.',
+          )
         }
 
         if (extracted.length > 1_000) {
           parsingErrors.push(
-            'A single bulk assignment can contain at most 1,000 identifiers.',
+            'A single bulk assignment can contain at most 1,000 email addresses.',
           )
         }
 
         resolve({
-          identifiers: extracted,
+          emails: extracted,
           errors: parsingErrors,
         })
       },
-      error: (error) => resolve({ identifiers: [], errors: [error.message] }),
+      error: (error) => resolve({ emails: [], errors: [error.message] }),
     })
   })
 }
@@ -105,9 +102,8 @@ export function parseCsvIdentifiers(file: File): Promise<ParsedCsvIdentifiers> {
 export function downloadBulkAssignmentTemplate(role: CourseMembershipRole) {
   const userType = role === 'STUDENT' ? 'student' : 'instructor'
   const template = Papa.unparse([
-    { identifier: `${userType}1@morshid.demo` },
-    { identifier: `${userType}2@morshid.demo` },
-    { identifier: '10000000-0000-4000-8000-000000000001' },
+    { email: `${userType}1@morshid.demo` },
+    { email: `${userType}2@morshid.demo` },
   ])
 
   const blob = new Blob([template], {

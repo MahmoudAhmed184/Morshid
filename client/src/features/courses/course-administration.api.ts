@@ -37,7 +37,7 @@ export async function getCourseAdministration(
   options: ApiFetchOptions = {},
   input: { cursor?: string; search?: string } = {},
 ) {
-  const parameters = new URLSearchParams({ limit: '25' })
+  const parameters = new URLSearchParams({ limit: '10' })
   if (input.cursor) parameters.set('cursor', input.cursor)
   if (input.search) parameters.set('search', input.search)
   const response = await apiJson<unknown>(
@@ -92,7 +92,7 @@ export async function getCourseMembers(
     role?: CourseMembershipRole
   } = {},
 ) {
-  const parameters = new URLSearchParams({ limit: '25' })
+  const parameters = new URLSearchParams({ limit: '10' })
   if (input.cursor) parameters.set('cursor', input.cursor)
   if (input.search) parameters.set('search', input.search)
   if (input.role) parameters.set('role', input.role)

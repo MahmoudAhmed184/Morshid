@@ -7,7 +7,7 @@ import {
 describe('PasswordPolicy', () => {
   const policy = new PasswordPolicy()
 
-  it('accepts a valid passphrase with 15 or more characters including spaces and unicode', () => {
+  it('accepts a valid passphrase with 9 or more characters including spaces and unicode', () => {
     const result = policy.validate(
       'this is a very strong passphrase with spaces',
     )
@@ -20,8 +20,8 @@ describe('PasswordPolicy', () => {
     expect(result.isValid).toBe(true)
   })
 
-  it('rejects passwords shorter than 15 characters', () => {
-    const result = policy.validate('ShortPass123!')
+  it('rejects passwords shorter than 9 characters', () => {
+    const result = policy.validate('short123')
     expect(result.isValid).toBe(false)
     expect(result.message).toBe(
       `Password must be at least ${PASSWORD_MIN_LENGTH.toString()} characters`,
@@ -76,7 +76,7 @@ describe('PasswordPolicy', () => {
   })
 
   it('does not require character class composition', () => {
-    // lowercase letters only, but 15+ chars and not in blocklist
+    // lowercase letters only, but long enough and not in blocklist
     const result = policy.validate('valid lowercase passphrase only')
     expect(result.isValid).toBe(true)
   })

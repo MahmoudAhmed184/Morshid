@@ -2,6 +2,7 @@ import { ClipboardCheckIcon, EyeIcon, Trash2Icon } from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
 import {
   Dialog,
@@ -29,6 +30,9 @@ type AdminAssignmentsTableProps = {
   isPending: boolean
   onRoleChange: (userId: string, role: CourseMembershipRole) => void
   onRemove: (userId: string) => Promise<unknown>
+  selectedUserIds?: ReadonlySet<string>
+  onSelectionChange?: (userId: string, selected: boolean) => void
+  onSelectPage?: (selected: boolean) => void
 }
 
 export function AdminAssignmentsTable({
@@ -37,6 +41,9 @@ export function AdminAssignmentsTable({
   isPending,
   onRoleChange,
   onRemove,
+  selectedUserIds = new Set(),
+  onSelectionChange,
+  onSelectPage,
 }: AdminAssignmentsTableProps) {
   const [selectedMember, setSelectedMember] = useState<CourseMember | null>(
     null,
@@ -51,6 +58,15 @@ export function AdminAssignmentsTable({
             key={member.id}
             className="flex items-center justify-between p-3.5 gap-3 hover:bg-secondary/20 transition-colors"
           >
+            {onSelectionChange ? (
+              <Checkbox
+                checked={selectedUserIds.has(member.userId)}
+                onCheckedChange={(checked) =>
+                  onSelectionChange(member.userId, checked)
+                }
+                aria-label={`Select ${member.user.displayName}`}
+              />
+            ) : null}
             <div className="min-w-0 flex-1 space-y-0.5">
               <p className="font-semibold text-foreground truncate text-sm">
                 {member.user.displayName}
@@ -108,6 +124,20 @@ export function AdminAssignmentsTable({
         <Table className="w-full min-w-[600px]">
           <TableHeader className="bg-secondary/40">
             <TableRow>
+              {onSelectionChange ? (
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={
+                      members.length > 0 &&
+                      members.every((member) =>
+                        selectedUserIds.has(member.userId),
+                      )
+                    }
+                    onCheckedChange={onSelectPage}
+                    aria-label="Select current page"
+                  />
+                </TableHead>
+              ) : null}
               <TableHead className="smallcaps-label h-11 px-4 pl-6">
                 User
               </TableHead>
@@ -124,7 +154,25 @@ export function AdminAssignmentsTable({
               <TableRow
                 key={member.id}
                 className="h-[52px] hover:bg-secondary/40"
+                onClick={(event) => {
+                  if (!(event.target as HTMLElement).closest('button'))
+                    onSelectionChange?.(
+                      member.userId,
+                      !selectedUserIds.has(member.userId),
+                    )
+                }}
               >
+                {onSelectionChange ? (
+                  <TableCell className="px-4 pl-6">
+                    <Checkbox
+                      checked={selectedUserIds.has(member.userId)}
+                      onCheckedChange={(checked) =>
+                        onSelectionChange(member.userId, checked)
+                      }
+                      aria-label={`Select ${member.user.displayName}`}
+                    />
+                  </TableCell>
+                ) : null}
                 <TableCell className="px-4 py-3.5 pl-6 min-w-0">
                   <p className="font-medium text-foreground truncate max-w-[280px]">
                     {member.user.displayName}

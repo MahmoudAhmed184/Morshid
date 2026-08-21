@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { DataToolbar } from '@/components/ui/custom/data-toolbar'
-import { LoadMoreButton } from '@/components/ui/custom/load-more-button'
+import { NumberedPagination } from '@/components/ui/custom/pagination'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import {
   Select,
@@ -13,6 +12,7 @@ import {
 } from '@/components/ui/select'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value'
+import { managedUsersPageSize } from '@/features/user-management/user-management.queries'
 import { AdminPanel } from '@/workspaces/admin/components/admin-panel'
 import { useCourseAdministration } from '@/workspaces/admin/use-course-administration'
 import { CreateUserDialog } from './create-user-dialog'
@@ -48,6 +48,7 @@ export function UsersPage({ role }: UsersPageProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
   const [courseId, setCourseId] = useState('ALL')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const debouncedSearch = useDebouncedValue(search.trim(), 250)
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(
     () => new Set(),
@@ -61,19 +62,34 @@ export function UsersPage({ role }: UsersPageProps) {
   })
   const coursesQuery = useCourseAdministration()
   const userMutations = useManagedUserMutations()
+  const userPages = usersQuery.data?.pages ?? []
+  const totalCount = userPages.at(-1)?.totalCount ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalCount / managedUsersPageSize))
   const users = useMemo(
     () =>
-      (usersQuery.data?.pages.flatMap((page) => page.users) ?? []).filter(
+      (userPages[page - 1]?.users ?? []).filter(
         (user) => user.id !== currentUserId && user.role === role,
       ),
-    [currentUserId, role, usersQuery.data],
+    [currentUserId, page, role, userPages],
   )
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, role, statusFilter, courseId])
+
+  useEffect(() => {
+    if (
+      page > userPages.length &&
+      usersQuery.hasNextPage &&
+      !usersQuery.isFetchingNextPage
+    ) {
+      void usersQuery.fetchNextPage()
+    }
+  }, [page, userPages.length, usersQuery])
 
   const isUpdatingStatus =
     userMutations.disableUser.isPending ||
     userMutations.reactivateUser.isPending
-  const allLoadedSelected =
-    users.length > 0 && users.every((user) => selectedUserIds.has(user.id))
 
   const setUserSelected = (userId: string, selected: boolean) => {
     setSelectedUserIds((current) => {
@@ -82,12 +98,6 @@ export function UsersPage({ role }: UsersPageProps) {
       else next.delete(userId)
       return next
     })
-  }
-
-  const setAllLoadedSelected = (selected: boolean) => {
-    setSelectedUserIds(
-      selected ? new Set(users.map((user) => user.id)) : new Set(),
-    )
   }
 
   const hasActiveFilters =
@@ -110,6 +120,7 @@ export function UsersPage({ role }: UsersPageProps) {
           onSearchChange={(value) => {
             setSearch(value)
             setSelectedUserIds(new Set())
+            setPage(1)
           }}
           searchPlaceholder={`Search ${copy.plural}...`}
           filters={
@@ -120,6 +131,7 @@ export function UsersPage({ role }: UsersPageProps) {
                   if (!value) return
                   setCourseId(value)
                   setSelectedUserIds(new Set())
+                  setPage(1)
                 }}
               >
                 <SelectTrigger
@@ -149,6 +161,7 @@ export function UsersPage({ role }: UsersPageProps) {
                   if (!value) return
                   setStatusFilter(value)
                   setSelectedUserIds(new Set())
+                  setPage(1)
                 }}
               >
                 <SelectTrigger
@@ -179,22 +192,8 @@ export function UsersPage({ role }: UsersPageProps) {
           }
         />
 
-        {users.length > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 text-xs text-muted-foreground">
-            <span>{selectedUserIds.size} selected</span>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => setAllLoadedSelected(!allLoadedSelected)}
-            >
-              {allLoadedSelected ? 'Unselect all' : 'Select all'}
-            </Button>
-          </div>
-        ) : null}
-
         <DataTableState
-          isLoading={usersQuery.isPending}
+          isLoading={usersQuery.isPending || page > userPages.length}
           isError={usersQuery.isError || coursesQuery.isError}
           isEmpty={users.length === 0}
           onRetry={() => {
@@ -220,7 +219,6 @@ export function UsersPage({ role }: UsersPageProps) {
               isResettingPassword={userMutations.resetPassword.isPending}
               isUpdatingStatus={isUpdatingStatus}
               onSelectionChange={setUserSelected}
-              onSelectAllChange={setAllLoadedSelected}
               onResetPassword={(userId, newPassword) =>
                 userMutations.resetPassword.mutateAsync({ userId, newPassword })
               }
@@ -240,12 +238,19 @@ export function UsersPage({ role }: UsersPageProps) {
                 })
               }
             />
-            <LoadMoreButton
-              hasNextPage={usersQuery.hasNextPage}
-              isFetchingNextPage={usersQuery.isFetchingNextPage}
-              onLoadMore={() => void usersQuery.fetchNextPage()}
-              label={`Load more ${copy.plural}`}
-            />
+            {totalCount > 0 ? (
+              <div className="border-t px-4 py-3">
+                <NumberedPagination
+                  page={page}
+                  totalPages={totalPages}
+                  totalCount={totalCount}
+                  limit={managedUsersPageSize}
+                  itemName={copy.plural}
+                  disabled={usersQuery.isFetchingNextPage}
+                  onPageChange={setPage}
+                />
+              </div>
+            ) : null}
           </>
         </DataTableState>
       </AdminPanel>

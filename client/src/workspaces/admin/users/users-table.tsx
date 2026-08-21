@@ -20,7 +20,6 @@ type UsersTableProps = {
   onStatusChange: (user: ManagedUser) => Promise<unknown>
   selectedUserIds: ReadonlySet<string>
   onSelectionChange: (userId: string, selected: boolean) => void
-  onSelectAllChange: (selected: boolean) => void
   onUpdateUser?: (
     userId: string,
     values: {
@@ -54,15 +53,8 @@ export function UsersTable({
   onStatusChange,
   selectedUserIds,
   onSelectionChange,
-  onSelectAllChange,
   onUpdateUser,
 }: UsersTableProps) {
-  const selectedCount = users.filter((user) =>
-    selectedUserIds.has(user.id),
-  ).length
-  const allSelected = users.length > 0 && selectedCount === users.length
-  const someSelected = selectedCount > 0 && !allSelected
-
   return (
     <>
       {/* Mobile Card List (< md) */}
@@ -131,18 +123,7 @@ export function UsersTable({
                   key={header}
                   className="smallcaps-label h-11 px-4 first:pl-6 last:pr-6"
                 >
-                  {header === 'Selection' ? (
-                    <Checkbox
-                      checked={allSelected}
-                      indeterminate={someSelected}
-                      onCheckedChange={onSelectAllChange}
-                      aria-label={
-                        allSelected ? 'Unselect all users' : 'Select all users'
-                      }
-                    />
-                  ) : (
-                    header
-                  )}
+                  {header === 'Selection' ? null : header}
                 </TableHead>
               ))}
             </TableRow>

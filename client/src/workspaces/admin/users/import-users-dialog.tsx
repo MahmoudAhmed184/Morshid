@@ -5,7 +5,7 @@ import {
   Trash2Icon,
   UploadIcon,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useRef, useState } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,8 @@ export function ImportUsersDialog({ role, userLabel }: ImportUsersDialogProps) {
   const [file, setFile] = useState<File | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const [userImport, setUserImport] = useState<UserImport | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputId = useId()
   const { stageUserImport, approveImport, editImportRow, cancelImportRow } =
     useManagedUserMutations()
 
@@ -43,15 +45,11 @@ export function ImportUsersDialog({ role, userLabel }: ImportUsersDialogProps) {
     setFile(null)
     setErrors([])
     setUserImport(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const handleImport = async () => {
-    if (!file) {
-      setErrors(['Choose a CSV file to import.'])
-      return
-    }
-
-    const parsed = await parseUserImport(file, role)
+  const handleImport = async (importFile: File) => {
+    const parsed = await parseUserImport(importFile, role)
     if (parsed.rows.length === 0) {
       setErrors(parsed.errors)
       return
@@ -118,47 +116,67 @@ export function ImportUsersDialog({ role, userLabel }: ImportUsersDialogProps) {
             <FileSpreadsheetIcon className="size-5" aria-hidden />
           </span>
           <DialogTitle>Import {userLabel}</DialogTitle>
-          <DialogDescription>
-            Upload up to 200 accounts, review every row, then approve valid
-            accounts. Invalid rows remain visible with their reasons.
-          </DialogDescription>
         </DialogHeader>
 
         {userImport ? null : (
-          <Button
-            type="button"
-            variant="outline"
-            className="w-fit"
-            onClick={downloadUserImportTemplate}
-          >
-            <DownloadIcon />
-            Download CSV template
-          </Button>
-        )}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">
+                Need a starter format? Download a ready CSV template.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => downloadUserImportTemplate(role)}
+              >
+                <DownloadIcon className="size-3.5" /> Template
+              </Button>
+            </div>
 
-        {userImport ? null : (
-          <div className="space-y-2">
-            <label htmlFor="user-csv-file" className="text-sm font-medium">
-              Completed CSV file
-            </label>
-            <Input
-              id="user-csv-file"
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(event) => {
-                setFile(event.target.files?.[0] ?? null)
-                setErrors([])
-              }}
-            />
+            <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 text-center">
+              <UploadIcon className="mb-2 size-8 text-muted-foreground" />
+              <p className="text-sm font-medium">Select a CSV file</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                File must contain displayName, email, and password columns.
+              </p>
+              <label
+                htmlFor={fileInputId}
+                className="mt-4 inline-flex cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Choose CSV file
+              </label>
+              <input
+                ref={fileInputRef}
+                id={fileInputId}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] ?? null
+                  setFile(nextFile)
+                  setErrors([])
+                  if (nextFile) void handleImport(nextFile)
+                }}
+                className="sr-only"
+              />
+              {file ? (
+                <p className="mt-3 text-xs text-foreground">
+                  Selected: <strong>{file.name}</strong>
+                </p>
+              ) : null}
+            </div>
           </div>
         )}
 
         {userImport ? (
-          <div className="max-h-80 space-y-2 overflow-y-auto">
+          <div className="max-h-[min(46vh,360px)] space-y-2 overflow-y-auto rounded-xl border bg-muted/10 p-2">
             {userImport.rows
               .filter((row) => row.status !== 'CANCELLED')
               .map((row) => (
-                <div key={row.id} className="rounded-md border p-3 text-sm">
+                <div
+                  key={row.id}
+                  className="rounded-lg border bg-card p-3 text-sm"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium">
@@ -225,35 +243,30 @@ export function ImportUsersDialog({ role, userLabel }: ImportUsersDialogProps) {
           </Alert>
         ) : null}
 
-        <DialogFooter showCloseButton>
-          {userImport?.status === 'PENDING' ? (
-            <Button
-              type="button"
-              disabled={
-                approveImport.isPending ||
-                !userImport.rows.some((row) => row.status === 'VALID') ||
-                userImport.rows.some((row) => row.status === 'INVALID')
-              }
-              onClick={() => void handleApprove()}
-            >
-              <UploadIcon />
-              {approveImport.isPending ? 'Approving...' : 'Approve valid users'}
-            </Button>
-          ) : userImport?.status === 'APPROVED' ? (
-            <p className="text-sm text-emerald-600">
-              Valid users were created successfully.
-            </p>
-          ) : (
-            <Button
-              type="button"
-              disabled={!file || stageUserImport.isPending}
-              onClick={() => void handleImport()}
-            >
-              <UploadIcon />
-              {stageUserImport.isPending ? 'Validating...' : 'Review import'}
-            </Button>
-          )}
-        </DialogFooter>
+        {userImport ? (
+          <DialogFooter showCloseButton>
+            {userImport.status === 'PENDING' ? (
+              <Button
+                type="button"
+                disabled={
+                  approveImport.isPending ||
+                  !userImport.rows.some((row) => row.status === 'VALID') ||
+                  userImport.rows.some((row) => row.status === 'INVALID')
+                }
+                onClick={() => void handleApprove()}
+              >
+                <UploadIcon />
+                {approveImport.isPending
+                  ? 'Approving...'
+                  : 'Approve valid users'}
+              </Button>
+            ) : (
+              <p className="text-sm text-emerald-600">
+                Valid users were created successfully.
+              </p>
+            )}
+          </DialogFooter>
+        ) : null}
       </DialogContent>
     </Dialog>
   )

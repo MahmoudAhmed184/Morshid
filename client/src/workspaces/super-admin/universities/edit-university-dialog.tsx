@@ -179,7 +179,7 @@ export function EditUniversityDialog({
                   serverFieldErrors={serverFieldErrors}
                   passwordLabel="New Password"
                   passwordPlaceholder="Leave blank to keep current password"
-                  passwordDescription="Minimum 15 characters. Leave blank to keep the current password."
+                  passwordDescription="Minimum 9 characters. Leave blank to keep the current password."
                 />
               ) : (
                 <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">

@@ -31,6 +31,7 @@ export const managedUserSchema = userRecordSchema.extend({
 
 export const managedUsersPageSchema = z.object({
   users: z.array(managedUserSchema),
+  totalCount: z.number().int().nonnegative().optional(),
   nextCursor: z.string().uuid().optional(),
 })
 
@@ -67,7 +68,7 @@ export const userImportResponseSchema = z.object({
 
 export const passwordSchema = z
   .string()
-  .min(15, 'Password must be at least 15 characters.')
+  .min(9, 'Password must be at least 9 characters.')
   .max(128, 'Password must be at most 128 characters.')
 
 export const createUserFormSchema = z.object({

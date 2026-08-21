@@ -32,6 +32,7 @@ type UserFormProps = {
   initialValues?: Partial<CreateUserFormValues>
   isEditing?: boolean
   lockedRole?: CreateUserFormValues['role']
+  createLabel?: string
   onSubmit: (values: CreateUserFormValues) => void | Promise<void>
   onCancel?: () => void
   serverErrors?: Partial<Record<keyof CreateUserFormValues, string[]>>
@@ -41,6 +42,7 @@ export function UserForm({
   initialValues,
   isEditing = false,
   lockedRole,
+  createLabel = 'User',
   onSubmit,
   onCancel,
   serverErrors = {},
@@ -124,7 +126,7 @@ export function UserForm({
               control={form.control}
               name="password"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className={lockedRole ? 'sm:col-span-2' : undefined}>
                   <PasswordField
                     {...field}
                     id="user-password"
@@ -133,7 +135,7 @@ export function UserForm({
                     autoComplete="new-password"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Use 15–128 characters.
+                    Use 9–128 characters.
                   </p>
                   <FormMessage />
                   {serverErrors.password?.map((message) => (
@@ -201,7 +203,7 @@ export function UserForm({
                 : 'Creating...'
               : isEditing
                 ? 'Update User'
-                : 'Create User'}
+                : `Create ${createLabel}`}
           </Button>
         </div>
       </form>

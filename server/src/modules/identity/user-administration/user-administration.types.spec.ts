@@ -12,6 +12,7 @@ describe('user administration request schemas', () => {
         role: UserRole.STUDENT,
         status: UserStatus.ACTIVE,
         courseId: '4c530c42-67bf-4cbe-a6f3-2c662564ddd1',
+        excludeCourseIds: ['5c530c42-67bf-4cbe-a6f3-2c662564ddd1'],
         search: '  demo student  ',
       }),
     ).toEqual({
@@ -19,7 +20,18 @@ describe('user administration request schemas', () => {
       role: UserRole.STUDENT,
       status: UserStatus.ACTIVE,
       courseId: '4c530c42-67bf-4cbe-a6f3-2c662564ddd1',
+      excludeCourseIds: ['5c530c42-67bf-4cbe-a6f3-2c662564ddd1'],
       search: 'demo student',
+    })
+  })
+
+  it('accepts one excluded course from a query parameter', () => {
+    expect(
+      listUsersQuerySchema.parse({
+        excludeCourseIds: '4c530c42-67bf-4cbe-a6f3-2c662564ddd1',
+      }),
+    ).toMatchObject({
+      excludeCourseIds: ['4c530c42-67bf-4cbe-a6f3-2c662564ddd1'],
     })
   })
 
@@ -48,7 +60,7 @@ describe('user administration request schemas', () => {
     }
   })
 
-  it('enforces unified password policy of at least 15 characters', () => {
+  it('enforces unified password policy of at least 9 characters', () => {
     const valid = createUserRequestSchema.safeParse({
       displayName: 'Demo Student',
       email: 'student@morshid.demo',

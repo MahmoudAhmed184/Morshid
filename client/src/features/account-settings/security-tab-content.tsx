@@ -188,7 +188,7 @@ export function SecurityTabContent() {
 
     if (newPassword.length < 15) {
       setPasswordSuccessMessage(null)
-      setPasswordErrorMessage('New password must be at least 15 characters.')
+      setPasswordErrorMessage('New password must be at least 9 characters.')
       return
     }
 
@@ -269,7 +269,7 @@ export function SecurityTabContent() {
                 aria-hidden
               />
               <p className="leading-relaxed">
-                Choose a strong passphrase with at least 15 characters. Changing
+                Choose a strong passphrase with at least 9 characters. Changing
                 your password will immediately revoke all other active sessions
                 on other devices and continue this browser session securely.
               </p>
@@ -340,7 +340,7 @@ export function SecurityTabContent() {
                     }
                   }}
                   disabled={isSubmittingPassword}
-                  placeholder="Enter at least 15 characters"
+                  placeholder="Enter at least 9 characters"
                   autoComplete="new-password"
                   minLength={15}
                   maxLength={128}
@@ -366,7 +366,7 @@ export function SecurityTabContent() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Must be at least 15 characters. Passphrases, spaces, and Unicode
+                Must be at least 9 characters. Passphrases, spaces, and Unicode
                 are supported.
               </p>
             </div>

@@ -99,6 +99,7 @@ describe('admin users API', () => {
         role: 'STUDENT',
         status: 'ACTIVE',
         courseId,
+        excludeCourseIds: userId,
         search: 'demo student',
       })
       return Response.json({ users: [managedUser] })
@@ -109,6 +110,7 @@ describe('admin users API', () => {
         role: 'STUDENT',
         status: 'ACTIVE',
         courseId,
+        excludeCourseIds: [userId],
         search: 'demo student',
       },
       { fetchImpl: fetchMock },

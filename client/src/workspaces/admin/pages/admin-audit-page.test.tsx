@@ -217,4 +217,15 @@ describe('AdminAuditPage', () => {
     await user.click(clearButton)
     expect(searchInput).toHaveValue('')
   })
+
+  it('renders date range filter trigger with presets', async () => {
+    renderPage()
+
+    const dateTrigger = await screen.findByRole('combobox', {
+      name: 'Date Range',
+    })
+    expect(dateTrigger).toBeInTheDocument()
+    expect(dateTrigger).toHaveTextContent('All time')
+  })
 })
+
