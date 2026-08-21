@@ -12,6 +12,7 @@ interface RecordCourseCreatedInput {
     code: string
     title: string
   }
+  universityId?: string
   requestContext?: AuditRequestContext
 }
 
@@ -26,12 +27,14 @@ interface RecordCourseUpdatedInput {
     code: string
     title: string
   }
+  universityId?: string
   requestContext?: AuditRequestContext
 }
 
 interface RecordCourseArchivedInput {
   actorUserId: string
   course: { id: string; code: string; title: string }
+  universityId?: string
   requestContext?: AuditRequestContext
 }
 
@@ -47,6 +50,7 @@ interface RecordMemberAddedInput {
       displayName: string
     }
   }
+  universityId?: string
   requestContext?: AuditRequestContext
 }
 
@@ -62,6 +66,7 @@ interface RecordMemberRemovedInput {
       displayName: string
     }
   }
+  universityId?: string
   requestContext?: AuditRequestContext
 }
 
@@ -77,6 +82,7 @@ interface RecordMemberRoleChangedInput {
       displayName: string
     }
   }
+  universityId?: string
   requestContext?: AuditRequestContext
 }
 
@@ -91,6 +97,7 @@ export class CourseAudit {
     await this.auditService.recordEvent(
       {
         actorUserId: input.actorUserId,
+        universityId: input.universityId,
         action: AUDIT_EVENT_ACTIONS.ADMIN_COURSE_CREATED,
         target: {
           type: AUDIT_TARGET_TYPES.COURSE,
@@ -114,6 +121,7 @@ export class CourseAudit {
     await this.auditService.recordEvent(
       {
         actorUserId: input.actorUserId,
+        universityId: input.universityId,
         action: AUDIT_EVENT_ACTIONS.ADMIN_COURSE_UPDATED,
         target: {
           type: AUDIT_TARGET_TYPES.COURSE,
@@ -149,6 +157,7 @@ export class CourseAudit {
     await this.auditService.recordEvent(
       {
         actorUserId: input.actorUserId,
+        universityId: input.universityId,
         action: AUDIT_EVENT_ACTIONS.ADMIN_COURSE_ARCHIVED,
         target: { type: AUDIT_TARGET_TYPES.COURSE, id: input.course.id },
         courseId: input.course.id,
@@ -166,6 +175,7 @@ export class CourseAudit {
     await this.auditService.recordEvent(
       {
         actorUserId: input.actorUserId,
+        universityId: input.universityId,
         action: AUDIT_EVENT_ACTIONS.ADMIN_COURSE_MEMBER_ADDED,
         target: {
           type: AUDIT_TARGET_TYPES.COURSE_MEMBERSHIP,
@@ -191,6 +201,7 @@ export class CourseAudit {
     await this.auditService.recordEvent(
       {
         actorUserId: input.actorUserId,
+        universityId: input.universityId,
         action: AUDIT_EVENT_ACTIONS.ADMIN_COURSE_MEMBER_REMOVED,
         target: {
           type: AUDIT_TARGET_TYPES.COURSE_MEMBERSHIP,
@@ -216,6 +227,7 @@ export class CourseAudit {
     await this.auditService.recordEvent(
       {
         actorUserId: input.actorUserId,
+        universityId: input.universityId,
         action: AUDIT_EVENT_ACTIONS.ADMIN_COURSE_MEMBER_ROLE_CHANGED,
         target: {
           type: AUDIT_TARGET_TYPES.COURSE_MEMBERSHIP,

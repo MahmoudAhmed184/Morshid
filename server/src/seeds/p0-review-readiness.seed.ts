@@ -19,8 +19,8 @@ export const P0_REVIEW_READINESS_FIXTURE = {
 export async function seedP0ReviewReadinessData(
   prisma: PrismaClient,
 ): Promise<void> {
-  const course = await prisma.course.findUniqueOrThrow({
-    where: { code: 'PYTHON-PROG-P0' },
+  const course = await prisma.course.findFirstOrThrow({
+    where: { code: 'PYTHON-PROG-P0', archivedAt: null },
     select: { id: true },
   })
 

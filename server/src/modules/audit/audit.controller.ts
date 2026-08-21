@@ -2,25 +2,39 @@ import {
   BadRequestException,
   ClassSerializerInterceptor,
   Controller,
+  ForbiddenException,
   Get,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
   Query,
+  Req,
   SerializeOptions,
   UseInterceptors,
 } from '@nestjs/common'
 import {
   ApiBadRequestResponse,
+  ApiExtraModels,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger'
 
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
-import { OpenApiIssuesErrorDto } from '../../common/http/openapi-error.dto'
+import {
+  NestBadRequestErrorDto,
+  OpenApiErrorDto,
+  OpenApiIssuesErrorDto,
+} from '../../common/http/openapi-error.dto'
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe'
+import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import { AuditService } from './audit.service'
 import { Roles, UserRole } from '../identity/identity.roles'
 import {
+  AuditEventDto,
   AuditEventListResponseDto,
   auditListQuerySchema,
   type AuditListQuery,
@@ -30,6 +44,7 @@ import {
 @ApiTags('audit')
 @Roles(UserRole.ADMIN)
 @ApiAccessTokenAuth()
+@ApiExtraModels(NestBadRequestErrorDto, OpenApiErrorDto)
 @UseInterceptors(ClassSerializerInterceptor)
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
@@ -89,8 +104,16 @@ export class AuditController {
       ),
     )
     query: AuditListQuery,
+    @Req() request: AuthenticatedHttpRequest,
   ): Promise<AuditEventListResponseDto> {
-    const page = await this.auditService.listAuditEvents(query)
+    const universityId = request.user.universityId
+    if (universityId === null) {
+      throw new ForbiddenException('Actor must belong to a university')
+    }
+    const page = await this.auditService.listAuditEvents({
+      ...query,
+      universityId,
+    })
     return {
       events: page.events.map((event) => ({
         ...event,
@@ -100,6 +123,40 @@ export class AuditController {
       page: page.page,
       limit: page.limit,
       totalPages: page.totalPages,
+    }
+  }
+
+  @Get(':id')
+  @SerializeOptions({
+    type: AuditEventDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Get audit event details by ID' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({
+    type: AuditEventDto,
+    description: 'Audit event details.',
+  })
+  @ApiBadRequestResponse({ type: NestBadRequestErrorDto })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  async getEventById(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<AuditEventDto> {
+    const universityId = request.user.universityId
+    if (universityId === null) {
+      throw new ForbiddenException('Actor must belong to a university')
+    }
+    const event = await this.auditService.findEventById(id, universityId)
+    if (event === null) {
+      throw new NotFoundException({
+        code: 'AUDIT_EVENT_NOT_FOUND',
+        message: `Audit event ${id} not found`,
+      })
+    }
+    return {
+      ...event,
+      createdAt: event.createdAt.toISOString(),
     }
   }
 }

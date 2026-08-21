@@ -236,6 +236,74 @@ class InMemorySeedPrisma implements P0DemoSeedClient {
   }
 
   readonly course = {
+    findFirst: jest.fn(
+      (args: {
+        where: {
+          universityId?: string
+          code?: string
+          archivedAt?: Date | null
+        }
+      }) => {
+        const found = [...this.courses.values()].find((c) => {
+          if (
+            args.where.universityId !== undefined &&
+            c.universityId !== args.where.universityId
+          ) {
+            return false
+          }
+          if (args.where.code !== undefined && c.code !== args.where.code) {
+            return false
+          }
+          return true
+        })
+        return Promise.resolve(found ?? null)
+      },
+    ),
+    create: jest.fn(
+      (args: {
+        data: {
+          code: string
+          title: string
+          createdById?: string | null
+          universityId: string
+        }
+      }) => {
+        const created = {
+          id: this.nextId('course'),
+          code: args.data.code,
+          title: args.data.title,
+          createdById: args.data.createdById ?? null,
+          universityId: args.data.universityId,
+        }
+        this.courses.set(created.code, created)
+        return Promise.resolve(created)
+      },
+    ),
+    update: jest.fn(
+      (args: {
+        where: { id: string }
+        data: {
+          title: string
+          createdById?: string | null
+          universityId?: string
+        }
+      }) => {
+        const course = [...this.courses.values()].find(
+          (c) => c.id === args.where.id,
+        )
+        if (!course) {
+          throw new Error(`Course ${args.where.id} not found`)
+        }
+        const updated = {
+          ...course,
+          title: args.data.title,
+          createdById: args.data.createdById ?? null,
+          universityId: args.data.universityId ?? course.universityId,
+        }
+        this.courses.set(updated.code, updated)
+        return Promise.resolve(updated)
+      },
+    ),
     upsert: jest.fn((args: CourseUpsertArgs) => {
       const existing = this.courses.get(args.where.code)
 
