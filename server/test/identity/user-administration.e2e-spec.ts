@@ -279,7 +279,7 @@ describe('Admin users (e2e)', () => {
         errors: [
           {
             field: 'password',
-            message: 'Password must be at least 15 characters',
+            message: 'Password must be at least 9 characters',
           },
         ],
       })
@@ -822,7 +822,7 @@ describe('Admin users (e2e)', () => {
         errors: [
           {
             field: 'newPassword',
-            message: 'Password must be at least 15 characters',
+            message: 'Password must be at least 9 characters',
           },
         ],
       })
@@ -847,7 +847,7 @@ describe('Admin users (e2e)', () => {
         errors: [
           {
             field: 'newPassword',
-            message: 'Password must be at least 15 characters',
+            message: 'Password must be at least 9 characters',
           },
         ],
       })

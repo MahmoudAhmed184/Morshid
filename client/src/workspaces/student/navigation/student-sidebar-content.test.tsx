@@ -356,6 +356,15 @@ describe('StudentSidebarContent', () => {
     expect(
       screen.queryByRole('button', { name: /choose course/i }),
     ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'New chat' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('searchbox', { name: 'Search your chats' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Open a course to start a conversation.'),
+    ).not.toBeInTheDocument()
   })
 
   it('filters the loaded conversations with the search box', () => {
