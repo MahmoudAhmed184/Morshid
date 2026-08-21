@@ -138,10 +138,7 @@ describe('SecurityTabContent', () => {
         'old-password-12345',
       )
       await user.type(screen.getByLabelText('New password'), 'Short1!')
-      await user.type(
-        screen.getByLabelText('Confirm new password'),
-        'Short1!',
-      )
+      await user.type(screen.getByLabelText('Confirm new password'), 'Short1!')
 
       await user.click(screen.getByRole('button', { name: 'Change password' }))
 
