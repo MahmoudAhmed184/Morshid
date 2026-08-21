@@ -43,8 +43,8 @@ function createManagedUsersPath({
   if (status) searchParams.set('status', status)
   if (courseId) searchParams.set('courseId', courseId)
   if (excludeCourseIds) {
-    for (const courseId of excludeCourseIds) {
-      searchParams.append('excludeCourseIds', courseId)
+    for (const excludedCourseId of excludeCourseIds) {
+      searchParams.append('excludeCourseIds', excludedCourseId)
     }
   }
   if (search) searchParams.set('search', search)

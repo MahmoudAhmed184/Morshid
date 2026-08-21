@@ -228,4 +228,3 @@ describe('AdminAuditPage', () => {
     expect(dateTrigger).toHaveTextContent('All time')
   })
 })
-

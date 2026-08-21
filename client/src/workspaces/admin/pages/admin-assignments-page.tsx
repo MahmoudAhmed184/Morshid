@@ -4,7 +4,7 @@ import {
   UserCheckIcon,
   UserMinusIcon,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -82,7 +82,10 @@ export function AdminAssignmentsPage({
     ? (coursePickerQuery.data ?? [])
     : (coursesQuery.data ?? [])
 
-  const memberPages = membersQuery.data?.pages ?? []
+  const memberPages = useMemo(
+    () => membersQuery.data?.pages ?? [],
+    [membersQuery.data?.pages],
+  )
   const assignedMembers = useMemo(
     () =>
       memberPages
@@ -102,26 +105,24 @@ export function AdminAssignmentsPage({
     Math.ceil(assignmentTotalCount / assignmentsPerPage),
   )
 
-  const updateUrlState = (next: Partial<AssignmentUrlState>) => {
-    onUrlStateChange?.({
-      courseId,
-      role: selectedRoleTab,
-      search: search || undefined,
-      page: assignmentPage,
-      ...next,
-    })
-  }
+  const updateUrlState = useCallback(
+    (next: Partial<AssignmentUrlState>) => {
+      onUrlStateChange?.({
+        courseId,
+        role: selectedRoleTab,
+        search: search || undefined,
+        page: assignmentPage,
+        ...next,
+      })
+    },
+    [assignmentPage, courseId, onUrlStateChange, search, selectedRoleTab],
+  )
 
   useEffect(() => {
     if (!selectedCourseId && courseId) {
-      setSelectedCourseId(courseId)
       updateUrlState({ courseId })
     }
-  }, [courseId, selectedCourseId])
-
-  useEffect(() => {
-    setAssignmentPage(1)
-  }, [courseId, debouncedSearch, selectedRoleTab])
+  }, [courseId, selectedCourseId, updateUrlState])
 
   useEffect(() => {
     if (
@@ -347,11 +348,15 @@ export function AdminAssignmentsPage({
             defaultCourseId={courseId}
             isPending={mutations.addMembers.isPending}
             onAssign={(input) => mutations.addMembers.mutateAsync(input)}
-            onAssigned={(courseId) => {
-              setSelectedCourseId(courseId)
+            onAssigned={(assignedCourseId) => {
+              setSelectedCourseId(assignedCourseId)
               setSearch('')
               setAssignmentPage(1)
-              updateUrlState({ courseId, search: undefined, page: 1 })
+              updateUrlState({
+                courseId: assignedCourseId,
+                search: undefined,
+                page: 1,
+              })
             }}
           />
         </div>

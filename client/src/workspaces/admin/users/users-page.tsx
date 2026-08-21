@@ -62,7 +62,10 @@ export function UsersPage({ role }: UsersPageProps) {
   })
   const coursesQuery = useCourseAdministration()
   const userMutations = useManagedUserMutations()
-  const userPages = usersQuery.data?.pages ?? []
+  const userPages = useMemo(
+    () => usersQuery.data?.pages ?? [],
+    [usersQuery.data?.pages],
+  )
   const totalCount = userPages.at(-1)?.totalCount ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / managedUsersPageSize))
   const users = useMemo(
@@ -72,10 +75,6 @@ export function UsersPage({ role }: UsersPageProps) {
       ),
     [currentUserId, page, role, userPages],
   )
-
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, role, statusFilter, courseId])
 
   useEffect(() => {
     if (

@@ -51,7 +51,7 @@ export function ReviewDetailPage({
   return (
     <div
       className={cn(
-        'mx-auto flex w-full max-w-7xl flex-col gap-4',
+        'mx-auto flex min-w-0 w-full max-w-7xl flex-col gap-4 overflow-x-hidden [overflow-wrap:anywhere]',
         presentation === 'dialog' && 'max-w-none',
       )}
     >
@@ -134,7 +134,10 @@ export function ReviewDetailPage({
         </div>
       ) : null}
 
-      <div aria-label="Review details layout" className="space-y-4">
+      <div
+        aria-label="Review details layout"
+        className="min-w-0 max-w-full space-y-4 overflow-x-hidden"
+      >
         <div className="space-y-4">
           <section
             className="space-y-3"
@@ -418,7 +421,10 @@ function ChatMessage({
   return (
     <article
       aria-label={`${sender} message`}
-      className={cn('flex items-end gap-2', isAssistant && 'flex-row-reverse')}
+      className={cn(
+        'flex min-w-0 max-w-full items-end gap-2',
+        isAssistant && 'flex-row-reverse',
+      )}
     >
       <span
         className={cn(
@@ -431,19 +437,26 @@ function ChatMessage({
       >
         {isAssistant ? <Bot className="size-4" /> : initials(sender)}
       </span>
-      <div className={cn('max-w-[88%] space-y-1', isAssistant && 'text-right')}>
+      <div
+        className={cn(
+          'min-w-0 max-w-[88%] space-y-1',
+          isAssistant && 'text-right',
+        )}
+      >
         <p className="px-1 text-xs font-medium text-muted-foreground">
           {sender}
         </p>
         <div
           className={cn(
-            'rounded-2xl border px-3 py-2 text-left shadow-xs',
+            'min-w-0 max-w-full rounded-2xl border px-3 py-2 text-left shadow-xs',
             isAssistant
               ? 'rounded-br-md border-primary/20 bg-primary/[0.045]'
               : 'rounded-bl-md bg-background',
           )}
         >
-          <p className="whitespace-pre-wrap text-sm leading-6">{content}</p>
+          <p className="whitespace-pre-wrap text-sm leading-6 [overflow-wrap:anywhere]">
+            {content}
+          </p>
           {editorPortalId ? <div id={editorPortalId} /> : null}
         </div>
         <time className="block px-1 text-[0.68rem] text-muted-foreground">

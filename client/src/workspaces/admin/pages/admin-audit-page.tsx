@@ -36,7 +36,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import {
   Table,
@@ -147,9 +146,7 @@ function getEventMeta(action: string) {
       action.includes('failed') || action.includes('deleted')
     return {
       category: 'Material',
-      badgeVariant: isDestructive
-        ? ('warning' as const)
-        : ('success' as const),
+      badgeVariant: isDestructive ? ('warning' as const) : ('success' as const),
       icon: FileTextIcon,
     }
   }
@@ -191,6 +188,7 @@ function formatTargetType(type: string): string {
 }
 
 export function AdminAuditPage() {
+  const [dateReference] = useState(() => Date.now())
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
@@ -247,14 +245,14 @@ export function AdminAuditPage() {
       }
     }
     if (datePreset === 'LAST_WEEK') {
-      const start = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      const start = new Date(dateReference - 7 * 24 * 60 * 60 * 1000)
       return {
         startDate: start.toISOString(),
         endDate: undefined,
       }
     }
     if (datePreset === 'LAST_MONTH') {
-      const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      const start = new Date(dateReference - 30 * 24 * 60 * 60 * 1000)
       return {
         startDate: start.toISOString(),
         endDate: undefined,
@@ -270,7 +268,7 @@ export function AdminAuditPage() {
       startDate: undefined,
       endDate: undefined,
     }
-  }, [datePreset, startDate, endDate])
+  }, [datePreset, startDate, endDate, dateReference])
 
   const auditQueryParams = useMemo(
     () => ({
@@ -406,7 +404,8 @@ export function AdminAuditPage() {
                   <div className="flex items-center gap-1.5 truncate">
                     <CalendarIcon className="size-3.5 text-muted-foreground shrink-0" />
                     <span className="truncate">
-                      {DATE_PRESET_OPTIONS.find((o) => o.value === datePreset)?.label ?? 'All time'}
+                      {DATE_PRESET_OPTIONS.find((o) => o.value === datePreset)
+                        ?.label ?? 'All time'}
                     </span>
                   </div>
                 </SelectTrigger>
@@ -497,7 +496,8 @@ export function AdminAuditPage() {
                   <span className="truncate">
                     {actionFilter === 'ALL'
                       ? 'All actions'
-                      : (ACTION_OPTIONS.find((a) => a.value === actionFilter)?.label ?? actionFilter)}
+                      : (ACTION_OPTIONS.find((a) => a.value === actionFilter)
+                          ?.label ?? actionFilter)}
                   </span>
                 </SelectTrigger>
                 <SelectContent>
@@ -527,7 +527,8 @@ export function AdminAuditPage() {
                     <span className="truncate">
                       {courseFilter === 'ALL'
                         ? 'All courses'
-                        : (coursesMap.get(courseFilter)?.code ?? 'Selected course')}
+                        : (coursesMap.get(courseFilter)?.code ??
+                          'Selected course')}
                     </span>
                   </SelectTrigger>
                   <SelectContent>
@@ -558,7 +559,8 @@ export function AdminAuditPage() {
                     <span className="truncate">
                       {actorFilter === 'ALL'
                         ? 'All actors'
-                        : (actorOptions.find((a) => a.value === actorFilter)?.label ?? 'Selected actor')}
+                        : (actorOptions.find((a) => a.value === actorFilter)
+                            ?.label ?? 'Selected actor')}
                     </span>
                   </SelectTrigger>
                   <SelectContent>
@@ -639,7 +641,9 @@ export function AdminAuditPage() {
                     </div>
                     <p className="text-[11px] text-muted-foreground/80 flex items-center gap-1 pt-0.5">
                       <ClockIcon className="size-3 text-muted-foreground/60" />
-                      <span>{dateFormatter.format(new Date(event.createdAt))}</span>
+                      <span>
+                        {dateFormatter.format(new Date(event.createdAt))}
+                      </span>
                     </p>
                   </div>
 
@@ -856,7 +860,9 @@ export function AdminAuditPage() {
                     type="button"
                     variant="ghost"
                     size="icon-xs"
-                    onClick={() => copyToClipboard(selectedEvent.id, 'event-id')}
+                    onClick={() =>
+                      copyToClipboard(selectedEvent.id, 'event-id')
+                    }
                     aria-label="Copy event ID"
                     className="text-muted-foreground hover:text-foreground shrink-0"
                   >

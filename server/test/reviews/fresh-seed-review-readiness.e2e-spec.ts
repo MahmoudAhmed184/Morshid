@@ -138,8 +138,8 @@ describe('Fresh migration and seed manual review readiness (e2e)', () => {
     expect(instructor.role).toBe('INSTRUCTOR')
     expect([student1.role, student2.role]).toEqual(['STUDENT', 'STUDENT'])
 
-    const course = await prisma.course.findUniqueOrThrow({
-      where: { code: P0_DEMO_COURSE.code },
+    const course = await prisma.course.findFirstOrThrow({
+      where: { code: P0_DEMO_COURSE.code, archivedAt: null },
       include: { memberships: true },
     })
     expect(course.createdById).toBe(instructor.id)
@@ -158,8 +158,8 @@ describe('Fresh migration and seed manual review readiness (e2e)', () => {
       ]),
     )
     await expect(
-      prisma.course.findUniqueOrThrow({
-        where: { code: P0_HIDDEN_ISOLATION_COURSE.code },
+      prisma.course.findFirstOrThrow({
+        where: { code: P0_HIDDEN_ISOLATION_COURSE.code, archivedAt: null },
         include: { memberships: true },
       }),
     ).resolves.toMatchObject({ createdById: null, memberships: [] })

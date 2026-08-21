@@ -106,8 +106,8 @@ export function ConfirmDialog({
     <AlertDialog open={isOpen} onOpenChange={setOpen}>
       {trigger ? <AlertDialogTrigger render={trigger} /> : null}
       <AlertDialogContent className="max-w-[calc(100%-2rem)] gap-5 rounded-2xl p-5 shadow-2xl sm:max-w-[420px] sm:p-6">
-        <AlertDialogHeader className="flex flex-col gap-2 text-left">
-          <div className="flex items-start gap-3">
+        <AlertDialogHeader className="min-w-0 max-w-full gap-2 text-left">
+          <div className="flex min-w-0 max-w-full items-start gap-3">
             <span
               className={cn(
                 'flex size-9 shrink-0 items-center justify-center rounded-full',
@@ -145,12 +145,15 @@ export function ConfirmDialog({
         ) : null}
 
         {errorMessage ? (
-          <p role="alert" className="mt-2 text-sm text-destructive">
+          <p
+            role="alert"
+            className="mt-2 min-w-0 text-sm text-destructive [overflow-wrap:anywhere]"
+          >
             {errorMessage}
           </p>
         ) : null}
 
-        <AlertDialogFooter className="flex flex-row items-center justify-end gap-2 pt-1">
+        <AlertDialogFooter className="flex flex-row flex-wrap items-center justify-end gap-2 pt-1">
           <AlertDialogCancel
             disabled={isConfirming}
             className="h-9 rounded-lg border border-input bg-background px-4 text-sm font-medium text-foreground shadow-2xs hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/30"

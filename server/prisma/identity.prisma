@@ -52,6 +52,7 @@ model University {
   owner         User?                    @relation("UniversityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   users         User[]                   @relation("UniversityUsers")
   courses       Course[]                 @relation("UniversityCourses")
+  auditLogs     AuditLog[]               @relation("UniversityAuditLogs")
   subscription  UniversitySubscription?  @relation("UniversitySubscription")
   monthlyUsages UniversityMonthlyUsage[] @relation("UniversityMonthlyUsage")
   invoices      SubscriptionInvoice[]

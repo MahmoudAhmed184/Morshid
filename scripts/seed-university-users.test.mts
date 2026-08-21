@@ -13,9 +13,11 @@ void test('SEEDED_50_USERS has unique emails and valid roles', () => {
   let studentCount = 0
 
   for (const user of SEEDED_50_USERS) {
+    const role: string = user.role
+
     assert.match(user.email, /^demo\.(student|instructor)\d{2}@morshid\.demo$/)
     assert.ok(user.displayName.trim().length > 0)
-    assert.ok(user.role === 'STUDENT' || user.role === 'INSTRUCTOR')
+    assert.ok(role === 'STUDENT' || role === 'INSTRUCTOR')
 
     if (user.role === 'INSTRUCTOR') {
       instructorCount += 1
@@ -23,7 +25,11 @@ void test('SEEDED_50_USERS has unique emails and valid roles', () => {
       studentCount += 1
     }
 
-    assert.equal(emails.has(user.email), false, `Duplicate email: ${user.email}`)
+    assert.equal(
+      emails.has(user.email),
+      false,
+      `Duplicate email: ${user.email}`,
+    )
     emails.add(user.email)
   }
 

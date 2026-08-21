@@ -23,7 +23,6 @@ export function AdminCoursesPage() {
   const totalPages = Math.max(1, Math.ceil(totalCount / 10))
   const courses = pages[page - 1]?.courses ?? []
 
-  useEffect(() => setPage(1), [debouncedSearch])
   useEffect(() => {
     if (
       page > pages.length &&
@@ -47,7 +46,10 @@ export function AdminCoursesPage() {
         <DataToolbar
           className="border-b px-4 py-3"
           search={search}
-          onSearchChange={setSearch}
+          onSearchChange={(value) => {
+            setSearch(value)
+            setPage(1)
+          }}
           searchPlaceholder="Search courses by code or title..."
           actions={
             <CreateAdminCourseDialog
@@ -90,11 +92,7 @@ export function AdminCoursesPage() {
                 limit={10}
                 itemName="courses"
                 disabled={coursesQuery.isFetchingNextPage}
-                onPageChange={(nextPage) => {
-                  setPage(nextPage)
-                  if (nextPage > pages.length && coursesQuery.hasNextPage)
-                    void coursesQuery.fetchNextPage()
-                }}
+                onPageChange={setPage}
               />
             </div>
           ) : null}

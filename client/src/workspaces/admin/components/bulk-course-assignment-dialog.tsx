@@ -111,10 +111,6 @@ export function BulkCourseAssignmentDialog({
   )
 
   useEffect(() => {
-    setUserPage(1)
-  }, [debouncedUserSearch, role, selectedCourseIds])
-
-  useEffect(() => {
     if (
       open &&
       step === 'users' &&
@@ -198,6 +194,7 @@ export function BulkCourseAssignmentDialog({
   }
 
   const toggleCourse = (courseId: string) => {
+    setUserPage(1)
     setSelectedCourseIds((current) => {
       const next = new Set(current)
       if (next.has(courseId)) next.delete(courseId)
@@ -207,6 +204,7 @@ export function BulkCourseAssignmentDialog({
   }
 
   const toggleVisibleCourses = () => {
+    setUserPage(1)
     setSelectedCourseIds((current) => {
       const next = new Set(current)
       if (allVisibleCoursesSelected) {
@@ -406,7 +404,10 @@ export function BulkCourseAssignmentDialog({
                   usersQuery.isFetchingNextPage && userViewMode === 'all'
                 }
                 onViewModeChange={setUserViewMode}
-                onSearchChange={setUserSearch}
+                onSearchChange={(value) => {
+                  setUserSearch(value)
+                  setUserPage(1)
+                }}
                 onToggleUser={toggleUser}
                 onToggleAll={toggleVisibleUsers}
                 onToggleAllUsers={() => void toggleAllUsers()}

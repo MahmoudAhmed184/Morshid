@@ -10,6 +10,7 @@ jest.mock('../../platform/database/prisma.service', () => ({
 }))
 
 interface CreateAuditLogData {
+  universityId?: string | null
   actorUserId?: string | null
   action: string
   targetType: string
@@ -27,10 +28,12 @@ interface CreateAuditLogArgs {
 interface FindUniqueAuditLogArgs {
   where: {
     id: string
+    universityId?: string
   }
 }
 
 interface AuditLogWhereClause {
+  universityId?: string
   action?: string
   targetType?: string
   courseId?: string
@@ -84,6 +87,7 @@ class InMemoryAuditLogDelegate {
     const sequenceText = sequence.toString().padStart(2, '0')
     const record: AuditLog = {
       id: `00000000-0000-4000-8000-${sequence.toString().padStart(12, '0')}`,
+      universityId: args.data.universityId ?? null,
       actorUserId: args.data.actorUserId ?? null,
       action: args.data.action,
       targetType: args.data.targetType,
@@ -105,6 +109,30 @@ class InMemoryAuditLogDelegate {
     return Promise.resolve(this.records.get(args.where.id) ?? null)
   })
 
+  readonly findFirst = jest.fn(
+    (args: {
+      where: { id: string; universityId?: string }
+      include?: { actor?: unknown }
+    }) => {
+      const record = this.records.get(args.where.id)
+      if (!record) return Promise.resolve(null)
+      if (
+        args.where.universityId !== undefined &&
+        record.universityId !== args.where.universityId
+      ) {
+        return Promise.resolve(null)
+      }
+      const actor =
+        record.actorUserId !== null
+          ? (this.actors.get(record.actorUserId) ?? null)
+          : null
+      return Promise.resolve({
+        ...record,
+        actor,
+      })
+    },
+  )
+
   private filterRecords(where?: AuditLogWhereClause): (AuditLog & {
     actor: { id: string; email: string; displayName: string } | null
   })[] {
@@ -121,6 +149,12 @@ class InMemoryAuditLogDelegate {
     }
 
     return all.filter((event) => {
+      if (
+        where.universityId !== undefined &&
+        event.universityId !== where.universityId
+      ) {
+        return false
+      }
       if (where.action !== undefined && event.action !== where.action) {
         return false
       }
@@ -232,6 +266,8 @@ class InMemoryAuditLogDelegate {
 
 async function buildService() {
   const auditLog = new InMemoryAuditLogDelegate()
+  const course = { findUnique: jest.fn().mockResolvedValue(null) }
+  const user = { findUnique: jest.fn().mockResolvedValue(null) }
   const moduleRef = await Test.createTestingModule({
     providers: [
       AuditService,
@@ -239,6 +275,8 @@ async function buildService() {
         provide: PrismaService,
         useValue: {
           auditLog,
+          course,
+          user,
         },
       },
     ],
@@ -259,6 +297,7 @@ describe('AuditService', () => {
     }
 
     const created = await service.recordEvent({
+      universityId: '00000000-0000-4000-8000-000000000099',
       actorUserId: '00000000-0000-0000-0000-000000000001',
       action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_DISABLED,
       target: {
@@ -275,6 +314,7 @@ describe('AuditService', () => {
 
     expect(auditLog.create).toHaveBeenCalledWith({
       data: {
+        universityId: '00000000-0000-4000-8000-000000000099',
         actorUserId: '00000000-0000-0000-0000-000000000001',
         action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_DISABLED,
         targetType: AUDIT_TARGET_TYPES.USER,
@@ -287,6 +327,7 @@ describe('AuditService', () => {
     })
     expect(created).toMatchObject({
       id: '00000000-0000-4000-8000-000000000001',
+      universityId: '00000000-0000-4000-8000-000000000099',
       actorUserId: '00000000-0000-0000-0000-000000000001',
       action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_DISABLED,
       targetType: AUDIT_TARGET_TYPES.USER,
@@ -311,6 +352,7 @@ describe('AuditService', () => {
 
     expect(auditLog.create).toHaveBeenCalledWith({
       data: {
+        universityId: null,
         actorUserId: null,
         action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_FAILED,
         targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
@@ -322,6 +364,7 @@ describe('AuditService', () => {
       },
     })
     expect(created).toMatchObject({
+      universityId: null,
       actorUserId: null,
       targetId: null,
       courseId: null,
@@ -334,6 +377,7 @@ describe('AuditService', () => {
   it('reads an event by id from the audit log store', async () => {
     const { auditLog, service } = await buildService()
     const created = await service.recordEvent({
+      universityId: '00000000-0000-4000-8000-000000000099',
       actorUserId: '00000000-0000-0000-0000-000000000001',
       action: AUDIT_EVENT_ACTIONS.ACCESS_COURSE_BOUNDARY_DENIED,
       target: {
@@ -347,12 +391,50 @@ describe('AuditService', () => {
     })
 
     await expect(service.findEventById(created.id)).resolves.toEqual(created)
+    await expect(
+      service.findEventById(created.id, '00000000-0000-4000-8000-000000000099'),
+    ).resolves.toEqual(created)
+    await expect(
+      service.findEventById(created.id, '00000000-0000-4000-8000-000000000001'),
+    ).resolves.toBeNull()
     await expect(service.findEventById('missing')).resolves.toBeNull()
-    expect(auditLog.findUnique).toHaveBeenCalledWith({
+    expect(auditLog.findFirst).toHaveBeenCalledWith({
       where: {
         id: created.id,
       },
+      include: {
+        actor: {
+          select: { id: true, email: true, displayName: true },
+        },
+      },
     })
+  })
+
+  it('enforces tenant isolation: listAuditEvents filters by universityId', async () => {
+    const { service } = await buildService()
+    const uniA = '00000000-0000-4000-8000-000000000001'
+    const uniB = '00000000-0000-4000-8000-000000000002'
+
+    await service.recordEvent({
+      universityId: uniA,
+      action: AUDIT_EVENT_ACTIONS.ADMIN_COURSE_CREATED,
+      target: { type: AUDIT_TARGET_TYPES.COURSE },
+    })
+    await service.recordEvent({
+      universityId: uniB,
+      action: AUDIT_EVENT_ACTIONS.ADMIN_COURSE_CREATED,
+      target: { type: AUDIT_TARGET_TYPES.COURSE },
+    })
+
+    const eventsA = await service.listAuditEvents({ universityId: uniA })
+    expect(eventsA.events).toHaveLength(1)
+    expect(eventsA.events[0].universityId).toBe(uniA)
+    expect(eventsA.total).toBe(1)
+
+    const eventsB = await service.listAuditEvents({ universityId: uniB })
+    expect(eventsB.events).toHaveLength(1)
+    expect(eventsB.events[0].universityId).toBe(uniB)
+    expect(eventsB.total).toBe(1)
   })
 
   it('lists the most recent audit events with safe actor summaries', async () => {

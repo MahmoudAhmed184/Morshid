@@ -72,7 +72,7 @@ describe('user administration request schemas', () => {
     const short = createUserRequestSchema.safeParse({
       displayName: 'Demo Student',
       email: 'student@morshid.demo',
-      password: 'ShortPassword1',
+      password: 'Short1!',
       role: UserRole.STUDENT,
     })
     expect(short.success).toBe(false)

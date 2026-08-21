@@ -35,6 +35,7 @@ class InMemoryAuditLogDelegate {
     const sequence = this.nextSequence
     const record: AuditLog = {
       id: `audit-${sequence.toString()}`,
+      universityId: null,
       actorUserId: args.data.actorUserId ?? null,
       action: args.data.action,
       targetType: args.data.targetType,
@@ -57,6 +58,8 @@ class InMemoryAuditLogDelegate {
 
 async function buildService() {
   const auditLog = new InMemoryAuditLogDelegate()
+  const course = { findUnique: jest.fn().mockResolvedValue(null) }
+  const user = { findUnique: jest.fn().mockResolvedValue(null) }
   const moduleRef = await Test.createTestingModule({
     providers: [
       AuditService,
@@ -65,6 +68,8 @@ async function buildService() {
         provide: PrismaService,
         useValue: {
           auditLog,
+          course,
+          user,
         },
       },
     ],
@@ -72,6 +77,8 @@ async function buildService() {
 
   return {
     auditLog,
+    course,
+    user,
     service: moduleRef.get(AccessAuditService),
   }
 }
@@ -102,6 +109,7 @@ describe('AccessAuditService', () => {
 
     expect(auditLog.create).toHaveBeenCalledWith({
       data: {
+        universityId: null,
         actorUserId: '00000000-0000-4000-8000-000000000003',
         action: AUDIT_EVENT_ACTIONS.ACCESS_RBAC_DENIED,
         targetType: AUDIT_TARGET_TYPES.SYSTEM,
@@ -164,6 +172,7 @@ describe('AccessAuditService', () => {
 
     expect(auditLog.create).toHaveBeenCalledWith({
       data: {
+        universityId: null,
         actorUserId: '00000000-0000-4000-8000-000000000003',
         action: AUDIT_EVENT_ACTIONS.ACCESS_COURSE_BOUNDARY_DENIED,
         targetType: AUDIT_TARGET_TYPES.COURSE,

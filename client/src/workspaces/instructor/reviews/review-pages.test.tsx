@@ -563,6 +563,73 @@ describe('Instructor review pages', () => {
     ).toHaveValue('Flagged assistant answer')
   })
 
+  it('focuses Edit and closes it before opening Approve or Reject', async () => {
+    const user = userEvent.setup()
+    useDetailMock.mockReturnValue(detailQuery())
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
+    expect(screen.getByLabelText('Edited guidance')).toHaveFocus()
+
+    await user.click(screen.getByRole('button', { name: 'Approve' }))
+    expect(screen.queryByLabelText('Edited guidance')).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'Publish outcome' }),
+    ).toBeVisible()
+    expect(screen.getByText('Approve').closest('button')).toBeDisabled()
+    expect(screen.getByText('Reject').closest('button')).toBeDisabled()
+    expect(screen.getByText('Review & Edit').closest('button')).toBeDisabled()
+
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
+    expect(screen.getByLabelText('Edited guidance')).toHaveFocus()
+
+    await user.click(screen.getByRole('button', { name: 'Reject' }))
+    expect(screen.queryByLabelText('Edited guidance')).toBeNull()
+    expect(screen.getByLabelText('Rejection reason')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Publish outcome' })).toBeNull()
+    expect(screen.getByText('Approve').closest('button')).toBeDisabled()
+    expect(screen.getByText('Reject').closest('button')).toBeDisabled()
+    expect(screen.getByText('Review & Edit').closest('button')).toBeDisabled()
+  })
+
+  it('wraps long unbroken Review Details content without changing context controls', async () => {
+    const user = userEvent.setup()
+    const longUrl = `https://example.test/${'unbroken'.repeat(80)}`
+    useDetailMock.mockReturnValue(
+      detailQuery({
+        flaggedExchange: {
+          ...detail().flaggedExchange,
+          content: longUrl,
+        },
+        assistantResponse: {
+          ...detail().assistantResponse,
+          content: longUrl,
+        },
+      }),
+    )
+    render(
+      <ReviewDetailPage reviewCaseId={reviewCaseId} presentation="dialog" />,
+    )
+
+    const layout = screen.getByLabelText('Review details layout')
+    expect(layout).toHaveClass('overflow-x-hidden')
+    for (const message of screen.getAllByText(longUrl)) {
+      expect(message).toHaveClass('[overflow-wrap:anywhere]')
+    }
+
+    const sources = screen.getByRole('button', { name: 'Sources (1)' })
+    const context = screen.getByRole('button', {
+      name: 'Previous & Following Context',
+    })
+    expect(sources).toHaveAttribute('aria-expanded', 'false')
+    expect(context).toHaveAttribute('aria-expanded', 'false')
+    await user.click(sources)
+    await user.click(context)
+    expect(sources).toHaveAttribute('aria-expanded', 'true')
+    expect(context).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('keeps the edited working draft while switching action modes', async () => {
     const user = userEvent.setup()
     useDetailMock.mockReturnValue(detailQuery())

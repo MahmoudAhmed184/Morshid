@@ -54,6 +54,7 @@ export function ReviewActionPanel({
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation | null>(null)
   const isPending = resolveMutation.isPending || rejectMutation.isPending
+  const actionsAreLocked = isPending || pendingConfirmation !== null
   const editPortalTarget =
     mode === 'EDITED' && typeof document !== 'undefined'
       ? document.getElementById(editPortalId)
@@ -61,11 +62,15 @@ export function ReviewActionPanel({
 
   function approveOriginal() {
     if (isPending || submissionInFlight.current) return
+    setMode(null)
+    setValidationError(null)
     setPendingConfirmation({ mode: 'APPROVED', content: originalContent })
   }
 
   function rejectRequest() {
     if (isPending || submissionInFlight.current) return
+    setMode(null)
+    setValidationError(null)
     setPendingConfirmation({ mode: 'REJECT', content: drafts.REJECT })
   }
 
@@ -148,6 +153,7 @@ export function ReviewActionPanel({
 
   function openEditor(nextMode: EditorMode) {
     if (isPending) return
+    setPendingConfirmation(null)
     setMode(nextMode)
     setValidationError(null)
     setActionError(null)
@@ -171,17 +177,20 @@ export function ReviewActionPanel({
   }
 
   return (
-    <section aria-labelledby="review-actions-title">
+    <section
+      className="min-w-0 max-w-full overflow-x-hidden [overflow-wrap:anywhere]"
+      aria-labelledby="review-actions-title"
+    >
       <h2 id="review-actions-title" className="sr-only">
         Review actions
       </h2>
       <div className="space-y-3 border-t pt-3">
-        <div className="flex justify-end gap-2" role="toolbar">
+        <div className="flex flex-wrap justify-end gap-2" role="toolbar">
           {canReject ? (
             <Button
               type="button"
               variant="outline"
-              disabled={isPending}
+              disabled={actionsAreLocked}
               onClick={rejectRequest}
               className="border-destructive/70 text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
@@ -191,7 +200,7 @@ export function ReviewActionPanel({
           <Button
             type="button"
             variant="outline"
-            disabled={isPending}
+            disabled={actionsAreLocked}
             onClick={() => openEditor('EDITED')}
           >
             Review & Edit
@@ -199,7 +208,7 @@ export function ReviewActionPanel({
           <Button
             type="button"
             variant="default"
-            disabled={isPending}
+            disabled={actionsAreLocked}
             onClick={approveOriginal}
           >
             Approve
@@ -238,7 +247,7 @@ export function ReviewActionPanel({
         title="Publish this terminal review outcome?"
         description={
           pendingConfirmation === null ? undefined : (
-            <span className="block space-y-3">
+            <span className="block min-w-0 space-y-3 overflow-x-hidden [overflow-wrap:anywhere]">
               <span className="block">
                 {pendingConfirmation.mode === 'REJECT'
                   ? 'Explain why this request is being rejected:'
@@ -257,7 +266,7 @@ export function ReviewActionPanel({
                   }
                 />
               ) : (
-                <span className="block max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-foreground">
+                <span className="block min-w-0 max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-foreground [overflow-wrap:anywhere]">
                   {pendingConfirmation.content}
                 </span>
               )}
@@ -297,6 +306,7 @@ function ReviewEditor({
       <Label htmlFor="review-action-content">Edited guidance</Label>
       <Textarea
         id="review-action-content"
+        autoFocus
         value={value}
         disabled={isPending}
         aria-invalid={validationError !== null}
@@ -306,6 +316,7 @@ function ReviewEditor({
         maxLength={4_000}
         rows={4}
         placeholder="Write the guidance the Student should receive…"
+        className="max-w-full [overflow-wrap:anywhere]"
         onChange={(event) => onChange(event.target.value)}
       />
       {validationError !== null ? (

@@ -22,6 +22,7 @@ import { PrismaService } from '../../src/platform/database/prisma.service'
 import { RedisService } from '../../src/platform/cache/redis.service'
 import { P0_DEMO_PASSWORD } from '../../src/seeds/p0-demo.seed'
 import { CourseMembershipRole } from '../../src/generated/prisma/client'
+import { UserRole, UserStatus } from '../../src/modules/identity/identity.roles'
 import { IdentityTestStore } from '../support/identity-test-store'
 import { NoopMaterialProcessingScheduler } from '../support/noop-material-processing-scheduler'
 
@@ -259,6 +260,140 @@ describe('Course administration (e2e)', () => {
         })
 
       expect(store.courses.size).toBe(2)
+    })
+
+    it('rejects duplicate course codes with case and whitespace variations', async () => {
+      const token = await signInAs('admin@morshid.demo')
+
+      // Case variation
+      await request(app.getHttpServer())
+        .post('/api/v1/admin/courses')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: 'python-prog-p0', title: 'Duplicate Lowercase' })
+        .expect(409)
+        .expect({
+          code: COURSE_ADMINISTRATION_ERROR_CODES.COURSE_CODE_ALREADY_EXISTS,
+          message: 'A course with this code already exists',
+          courseCode: 'python-prog-p0',
+        })
+
+      // Whitespace variation
+      await request(app.getHttpServer())
+        .post('/api/v1/admin/courses')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: '  PYTHON-PROG-P0  ', title: 'Duplicate Whitespace' })
+        .expect(409)
+        .expect({
+          code: COURSE_ADMINISTRATION_ERROR_CODES.COURSE_CODE_ALREADY_EXISTS,
+          message: 'A course with this code already exists',
+          courseCode: 'PYTHON-PROG-P0',
+        })
+    })
+
+    it('allows reusing a deleted/archived course code', async () => {
+      const token = await signInAs('admin@morshid.demo')
+
+      // 1. Create course cs-103
+      const createRes = await request(app.getHttpServer())
+        .post('/api/v1/admin/courses')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: 'cs-103', title: 'Intro to Computer Science' })
+        .expect(201)
+
+      const createdCourse = (
+        createRes.body as CourseAdministrationDetailResponseDto
+      ).course
+      const courseId = createdCourse.id
+
+      // 2. Delete (archive) course cs-103
+      await request(app.getHttpServer())
+        .delete(`/api/v1/admin/courses/${courseId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204)
+
+      // 3. Re-create course with the same code cs-103
+      const recreateRes = await request(app.getHttpServer())
+        .post('/api/v1/admin/courses')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: 'cs-103', title: 'New Intro to CS' })
+        .expect(201)
+
+      const recreatedCourse = (
+        recreateRes.body as CourseAdministrationDetailResponseDto
+      ).course
+      expect(recreatedCourse).toMatchObject({
+        code: 'cs-103',
+        title: 'New Intro to CS',
+      })
+      expect(recreatedCourse.id).not.toBe(courseId)
+    })
+
+    it('normalizes case and whitespace when creating course', async () => {
+      const token = await signInAs('admin@morshid.demo')
+
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/admin/courses')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: '  CS-901  ', title: '  Operating Systems  ' })
+        .expect(201)
+
+      const body = response.body as CourseAdministrationDetailResponseDto
+      expect(body.course).toMatchObject({
+        code: 'CS-901',
+        title: 'Operating Systems',
+      })
+    })
+
+    it('allows reusing the same course code across different university scopes', async () => {
+      // Seed second university with second admin
+      const secondUniId = '00000000-0000-4000-8000-000000000002'
+      const secondAdminId = '00000000-0000-4000-8000-000000000022'
+      const admin1 = store.findUserByEmail('admin@morshid.demo')
+      if (!admin1) {
+        throw new Error('Missing seeded admin user')
+      }
+
+      store.universities.set(secondUniId, {
+        id: secondUniId,
+        name: 'Second University',
+        code: 'SECOND-UNI',
+        status: 'ACTIVE',
+        ownerId: secondAdminId,
+        createdAt: new Date('2026-07-06T12:00:00.000Z'),
+        updatedAt: new Date('2026-07-06T12:00:00.000Z'),
+      })
+
+      store.users.set(secondAdminId, {
+        id: secondAdminId,
+        universityId: secondUniId,
+        email: 'admin2@morshid.demo',
+        displayName: 'Second Admin',
+        role: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
+        passwordHash: admin1.passwordHash,
+        createdAt: new Date('2026-07-06T12:00:00.000Z'),
+        updatedAt: new Date('2026-07-06T12:00:00.000Z'),
+        disabledAt: null,
+        disabledById: null,
+        lastLoginAt: null,
+        passwordChangedAt: new Date('2026-07-06T12:00:00.000Z'),
+      })
+
+      const admin2Token = await signInAs('admin2@morshid.demo')
+
+      // University 1 already has active PYTHON-PROG-P0
+      // Admin 2 in University 2 creates PYTHON-PROG-P0 -> succeeds!
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/admin/courses')
+        .set('Authorization', `Bearer ${admin2Token}`)
+        .send({ code: 'PYTHON-PROG-P0', title: 'Python in Uni 2' })
+        .expect(201)
+
+      const body = res.body as CourseAdministrationDetailResponseDto
+      expect(body.course).toMatchObject({
+        code: 'PYTHON-PROG-P0',
+        title: 'Python in Uni 2',
+      })
     })
 
     it('returns field-level validation errors for invalid payloads', async () => {

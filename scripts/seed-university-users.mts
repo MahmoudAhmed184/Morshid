@@ -1,10 +1,6 @@
-import { PrismaPg } from '@prisma/adapter-pg'
 import { config as loadEnv } from 'dotenv'
 
-import { PrismaClient } from '../server/src/generated/prisma/client.js'
-import {
-  createDeterministicArgon2idPasswordHash,
-} from '../server/src/modules/identity/password-hasher.js'
+import type { PrismaClient } from '../server/src/generated/prisma/client.js'
 
 const DEMO_PASSWORD = 'MorshidDemoP0!'
 
@@ -283,13 +279,21 @@ export async function seed50UniversityUsers(options?: {
   const localDatabaseUrl =
     'postgresql://morshid:morshid_local_password@localhost:5432/morshid'
 
-  const prisma =
-    options?.prisma ??
-    new PrismaClient({
+  let prisma = options?.prisma
+  if (prisma === undefined) {
+    const [{ PrismaPg }, { PrismaClient }] = await Promise.all([
+      import('@prisma/adapter-pg'),
+      import('../server/src/generated/prisma/client.js'),
+    ])
+    prisma = new PrismaClient({
       adapter: new PrismaPg({
         connectionString: process.env.DATABASE_URL ?? localDatabaseUrl,
       }),
     })
+  }
+
+  const { createDeterministicArgon2idPasswordHash } =
+    await import('../server/src/modules/identity/password-hasher.js')
 
   const shouldDisconnect = options?.prisma === undefined
 
@@ -308,7 +312,7 @@ export async function seed50UniversityUsers(options?: {
 
     const universityId = admin.universityId ?? admin.ownedUniversity?.id
 
-    if (!universityId) {
+    if (universityId === undefined) {
       throw new Error(
         `Admin user "${adminEmail}" is not associated with any university.`,
       )
